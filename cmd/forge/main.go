@@ -1,11 +1,13 @@
 package main
 
 import (
-	"os"
+	"log"
 
 	"github.com/kaizenforyou91/forge/internal/cli"
 )
 
 func main() {
-	os.Exit(cli.Run(os.Args[1:]))
+	if err := cli.Execute(); err != nil {
+		log.Fatal(err)
+	}
 }

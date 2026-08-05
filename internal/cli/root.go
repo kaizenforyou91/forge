@@ -1,31 +1,12 @@
 package cli
 
-import (
-	"fmt"
-)
+import "github.com/spf13/cobra"
 
-func Run(args []string) int {
-	if len(args) == 0 {
-		Help()
-		return 0
-	}
+var rootCmd = &cobra.Command{
+	Use:   "forge",
+	Short: "Forge Workspace",
+	Long: `Forge Workspace
 
-	switch args[0] {
-
-	case "version":
-		Version()
-
-	case "doctor":
-		Doctor()
-
-	case "help":
-		Help()
-
-	default:
-		fmt.Printf("Unknown command: %s\n\n", args[0])
-		Help()
-		return 1
-	}
-
-	return 0
+Modern Development Platform
+Built with Go.`,
 }

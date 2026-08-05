@@ -1,16 +1,29 @@
 package cli
 
-import "fmt"
+import (
+	"fmt"
 
-var (
-	Version = "dev"
-	Commit  = "none"
-	Build   = "unknown"
+	"github.com/spf13/cobra"
 )
 
-func Version() {
-	fmt.Println("Forge CLI")
-	fmt.Printf("Version : %s\n", Version)
-	fmt.Printf("Commit  : %s\n", Commit)
-	fmt.Printf("Built   : %s\n", Build)
+var (
+	AppVersion = "dev"
+	Commit     = "none"
+	BuildTime  = "unknown"
+)
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print Forge version",
+	Run: func(cmd *cobra.Command, args []string) {
+
+		fmt.Println("Forge CLI")
+		fmt.Printf("Version : %s\n", AppVersion)
+		fmt.Printf("Commit  : %s\n", Commit)
+		fmt.Printf("Built   : %s\n", BuildTime)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(versionCmd)
 }
