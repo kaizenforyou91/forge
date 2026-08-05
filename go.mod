@@ -1,3 +1,3 @@
 module github.com/kaizenforyou91/forge
 
-go 1.26.5
+go 1.26
