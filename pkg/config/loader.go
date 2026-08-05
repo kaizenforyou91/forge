@@ -18,5 +18,9 @@ func Load(path string) (Config, error) {
 		return cfg, err
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return cfg, err
+	}
+
 	return cfg, nil
 }
