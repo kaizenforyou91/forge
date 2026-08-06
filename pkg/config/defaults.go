@@ -1,8 +1,11 @@
 package config
 
+// Default returns the default Forge configuration.
 func Default() Config {
 
 	return Config{
+
+		Version: CurrentVersion,
 
 		Project: Project{
 			Name:    "forge-app",
@@ -18,6 +21,8 @@ func Default() Config {
 			Host: "localhost",
 			Port: 8080,
 		},
+
+		Secrets: Secrets{},
 
 		Plugins: Plugins{
 			Logger: LoggerPlugin{

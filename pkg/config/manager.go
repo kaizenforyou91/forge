@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Manager provides high-level configuration management operations.
 type Manager struct {
 	mu sync.RWMutex
 

@@ -6,11 +6,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-func Save(path string, cfg Config) error {
-
-	if err := Backup(path); err != nil {
-		return err
-	}
+func writeConfig(path string, cfg Config) error {
 
 	data, err := yaml.Marshal(&cfg)
 	if err != nil {
@@ -25,6 +21,23 @@ func Save(path string, cfg Config) error {
 
 	return os.Rename(tmp, path)
 }
+
+// Save writes a configuration atomically.
+func Save(path string, cfg Config) error {
+
+	if err := SaveHistory(cfg); err != nil {
+		return err
+	}
+
+	if err := EncryptConfig(&cfg); err != nil {
+		return err
+	}
+
+	tx := NewTransaction(path)
+
+	return tx.Commit(cfg)
+}
+
 func Exists(path string) bool {
 
 	_, err := os.Stat(path)

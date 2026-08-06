@@ -40,3 +40,6 @@ go.work.sum
 # Generated YAML
 *.yaml.bak
 *.yaml.tmp
+
+# Forge config history
+pkg/config/.forge/
