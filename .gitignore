@@ -30,3 +30,13 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Backup
+*.bak
+
+# Temporary
+*.tmp
+
+# Generated YAML
+*.yaml.bak
+*.yaml.tmp
