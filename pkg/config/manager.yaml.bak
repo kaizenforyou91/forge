@@ -1,0 +1,12 @@
+project:
+    name: forge-app
+    version: 0.1.0
+runtime:
+    environment: development
+    log_level: info
+server:
+    host: localhost
+    port: 8080
+plugins:
+    logger:
+        enabled: true

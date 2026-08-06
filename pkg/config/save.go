@@ -8,6 +8,10 @@ import (
 
 func Save(path string, cfg Config) error {
 
+	if err := Backup(path); err != nil {
+		return err
+	}
+
 	data, err := yaml.Marshal(&cfg)
 	if err != nil {
 		return err
