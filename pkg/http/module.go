@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kaizenforyou91/forge/pkg/app"
+	"github.com/kaizenforyou91/forge/pkg/router"
 )
 
 // Module integrates the HTTP host into the Forge application lifecycle.
@@ -76,4 +77,9 @@ func (m *Module) Host() *Host {
 // Errors returns the asynchronous server error channel.
 func (m *Module) Errors() <-chan error {
 	return m.err
+}
+
+// NewRouterModule creates an HTTP module backed by a Forge router.
+func NewRouterModule(addr string, r *router.Router) *Module {
+	return NewModule(addr, r)
 }
