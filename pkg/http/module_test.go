@@ -3,10 +3,12 @@ package http
 import (
 	"io"
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/kaizenforyou91/forge/pkg/app"
+	"github.com/kaizenforyou91/forge/pkg/middleware"
 	"github.com/kaizenforyou91/forge/pkg/router"
 )
 
@@ -155,5 +157,79 @@ func TestRouterIntegrationRequest(t *testing.T) {
 
 	if string(body) != "hello forge" {
 		t.Fatalf("unexpected response: %q", string(body))
+	}
+}
+
+func TestRouterMiddlewareIntegration(t *testing.T) {
+	r := router.New()
+
+	var order []string
+
+	logging := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			order = append(order, "middleware-before")
+
+			next.ServeHTTP(w, req)
+
+			order = append(order, "middleware-after")
+		})
+	}
+
+	r.GET("/hello/:name", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		order = append(order, "handler")
+
+		name := router.Param(req, "name")
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("hello " + name))
+	}))
+
+	handler := middleware.Chain(logging)(r)
+
+	module := NewModule("127.0.0.1:0", handler)
+
+	a := app.New()
+
+	a.Use(module)
+
+	if err := a.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		if err := a.Stop(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	resp, err := http.Get(
+		"http://" + module.Host().ListenerAddr().String() + "/hello/forge",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(body) != "hello forge" {
+		t.Fatalf("unexpected response: %q", string(body))
+	}
+
+	expectedOrder := []string{
+		"middleware-before",
+		"handler",
+		"middleware-after",
+	}
+
+	if !reflect.DeepEqual(order, expectedOrder) {
+		t.Fatalf("unexpected execution order: %#v", order)
 	}
 }
