@@ -71,8 +71,12 @@ func TestMethodMismatch(t *testing.T) {
 
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("expected status 404, got %d", rec.Code)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status 405, got %d", rec.Code)
+	}
+
+	if got := rec.Header().Get("Allow"); got != "GET" {
+		t.Fatalf("expected Allow header %q, got %q", "GET", got)
 	}
 }
 
@@ -265,5 +269,103 @@ func TestParameterRoutePathMismatch(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected status 404, got %d", rec.Code)
+	}
+}
+
+func TestRouterMethodRouting(t *testing.T) {
+	r := New()
+
+	r.GET("/users", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	r.POST("/users", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+
+	tests := []struct {
+		method string
+		want   int
+	}{
+		{http.MethodGet, http.StatusOK},
+		{http.MethodPost, http.StatusCreated},
+	}
+
+	for _, tt := range tests {
+		req := httptest.NewRequest(tt.method, "/users", nil)
+		rec := httptest.NewRecorder()
+
+		r.ServeHTTP(rec, req)
+
+		if rec.Code != tt.want {
+			t.Fatalf("%s /users: expected %d, got %d", tt.method, tt.want, rec.Code)
+		}
+	}
+}
+
+func TestRouterMethodNotAllowed(t *testing.T) {
+	r := New()
+
+	r.GET("/users", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	r.POST("/users", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+
+	req := httptest.NewRequest(http.MethodDelete, "/users", nil)
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+
+	if got := rec.Header().Get("Allow"); got != "GET, POST" {
+		t.Fatalf("expected Allow header %q, got %q", "GET, POST", got)
+	}
+}
+
+func TestRouterNotFound(t *testing.T) {
+	r := New()
+
+	r.GET("/users", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/unknown", nil)
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+
+	if got := rec.Header().Get("Allow"); got != "" {
+		t.Fatalf("expected no Allow header, got %q", got)
+	}
+}
+
+func TestRouterMethodNotAllowedWithParameterRoute(t *testing.T) {
+	r := New()
+
+	r.GET("/users/:id", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/users/123", nil)
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+
+	if got := rec.Header().Get("Allow"); got != "GET" {
+		t.Fatalf("expected Allow header %q, got %q", "GET", got)
 	}
 }
