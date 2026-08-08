@@ -233,3 +233,132 @@ func TestRouterMiddlewareIntegration(t *testing.T) {
 		t.Fatalf("unexpected execution order: %#v", order)
 	}
 }
+
+func TestModuleMiddlewarePipeline(t *testing.T) {
+	var order []string
+
+	first := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			order = append(order, "first-before")
+
+			next.ServeHTTP(w, req)
+
+			order = append(order, "first-after")
+		})
+	}
+
+	second := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			order = append(order, "second-before")
+
+			next.ServeHTTP(w, req)
+
+			order = append(order, "second-after")
+		})
+	}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		order = append(order, "handler")
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	module := NewModule(
+		"127.0.0.1:0",
+		handler,
+		first,
+		second,
+	)
+
+	a := app.New()
+
+	a.Use(module)
+
+	if err := a.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		if err := a.Stop(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	resp, err := http.Get(
+		"http://" + module.Host().ListenerAddr().String() + "/",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	expected := []string{
+		"first-before",
+		"second-before",
+		"handler",
+		"second-after",
+		"first-after",
+	}
+
+	if !reflect.DeepEqual(order, expected) {
+		t.Fatalf("unexpected middleware order: %#v", order)
+	}
+}
+
+func TestModuleMiddlewareShortCircuit(t *testing.T) {
+	handlerCalled := false
+
+	blocking := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			http.Error(w, "blocked", http.StatusForbidden)
+		})
+	}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		handlerCalled = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	module := NewModule(
+		"127.0.0.1:0",
+		handler,
+		blocking,
+	)
+
+	a := app.New()
+
+	a.Use(module)
+
+	if err := a.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		if err := a.Stop(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	resp, err := http.Get(
+		"http://" + module.Host().ListenerAddr().String() + "/",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf(
+			"expected status 403, got %d",
+			resp.StatusCode,
+		)
+	}
+
+	if handlerCalled {
+		t.Fatal("handler should not be called")
+	}
+}

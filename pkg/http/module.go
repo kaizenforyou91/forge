@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kaizenforyou91/forge/pkg/app"
+	"github.com/kaizenforyou91/forge/pkg/middleware"
 	"github.com/kaizenforyou91/forge/pkg/router"
 )
 
@@ -17,7 +18,15 @@ type Module struct {
 }
 
 // NewModule creates an HTTP application module.
-func NewModule(addr string, handler http.Handler) *Module {
+func NewModule(
+	addr string,
+	handler http.Handler,
+	middlewares ...middleware.Middleware,
+) *Module {
+	if len(middlewares) > 0 {
+		handler = middleware.Chain(middlewares...)(handler)
+	}
+
 	return &Module{
 		host: New(addr, handler),
 	}
