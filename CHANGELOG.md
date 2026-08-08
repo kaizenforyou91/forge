@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Architecture
+
+- Added Forge Architecture Freeze v1.0.
+- Added ADR-001 documenting the Core Runtime architecture baseline.
+- Established dependency direction and package boundary rules.
+- Established architecture change and ADR policies.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on **Keep a Changelog**.
@@ -166,3 +175,28 @@ Every release must satisfy the following requirements:
 Forge is currently in the **Pre-Alpha** stage.
 
 The engineering foundation has been established, and active development continues toward the first Alpha release.
+
+# Changelog
+
+## v0.2.0-core-runtime
+
+### Added
+
+- Dependency Injection Container
+- Constructor Injection
+- Generic Resolve
+- Auto Wiring
+- Recursive Dependency Resolution
+- Module System
+- Application Host
+- Runtime Context
+- Startup Pipeline
+- Shutdown Pipeline
+- Fluent Builder API
+
+### Internal
+
+- Benchmark
+- Freeze Container
+- Dependency Graph
+- Cycle Detection
