@@ -75,3 +75,58 @@ func TestStoreConcurrentAccess(t *testing.T) {
 
 	<-done
 }
+func TestStoreDelete(t *testing.T) {
+	s := NewStore()
+
+	s.Set("APP_NAME", "Forge")
+
+	if !s.Has("APP_NAME") {
+		t.Fatal("key should exist before delete")
+	}
+
+	s.Delete("APP_NAME")
+
+	if s.Has("APP_NAME") {
+		t.Fatal("key should not exist after delete")
+	}
+
+	if got := s.Get("APP_NAME"); got != "" {
+		t.Fatalf("expected empty value after delete, got %q", got)
+	}
+}
+
+func TestStoreSnapshot(t *testing.T) {
+	s := NewStore()
+
+	s.Set("APP_NAME", "Forge")
+	s.Set("APP_ENV", "production")
+
+	snapshot := s.Snapshot()
+
+	if snapshot["APP_NAME"] != "Forge" {
+		t.Fatalf("unexpected APP_NAME: %q", snapshot["APP_NAME"])
+	}
+
+	if snapshot["APP_ENV"] != "production" {
+		t.Fatalf("unexpected APP_ENV: %q", snapshot["APP_ENV"])
+	}
+}
+
+func TestStoreSnapshotIsIndependent(t *testing.T) {
+	s := NewStore()
+
+	s.Set("APP_NAME", "Forge")
+
+	snapshot := s.Snapshot()
+
+	snapshot["APP_NAME"] = "Modified"
+	snapshot["NEW_KEY"] = "Injected"
+
+	if got := s.Get("APP_NAME"); got != "Forge" {
+		t.Fatalf("store was modified through snapshot: %q", got)
+	}
+
+	if s.Has("NEW_KEY") {
+		t.Fatal("store was modified through snapshot")
+	}
+}

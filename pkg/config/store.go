@@ -42,6 +42,8 @@ func (s *Store) Get(key string) string {
 }
 
 // Has reports whether a configuration key exists.
+//
+// Environment variables are considered existing configuration keys.
 func (s *Store) Has(key string) bool {
 	if _, ok := os.LookupEnv(key); ok {
 		return true
@@ -53,4 +55,32 @@ func (s *Store) Has(key string) bool {
 	_, ok := s.values[key]
 
 	return ok
+}
+
+// Delete removes a configuration value from the store.
+//
+// Environment variables are not deleted because they are managed
+// by the operating system/process environment.
+func (s *Store) Delete(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.values, key)
+}
+
+// Snapshot returns a copy of all values currently stored.
+//
+// Environment variables are intentionally excluded because Snapshot
+// represents the internal runtime configuration state.
+func (s *Store) Snapshot() map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	snapshot := make(map[string]string, len(s.values))
+
+	for key, value := range s.values {
+		snapshot[key] = value
+	}
+
+	return snapshot
 }
