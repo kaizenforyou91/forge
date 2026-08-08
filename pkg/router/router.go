@@ -28,20 +28,35 @@ func (r *Router) Handle(method, path string, handler http.Handler) {
 
 // ServeHTTP implements http.Handler.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	var best *routeMatch
+
 	for _, route := range r.routes {
 		if route.Method != req.Method {
 			continue
 		}
 
-		if route.Path != req.URL.Path {
+		params, score, ok := matchRoute(route, req.URL.Path)
+		if !ok {
 			continue
 		}
 
-		route.Handler.ServeHTTP(w, req)
+		match := &routeMatch{
+			route:  route,
+			params: params,
+			score:  score,
+		}
+
+		if best == nil || match.score > best.score {
+			best = match
+		}
+	}
+
+	if best == nil {
+		http.NotFound(w, req)
 		return
 	}
 
-	http.NotFound(w, req)
+	best.route.Handler.ServeHTTP(w, withParams(req, best.params))
 }
 
 // Handler returns the router as an http.Handler.

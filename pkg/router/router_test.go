@@ -163,3 +163,107 @@ func TestRoutesReturnsCopy(t *testing.T) {
 		t.Fatal("Routes should return a copy")
 	}
 }
+func TestPathParameter(t *testing.T) {
+	r := New()
+
+	r.GET("/users/:id", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if got := Param(req, "id"); got != "123" {
+			t.Fatalf("expected id 123, got %q", got)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestMultiplePathParameters(t *testing.T) {
+	r := New()
+
+	r.GET("/users/:userID/posts/:postID", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if got := Param(req, "userID"); got != "10" {
+			t.Fatalf("expected userID 10, got %q", got)
+		}
+
+		if got := Param(req, "postID"); got != "20" {
+			t.Fatalf("expected postID 20, got %q", got)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/users/10/posts/20", nil)
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestStaticRouteHasPriorityOverParameterRoute(t *testing.T) {
+	r := New()
+
+	r.GET("/users/:id", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		t.Fatal("parameter route should not be selected")
+	}))
+
+	r.GET("/users/me", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/users/me", nil)
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestMissingPathParameter(t *testing.T) {
+	r := New()
+
+	r.GET("/users/:id", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if got := Param(req, "unknown"); got != "" {
+			t.Fatalf("expected empty parameter, got %q", got)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestParameterRoutePathMismatch(t *testing.T) {
+	r := New()
+
+	r.GET("/users/:id", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		t.Fatal("handler should not execute")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/users/123/profile", nil)
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", rec.Code)
+	}
+}
