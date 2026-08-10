@@ -18,10 +18,6 @@ func TestStandardPipelineOrder(t *testing.T) {
 		bytes int,
 		duration time.Duration,
 	) {
-		if requestID == "" {
-			t.Fatal("expected access log request ID")
-		}
-
 		order = append(order, "access-log")
 	}
 
@@ -35,6 +31,7 @@ func TestStandardPipelineOrder(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	// Use the real Forge Standard pipeline.
 	pipeline := Standard(logger)(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -44,6 +41,10 @@ func TestStandardPipelineOrder(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	if rec.Header().Get("X-Request-ID") == "" {
+		t.Fatal("expected X-Request-ID response header")
 	}
 
 	expected := []string{
@@ -136,6 +137,59 @@ func TestStandardHandlerRecoversPanic(t *testing.T) {
 
 	if rec.Header().Get("X-Request-ID") == "" {
 		t.Fatal("expected request ID to survive recovery")
+	}
+}
+
+func TestStandardHandlerAccessLogCapturesRecoveredPanic(t *testing.T) {
+	var (
+		gotStatus    int
+		gotRequestID string
+	)
+
+	logger := func(
+		method string,
+		path string,
+		requestID string,
+		status int,
+		bytes int,
+		duration time.Duration,
+	) {
+		gotStatus = status
+		gotRequestID = requestID
+	}
+
+	handler := StandardHandler(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			panic("forge access log recovery test")
+		}),
+		logger,
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf(
+			"expected status 500, got %d",
+			rec.Code,
+		)
+	}
+
+	if gotStatus != http.StatusInternalServerError {
+		t.Fatalf(
+			"expected access log status 500, got %d",
+			gotStatus,
+		)
+	}
+
+	if gotRequestID == "" {
+		t.Fatal("expected access log to capture request ID")
+	}
+
+	if rec.Header().Get("X-Request-ID") == "" {
+		t.Fatal("expected X-Request-ID response header")
 	}
 }
 
