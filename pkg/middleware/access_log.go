@@ -75,18 +75,30 @@ func AccessLog(logger AccessLogger) Middleware {
 
 type accessLogResponseWriter struct {
 	http.ResponseWriter
-	status int
-	bytes  int
+	status      int
+	bytes       int
+	wroteHeader bool
 }
 
 func (w *accessLogResponseWriter) WriteHeader(status int) {
+	if w.wroteHeader {
+		return
+	}
+
+	w.wroteHeader = true
 	w.status = status
+
 	w.ResponseWriter.WriteHeader(status)
 }
 
 func (w *accessLogResponseWriter) Write(body []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+
 	n, err := w.ResponseWriter.Write(body)
 	w.bytes += n
+
 	return n, err
 }
 
