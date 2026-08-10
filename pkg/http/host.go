@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"sync"
@@ -14,6 +15,7 @@ type Host struct {
 	mu       sync.Mutex
 	listener net.Listener
 	ready    chan struct{}
+	started  bool
 }
 
 // New creates a new HTTP host.
@@ -33,8 +35,23 @@ func New(addr string, handler http.Handler) *Host {
 
 // Start starts the HTTP server.
 func (h *Host) Start() error {
+	h.mu.Lock()
+
+	if h.started {
+		h.mu.Unlock()
+		return errors.New("http host already started")
+	}
+
+	h.started = true
+
+	h.mu.Unlock()
+
 	listener, err := net.Listen("tcp", h.server.Addr)
 	if err != nil {
+		h.mu.Lock()
+		h.started = false
+		h.mu.Unlock()
+
 		return err
 	}
 
@@ -47,6 +64,7 @@ func (h *Host) Start() error {
 
 	h.mu.Lock()
 	h.listener = nil
+	h.started = false
 	h.mu.Unlock()
 
 	if err == http.ErrServerClosed {
