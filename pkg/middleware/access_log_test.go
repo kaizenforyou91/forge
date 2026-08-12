@@ -397,6 +397,35 @@ func TestAccessLogWithLoggerNilFallback(t *testing.T) {
 	}
 }
 
+func TestAccessLogWithLoggerTypedNilFallback(t *testing.T) {
+	var structured *testStructuredLogger
+	var loggerContract logger.Contract = structured
+
+	old := log.Writer()
+	buf := new(bytes.Buffer)
+	log.SetOutput(buf)
+	defer log.SetOutput(old)
+
+	handler := AccessLogWithLogger(loggerContract)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/typed-nil", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
+	}
+
+	if !strings.Contains(buf.String(), "http request") {
+		t.Fatalf("expected stdlib fallback log message for typed nil logger, got %q", buf.String())
+	}
+}
+
 func TestAccessLogWithLoggerPanicRecovery(t *testing.T) {
 	structured := &testStructuredLogger{}
 

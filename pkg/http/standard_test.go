@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -680,20 +681,27 @@ func TestNewStandardModuleWithLoggerExistsAndLogsStructuredFields(t *testing.T) 
 }
 
 type testStructuredLogger struct {
+	mu     sync.Mutex
 	msg    string
 	fields []logger.Field
 }
 
-func (l *testStructuredLogger) Debug(msg string)                               {}
-func (l *testStructuredLogger) Info(msg string)                                { l.msg = msg }
-func (l *testStructuredLogger) Warn(msg string)                                {}
-func (l *testStructuredLogger) Error(msg string)                               {}
+func (l *testStructuredLogger) Debug(msg string) {}
+func (l *testStructuredLogger) Info(msg string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.msg = msg
+}
+func (l *testStructuredLogger) Warn(msg string)  {}
+func (l *testStructuredLogger) Error(msg string) {}
 func (l *testStructuredLogger) DebugFields(msg string, fields ...logger.Field) {}
 func (l *testStructuredLogger) InfoFields(msg string, fields ...logger.Field) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.msg = msg
 	l.fields = append([]logger.Field(nil), fields...)
 }
-func (l *testStructuredLogger) WarnFields(msg string, fields ...logger.Field)  {}
+func (l *testStructuredLogger) WarnFields(msg string, fields ...logger.Field) {}
 func (l *testStructuredLogger) ErrorFields(msg string, fields ...logger.Field) {}
 
 func TestNewStandardModuleWithLoggerPreservesExistingRequestID(t *testing.T) {
@@ -906,4 +914,41 @@ func TestNewStandardModuleWithLoggerNilLoggerFallsBack(t *testing.T) {
 	if !strings.Contains(buf.String(), "http request") {
 		t.Fatalf("expected stdlib fallback log message, got %q", buf.String())
 	}
+}
+
+func TestNewStandardModuleWithLoggerConcurrentRequests(t *testing.T) {
+	structured := &testStructuredLogger{}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+
+	module := NewStandardModuleWithLogger(
+		"127.0.0.1:0",
+		handler,
+		structured,
+	)
+
+	const workers = 10
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			req := httptest.NewRequest(http.MethodGet, "/concurrent", nil)
+			rec := httptest.NewRecorder()
+			module.Host().Handler().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+			}
+			if got := rec.Body.String(); got != "ok" {
+				t.Errorf("expected body %q, got %q", "ok", got)
+			}
+		}()
+	}
+
+	wg.Wait()
 }

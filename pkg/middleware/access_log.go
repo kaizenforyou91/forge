@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/kaizenforyou91/forge/pkg/logger"
@@ -70,7 +71,17 @@ func newAccessLogEntry(r *http.Request, rec *ResponseCapture, duration time.Dura
 }
 
 func isNilLoggerContract(l logger.Contract) bool {
-	return l == nil
+	if l == nil {
+		return true
+	}
+
+	v := reflect.ValueOf(l)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 // AccessLog creates HTTP access logging middleware.

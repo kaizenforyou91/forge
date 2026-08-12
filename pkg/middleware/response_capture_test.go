@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -153,5 +155,55 @@ func TestResponseCaptureSupportsResponseController(t *testing.T) {
 	controller := http.NewResponseController(cap)
 	if err := controller.Flush(); err != nil {
 		t.Fatalf("expected Flush to work with captured response writer, got %v", err)
+	}
+}
+
+type partialWriteResponseWriter struct {
+	head http.Header
+	buf  bytes.Buffer
+}
+
+func (w *partialWriteResponseWriter) Header() http.Header {
+	if w.head == nil {
+		w.head = make(http.Header)
+	}
+	return w.head
+}
+
+func (w *partialWriteResponseWriter) WriteHeader(statusCode int) {
+	if w.head == nil {
+		w.head = make(http.Header)
+	}
+	w.head.Set("X-Status", http.StatusText(statusCode))
+}
+
+func (w *partialWriteResponseWriter) Write(body []byte) (int, error) {
+	n := len(body) / 2
+	if n == 0 && len(body) > 0 {
+		n = 1
+	}
+	w.buf.Write(body[:n])
+	return n, io.ErrUnexpectedEOF
+}
+
+func TestResponseCaptureCountsPartialWritesAndReturnsError(t *testing.T) {
+	w := &partialWriteResponseWriter{}
+	cap := NewResponseCapture(w)
+
+	n, err := cap.Write([]byte("hello"))
+	if err == nil {
+		t.Fatal("expected write error")
+	}
+
+	if n != 2 && n != 3 {
+		t.Fatalf("expected partial write count, got %d", n)
+	}
+
+	if cap.BytesWritten() != n {
+		t.Fatalf("expected bytes written %d, got %d", n, cap.BytesWritten())
+	}
+
+	if cap.Status() != http.StatusOK {
+		t.Fatalf("expected implicit status %d, got %d", http.StatusOK, cap.Status())
 	}
 }
