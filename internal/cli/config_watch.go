@@ -7,32 +7,32 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var configWatchCmd = &cobra.Command{
-	Use:   "watch",
-	Short: "Watch configuration",
+func newConfigWatchCmd(configPathFn configPathProvider) *cobra.Command {
+	return &cobra.Command{
+		Use:   "watch",
+		Short: "Watch configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			configPath := configPathFn()
 
-	RunE: func(cmd *cobra.Command, args []string) error {
+			watcher, err := config.NewWatcher(configPath)
+			if err != nil {
+				return err
+			}
+			defer watcher.Close()
 
-		watcher, err := config.NewWatcher("forge.yaml")
-		if err != nil {
-			return err
-		}
+			if err := watcher.Start(); err != nil {
+				return err
+			}
 
-		defer watcher.Close()
+			watcher.Run()
 
-		if err := watcher.Start(); err != nil {
-			return err
-		}
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "Watching %s...\n", configPath)
+			fmt.Fprintln(out, "Press Ctrl+C to stop.")
 
-		watcher.Run()
-
-		fmt.Println("Watching forge.yaml...")
-		fmt.Println("Press Ctrl+C to stop.")
-
-		select {}
-	},
-}
-
-func init() {
-	configCmd.AddCommand(configWatchCmd)
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}
 }

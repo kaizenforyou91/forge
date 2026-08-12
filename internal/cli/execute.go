@@ -1,5 +1,5 @@
 package cli
 
 func Execute() error {
-	return rootCmd.Execute()
+	return NewRootCommand().Execute()
 }

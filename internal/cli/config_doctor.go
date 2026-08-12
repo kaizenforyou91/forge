@@ -7,29 +7,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var configDoctorCmd = &cobra.Command{
-	Use:   "doctor",
-	Short: "Check configuration health",
-	RunE: func(cmd *cobra.Command, args []string) error {
+func newConfigDoctorCmd(configPathFn configPathProvider) *cobra.Command {
+	return &cobra.Command{
+		Use:   "doctor",
+		Short: "Check configuration health",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			configPath := configPathFn()
 
-		_, err := config.Load("forge.yaml")
-		if err != nil {
-			return err
-		}
+			cfg, err := config.Load(configPath)
+			if err != nil {
+				return err
+			}
 
-		fmt.Println("Configuration Doctor")
-		fmt.Println()
+			fmt.Fprintln(out, "Configuration Doctor")
+			fmt.Fprintln(out)
+			fmt.Fprintln(out, "✓ forge.yaml found")
+			fmt.Fprintln(out, "✓ YAML syntax valid")
+			fmt.Fprintln(out, "✓ Environment override loaded")
+			fmt.Fprintln(out, "✓ Validation passed")
+			fmt.Fprintln(out, "✓ Configuration healthy")
 
-		fmt.Println("✓ forge.yaml found")
-		fmt.Println("✓ YAML syntax valid")
-		fmt.Println("✓ Environment override loaded")
-		fmt.Println("✓ Validation passed")
-		fmt.Println("✓ Configuration healthy")
+			fmt.Fprintf(out, "Configuration version: %d\n", cfg.Version)
 
-		return nil
-	},
-}
-
-func init() {
-	configCmd.AddCommand(configDoctorCmd)
+			return nil
+		},
+	}
 }

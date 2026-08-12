@@ -1,17 +1,26 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"fmt"
 
-func newConfigValidateCommand() *cobra.Command {
+	"github.com/kaizenforyou91/forge/pkg/config"
+	"github.com/spf13/cobra"
+)
 
+func newConfigValidateCmd(configPathFn configPathProvider) *cobra.Command {
 	return &cobra.Command{
 		Use:   "validate",
 		Short: "Validate configuration",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			configPath := configPathFn()
 
-			cmd.Println("config validate")
+			if _, err := config.Load(configPath); err != nil {
+				return err
+			}
 
+			fmt.Fprintln(out, "Configuration valid.")
+			return nil
 		},
 	}
-
 }

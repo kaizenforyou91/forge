@@ -6,12 +6,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var configInitCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Generate default forge.yaml",
-	RunE: func(cmd *cobra.Command, args []string) error {
+func newConfigInitCmd(configPathFn configPathProvider) *cobra.Command {
+	return &cobra.Command{
+		Use:   "init",
+		Short: "Generate default forge.yaml",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			configPath := configPathFn()
 
-		const yaml = `project:
+			const yaml = `project:
   name: Forge
   version: dev
 
@@ -28,10 +30,7 @@ plugins:
     enabled: true
 `
 
-		return os.WriteFile("forge.yaml", []byte(yaml), 0644)
-	},
-}
-
-func init() {
-	configCmd.AddCommand(configInitCmd)
+			return os.WriteFile(configPath, []byte(yaml), 0644)
+		},
+	}
 }

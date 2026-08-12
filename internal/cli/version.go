@@ -12,18 +12,19 @@ var (
 	BuildTime  = "unknown"
 )
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print Forge version",
-	Run: func(cmd *cobra.Command, args []string) {
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print Forge version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
 
-		fmt.Println("Forge CLI")
-		fmt.Printf("Version : %s\n", AppVersion)
-		fmt.Printf("Commit  : %s\n", Commit)
-		fmt.Printf("Built   : %s\n", BuildTime)
-	},
-}
+			fmt.Fprintln(out, "Forge CLI")
+			fmt.Fprintf(out, "Version : %s\n", AppVersion)
+			fmt.Fprintf(out, "Commit  : %s\n", Commit)
+			fmt.Fprintf(out, "Built   : %s\n", BuildTime)
 
-func init() {
-	rootCmd.AddCommand(versionCmd)
+			return nil
+		},
+	}
 }

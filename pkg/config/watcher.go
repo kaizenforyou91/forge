@@ -11,6 +11,8 @@ type Watcher struct {
 	path string
 
 	watcher *fsnotify.Watcher
+	done    chan struct{}
+	closeMu sync.Once
 
 	current Config
 
@@ -30,6 +32,7 @@ func NewWatcher(path string) (*Watcher, error) {
 	w := &Watcher{
 		path:    path,
 		watcher: watcher,
+		done:    make(chan struct{}),
 	}
 
 	if err := w.Load(); err != nil {
@@ -47,6 +50,9 @@ func (w *Watcher) Start() error {
 
 // Close stops the watcher and releases all associated resources.
 func (w *Watcher) Close() error {
+	w.closeMu.Do(func() {
+		close(w.done)
+	})
 	return w.watcher.Close()
 }
 
@@ -114,6 +120,9 @@ func (w *Watcher) Run() {
 
 			case <-w.Errors():
 				// Ignore watcher errors for now.
+
+			case <-w.done:
+				return
 			}
 		}
 
