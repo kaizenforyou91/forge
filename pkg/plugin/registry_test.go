@@ -199,3 +199,111 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 		t.Fatalf("expected %d plugins, got %d", workers, got)
 	}
 }
+
+type registryUsePlugin struct {
+	name       string
+	registerFn func(*app.App) error
+	started    bool
+	stopped    bool
+}
+
+func (p *registryUsePlugin) Name() string {
+	return p.name
+}
+
+func (p *registryUsePlugin) Version() string {
+	return "1.0.0"
+}
+
+func (p *registryUsePlugin) Register(a *app.App) error {
+	if p.registerFn != nil {
+		return p.registerFn(a)
+	}
+	return nil
+}
+
+func (p *registryUsePlugin) Start(*app.App) error {
+	p.started = true
+	return nil
+}
+
+func (p *registryUsePlugin) Stop(*app.App) error {
+	p.stopped = true
+	return nil
+}
+
+func TestRegistryUseRegistersPluginsInOrder(t *testing.T) {
+	r := NewRegistry()
+	a := app.New()
+
+	first := &registryUsePlugin{name: "first"}
+	second := &registryUsePlugin{name: "second"}
+
+	if err := r.Register(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Register(second); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.Use(a); err != nil {
+		t.Fatal(err)
+	}
+
+	modules := a.Modules()
+	if len(modules) != 2 {
+		t.Fatalf("expected 2 modules, got %d", len(modules))
+	}
+
+	if modules[0].Name() != "first" {
+		t.Fatalf("expected first module to be first, got %q", modules[0].Name())
+	}
+
+	if modules[1].Name() != "second" {
+		t.Fatalf("expected second module to be second, got %q", modules[1].Name())
+	}
+
+	if first.started || second.started {
+		t.Fatal("Registry.Use must not start plugins")
+	}
+
+	if first.stopped || second.stopped {
+		t.Fatal("Registry.Use must not stop plugins")
+	}
+}
+
+func TestRegistryUsePropagatesRegistrationError(t *testing.T) {
+	r := NewRegistry()
+	a := app.New()
+
+	first := &registryUsePlugin{name: "first"}
+
+	wantErr := errors.New("plugin registration failed")
+	second := &registryUsePlugin{
+		name: "second",
+		registerFn: func(*app.App) error {
+			return wantErr
+		},
+	}
+
+	if err := r.Register(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Register(second); err != nil {
+		t.Fatal(err)
+	}
+
+	err := r.Use(a)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected registration error %v, got %v", wantErr, err)
+	}
+
+	modules := a.Modules()
+	if len(modules) != 1 {
+		t.Fatalf("expected only first plugin to be registered, got %d", len(modules))
+	}
+
+	if modules[0].Name() != "first" {
+		t.Fatalf("expected first plugin to remain registered, got %q", modules[0].Name())
+	}
+}

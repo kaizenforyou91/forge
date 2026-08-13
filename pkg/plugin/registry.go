@@ -3,6 +3,8 @@ package plugin
 import (
 	"errors"
 	"sync"
+
+	"github.com/kaizenforyou91/forge/pkg/app"
 )
 
 var ErrDuplicatePlugin = errors.New("plugin already registered")
@@ -72,4 +74,19 @@ func (r *Registry) List() []Plugin {
 	}
 
 	return result
+}
+
+// Use registers all plugins in this registry into the application.
+//
+// Plugins are registered in deterministic registration order.
+// Plugin lifecycle methods are not invoked here; lifecycle remains owned
+// by app.App.
+func (r *Registry) Use(a *app.App) error {
+	for _, p := range r.List() {
+		if err := a.Add(p); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
