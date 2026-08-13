@@ -307,3 +307,177 @@ func TestRegistryUsePropagatesRegistrationError(t *testing.T) {
 		t.Fatalf("expected first plugin to remain registered, got %q", modules[0].Name())
 	}
 }
+
+type lifecyclePlugin struct {
+	name        string
+	order       *[]string
+	startErr    error
+	registerErr error
+}
+
+func (p *lifecyclePlugin) Name() string {
+	return p.name
+}
+
+func (p *lifecyclePlugin) Version() string {
+	return "1.0.0"
+}
+
+func (p *lifecyclePlugin) Register(*app.App) error {
+	if p.registerErr != nil {
+		return p.registerErr
+	}
+
+	return nil
+}
+
+func (p *lifecyclePlugin) Start(*app.App) error {
+	*p.order = append(*p.order, p.name+":start")
+
+	if p.startErr != nil {
+		return p.startErr
+	}
+
+	return nil
+}
+
+func (p *lifecyclePlugin) Stop(*app.App) error {
+	*p.order = append(*p.order, p.name+":stop")
+	return nil
+}
+
+func TestRegistryPluginsFollowAppLifecycle(t *testing.T) {
+	r := NewRegistry()
+	a := app.New()
+
+	var order []string
+
+	first := &lifecyclePlugin{
+		name:  "first",
+		order: &order,
+	}
+
+	second := &lifecyclePlugin{
+		name:  "second",
+		order: &order,
+	}
+
+	if err := r.Register(first); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.Register(second); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.Use(a); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := a.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	if !a.Started() {
+		t.Fatal("expected app to be running")
+	}
+
+	expectedStart := []string{
+		"first:start",
+		"second:start",
+	}
+
+	if len(order) != len(expectedStart) {
+		t.Fatalf("expected %d start events, got %d: %#v", len(expectedStart), len(order), order)
+	}
+
+	for i, want := range expectedStart {
+		if order[i] != want {
+			t.Fatalf("unexpected start order at %d: got %q want %q", i, order[i], want)
+		}
+	}
+
+	if err := a.Stop(); err != nil {
+		t.Fatal(err)
+	}
+
+	expected := []string{
+		"first:start",
+		"second:start",
+		"second:stop",
+		"first:stop",
+	}
+
+	if len(order) != len(expected) {
+		t.Fatalf("expected lifecycle events %#v, got %#v", expected, order)
+	}
+
+	for i, want := range expected {
+		if order[i] != want {
+			t.Fatalf("unexpected lifecycle order at %d: got %q want %q", i, order[i], want)
+		}
+	}
+}
+
+func TestRegistryPluginStartFailureRollsBackPreviousPlugins(t *testing.T) {
+	r := NewRegistry()
+	a := app.New()
+
+	var order []string
+	startErr := errors.New("plugin start failed")
+
+	first := &lifecyclePlugin{
+		name:  "first",
+		order: &order,
+	}
+
+	second := &lifecyclePlugin{
+		name:     "second",
+		order:    &order,
+		startErr: startErr,
+	}
+
+	third := &lifecyclePlugin{
+		name:  "third",
+		order: &order,
+	}
+
+	if err := r.Register(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Register(second); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Register(third); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.Use(a); err != nil {
+		t.Fatal(err)
+	}
+
+	err := a.Start()
+	if !errors.Is(err, startErr) {
+		t.Fatalf("expected start error %v, got %v", startErr, err)
+	}
+
+	if a.Started() {
+		t.Fatal("expected app to remain stopped after failed start")
+	}
+
+	expected := []string{
+		"first:start",
+		"second:start",
+		"first:stop",
+	}
+
+	if len(order) != len(expected) {
+		t.Fatalf("expected lifecycle events %#v, got %#v", expected, order)
+	}
+
+	for i, want := range expected {
+		if order[i] != want {
+			t.Fatalf("unexpected lifecycle event at %d: got %q want %q", i, order[i], want)
+		}
+	}
+}
