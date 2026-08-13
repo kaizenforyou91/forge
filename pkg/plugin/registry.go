@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/kaizenforyou91/forge/pkg/app"
+	"github.com/kaizenforyou91/forge/pkg/config"
 )
 
 var ErrDuplicatePlugin = errors.New("plugin already registered")
@@ -83,6 +84,24 @@ func (r *Registry) List() []Plugin {
 // by app.App.
 func (r *Registry) Use(a *app.App) error {
 	for _, p := range r.List() {
+		if err := a.Add(p); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// UseConfigured registers enabled plugins into the application.
+//
+// Plugins remain in deterministic registry order. Disabled plugins are
+// skipped. Plugin lifecycle remains owned by app.App.
+func (r *Registry) UseConfigured(a *app.App, cfg config.Config) error {
+	for _, p := range r.List() {
+		if !cfg.Plugins.IsEnabled(p.Name()) {
+			continue
+		}
+
 		if err := a.Add(p); err != nil {
 			return err
 		}

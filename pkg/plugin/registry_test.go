@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kaizenforyou91/forge/pkg/app"
+	"github.com/kaizenforyou91/forge/pkg/config"
 )
 
 type registryTestPlugin struct {
@@ -479,5 +480,58 @@ func TestRegistryPluginStartFailureRollsBackPreviousPlugins(t *testing.T) {
 		if order[i] != want {
 			t.Fatalf("unexpected lifecycle event at %d: got %q want %q", i, order[i], want)
 		}
+	}
+}
+
+func TestRegistryUseConfiguredSkipsDisabledPlugins(t *testing.T) {
+	r := NewRegistry()
+	a := app.New()
+	cfg := config.Default()
+
+	cfg.Plugins.Logger.Enabled = false
+
+	disabled := &registryUsePlugin{
+		name: "logger",
+	}
+
+	if err := r.Register(disabled); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.UseConfigured(a, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(a.Modules()) != 0 {
+		t.Fatalf("expected no modules, got %d", len(a.Modules()))
+	}
+}
+
+func TestRegistryUseConfiguredRegistersEnabledPlugins(t *testing.T) {
+	r := NewRegistry()
+	a := app.New()
+	cfg := config.Default()
+
+	cfg.Plugins.Logger.Enabled = true
+
+	enabled := &registryUsePlugin{
+		name: "logger",
+	}
+
+	if err := r.Register(enabled); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.UseConfigured(a, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	modules := a.Modules()
+	if len(modules) != 1 {
+		t.Fatalf("expected 1 module, got %d", len(modules))
+	}
+
+	if modules[0].Name() != "logger" {
+		t.Fatalf("expected logger module, got %q", modules[0].Name())
 	}
 }

@@ -46,3 +46,13 @@ type Config struct {
 
 	Plugins Plugins `yaml:"plugins"`
 }
+
+// IsEnabled reports whether a known plugin is enabled.
+func (p Plugins) IsEnabled(name string) bool {
+	switch name {
+	case "logger":
+		return p.Logger.Enabled
+	default:
+		return false
+	}
+}
