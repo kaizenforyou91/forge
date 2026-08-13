@@ -535,3 +535,80 @@ func TestRegistryUseConfiguredRegistersEnabledPlugins(t *testing.T) {
 		t.Fatalf("expected logger module, got %q", modules[0].Name())
 	}
 }
+
+type pluginService struct {
+	Name string
+}
+
+type containerPlugin struct {
+	service  *pluginService
+	resolved *pluginService
+}
+
+func (p *containerPlugin) Name() string {
+	return "container-plugin"
+}
+
+func (p *containerPlugin) Version() string {
+	return "1.0.0"
+}
+
+func (p *containerPlugin) Register(a *app.App) error {
+	p.service = &pluginService{Name: "from-plugin"}
+
+	return a.Container().RegisterSingleton(p.service)
+}
+
+func (p *containerPlugin) Start(a *app.App) error {
+	var resolved *pluginService
+
+	if err := a.Container().Resolve(&resolved); err != nil {
+		return err
+	}
+
+	p.resolved = resolved
+	return nil
+}
+
+func (p *containerPlugin) Stop(*app.App) error {
+	return nil
+}
+
+func TestPluginUsesAppContainer(t *testing.T) {
+	r := NewRegistry()
+	a := app.New()
+
+	p := &containerPlugin{}
+
+	if err := r.Register(p); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.Use(a); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := a.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	if p.service == nil {
+		t.Fatal("expected plugin to register service")
+	}
+
+	if p.resolved == nil {
+		t.Fatal("expected plugin to resolve service")
+	}
+
+	if p.resolved != p.service {
+		t.Fatal("expected resolved singleton to be the registered instance")
+	}
+
+	if p.resolved.Name != "from-plugin" {
+		t.Fatalf("unexpected resolved service name: %q", p.resolved.Name)
+	}
+
+	if err := a.Stop(); err != nil {
+		t.Fatal(err)
+	}
+}
