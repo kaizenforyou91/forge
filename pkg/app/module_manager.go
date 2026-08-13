@@ -1,14 +1,31 @@
 package app
 
-// Use registers a module.
-func (a *App) Use(module Module) *App {
+// Add registers a module and returns any registration error.
+func (a *App) Add(module Module) error {
+	if module == nil {
+		return ErrNilModule
+	}
+
 	if err := module.Register(a); err != nil {
-		panic(err)
+		return err
 	}
 
 	a.mu.Lock()
 	a.modules = append(a.modules, module)
 	a.mu.Unlock()
+
+	return nil
+}
+
+// Use registers a module.
+//
+// Use preserves the existing panic-on-registration-error behavior for
+// backward compatibility. New integrations that need error propagation
+// should use Add.
+func (a *App) Use(module Module) *App {
+	if err := a.Add(module); err != nil {
+		panic(err)
+	}
 
 	return a
 }
