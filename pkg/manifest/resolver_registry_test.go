@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 
 	forgeerrors "github.com/kaizenforyou91/forge/pkg/errors"
@@ -54,11 +55,11 @@ func TestResolveFromRegistry(t *testing.T) {
 		t.Fatalf("expected 2 resolved modules, got %d", len(got.Modules))
 	}
 
-	if got.Modules[0] != m.Modules[0] {
+	if !reflect.DeepEqual(got.Modules[0], m.Modules[0]) {
 		t.Fatalf("unexpected first module: %#v", got.Modules[0])
 	}
 
-	if got.Modules[1] != m.Modules[1] {
+	if !reflect.DeepEqual(got.Modules[1], m.Modules[1]) {
 		t.Fatalf("unexpected second module: %#v", got.Modules[1])
 	}
 }
@@ -135,7 +136,7 @@ func TestResolveFromRegistryPreservesManifestOrder(t *testing.T) {
 	}
 
 	for i, want := range m.Modules {
-		if got.Modules[i] != want {
+		if !reflect.DeepEqual(got.Modules[i], want) {
 			t.Fatalf(
 				"module %d: expected %q@%q, got %q@%q",
 				i,
@@ -266,7 +267,7 @@ func TestResolveFromRegistryDoesNotMutateInput(t *testing.T) {
 	}
 
 	for i := range original {
-		if m.Modules[i] != original[i] {
+		if !reflect.DeepEqual(m.Modules[i], original[i]) {
 			t.Fatalf(
 				"input manifest mutated at index %d",
 				i,
@@ -295,7 +296,7 @@ func TestResolveRemainsBackwardCompatible(t *testing.T) {
 		t.Fatalf("expected 1 module, got %d", len(got.Modules))
 	}
 
-	if got.Modules[0] != m.Modules[0] {
+	if !reflect.DeepEqual(got.Modules[0], m.Modules[0]) {
 		t.Fatalf(
 			"unexpected resolved module: %#v",
 			got.Modules[0],

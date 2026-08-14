@@ -31,6 +31,56 @@ func (m Manifest) Validate() error {
 			)
 		}
 
+		seenDependencies := make(map[string]struct{}, len(module.Dependencies))
+
+		for dependencyIndex, dependency := range module.Dependencies {
+			if dependency.Name == "" {
+				return invalidManifest(
+					fmt.Sprintf(
+						"manifest.modules[%d].dependencies[%d].name is required",
+						i,
+						dependencyIndex,
+					),
+				)
+			}
+
+			if dependency.Version == "" {
+				return invalidManifest(
+					fmt.Sprintf(
+						"manifest.modules[%d].dependencies[%d].version is required",
+						i,
+						dependencyIndex,
+					),
+				)
+			}
+
+			if dependency.Name == module.Name &&
+				dependency.Version == module.Version {
+				return invalidManifest(
+					fmt.Sprintf(
+						"manifest.modules[%d] cannot depend on itself %q@%q",
+						i,
+						dependency.Name,
+						dependency.Version,
+					),
+				)
+			}
+
+			key := dependency.Name + "@" + dependency.Version
+
+			if _, exists := seenDependencies[key]; exists {
+				return invalidManifest(
+					fmt.Sprintf(
+						"manifest.modules[%d] contains duplicate dependency %q",
+						i,
+						key,
+					),
+				)
+			}
+
+			seenDependencies[key] = struct{}{}
+		}
+
 		if _, exists := seen[module.Name]; exists {
 			return invalidManifest(
 				fmt.Sprintf("manifest.modules contains duplicate module %q", module.Name),

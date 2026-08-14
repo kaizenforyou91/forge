@@ -3,6 +3,7 @@ package manifest
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -186,7 +187,100 @@ func TestResolveDoesNotMutateInput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if manifest.Modules[0] != original {
+	if !reflect.DeepEqual(manifest.Modules[0], original) {
 		t.Fatal("Resolve mutated the input manifest")
+	}
+}
+
+func TestYAMLManifestPipelineWithDependencies(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "forge.yaml")
+
+	data := []byte(`version: v1
+name: demo
+modules:
+  - name: web
+    version: v1
+    dependencies:
+      - name: http
+        version: v1
+  - name: http
+    version: v1
+`)
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := LoadYAML(path)
+	if err != nil {
+		t.Fatalf("load YAML: %v", err)
+	}
+
+	if err := m.Validate(); err != nil {
+		t.Fatalf("validate YAML manifest: %v", err)
+	}
+
+	if len(m.Modules[0].Dependencies) != 1 {
+		t.Fatalf(
+			"expected 1 dependency, got %d",
+			len(m.Modules[0].Dependencies),
+		)
+	}
+
+	if m.Modules[0].Dependencies[0] != (Dependency{
+		Name:    "http",
+		Version: "v1",
+	}) {
+		t.Fatalf(
+			"unexpected dependency: %#v",
+			m.Modules[0].Dependencies[0],
+		)
+	}
+}
+
+func TestJSONManifestPipelineWithDependencies(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "forge.json")
+
+	data := []byte(`{
+  "version": "v1",
+  "name": "demo",
+  "modules": [
+    {
+      "name": "web",
+      "version": "v1",
+      "dependencies": [
+        {
+          "name": "http",
+          "version": "v1"
+        }
+      ]
+    },
+    {
+      "name": "http",
+      "version": "v1"
+    }
+  ]
+}`)
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := LoadJSON(path)
+	if err != nil {
+		t.Fatalf("load JSON: %v", err)
+	}
+
+	if err := m.Validate(); err != nil {
+		t.Fatalf("validate JSON manifest: %v", err)
+	}
+
+	if len(m.Modules[0].Dependencies) != 1 {
+		t.Fatalf(
+			"expected 1 dependency, got %d",
+			len(m.Modules[0].Dependencies),
+		)
 	}
 }

@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"reflect"
 	"testing"
 
 	forgeerrors "github.com/kaizenforyou91/forge/pkg/errors"
@@ -47,7 +48,7 @@ func TestResolveManifest(t *testing.T) {
 		t.Fatalf("expected 2 resolved modules, got %d", len(got.Modules))
 	}
 
-	if got.Modules[0] != manifest.Modules[0] {
+	if !reflect.DeepEqual(got.Modules[0], manifest.Modules[0]) {
 		t.Fatalf(
 			"expected first module %q@%q, got %q@%q",
 			manifest.Modules[0].Name,
@@ -57,7 +58,7 @@ func TestResolveManifest(t *testing.T) {
 		)
 	}
 
-	if got.Modules[1] != manifest.Modules[1] {
+	if !reflect.DeepEqual(got.Modules[1], manifest.Modules[1]) {
 		t.Fatalf(
 			"expected second module %q@%q, got %q@%q",
 			manifest.Modules[1].Name,
@@ -136,7 +137,7 @@ func TestResolvePreservesManifestOrder(t *testing.T) {
 	}
 
 	for i := range want {
-		if got.Modules[i] != want[i] {
+		if !reflect.DeepEqual(got.Modules[i], want[i]) {
 			t.Fatalf(
 				"module %d: expected %q@%q, got %q@%q",
 				i,
