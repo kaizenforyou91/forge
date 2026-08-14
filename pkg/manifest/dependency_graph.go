@@ -141,3 +141,15 @@ func (g *DependencyGraph) visit(
 func moduleKey(name, version string) string {
 	return name + "@" + version
 }
+
+func (g *DependencyGraph) DependenciesByKey(key string) []string {
+	if g == nil || g.Nodes == nil {
+		return nil
+	}
+
+	dependencies := g.Nodes[key]
+	result := make([]string, len(dependencies))
+	copy(result, dependencies)
+
+	return result
+}
