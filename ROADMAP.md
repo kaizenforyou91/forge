@@ -109,7 +109,7 @@ Planned
 
 ---
 
-# Phase 3 — Manifest Engine
+| Phase 3 — Manifest Engine | ✅ Foundation Complete |
 
 Objective:
 
@@ -327,6 +327,69 @@ A milestone is considered complete when:
 - Changes merged into main
 
 ---
+
+# Current Engineering Status
+
+The original roadmap describes the long-term evolution of Forge.
+Implementation progress is tracked separately through engineering milestones.
+
+## Current Phase Status
+
+| Phase | Status |
+|---|---|
+| Phase 0 — Foundation | ✅ Completed |
+| Phase 1 — Core Foundation | 🔄 Substantially Complete |
+| Phase 2 — CLI | 🔄 Foundation Complete / In Progress |
+| Phase 3 — Manifest Engine | ✅ Complete |
+| Phase 4 — Validation Engine | ⏳ Not Started |
+| Phase 5 — Registry | ⏳ Not Started |
+| Phase 6 — Compiler | ⏳ Not Started |
+| Phase 7 — Runtime | 🔄 Foundation Complete / In Progress |
+| Phase 8 — AI Runtime | ⏳ Not Started |
+
+## Engineering Milestones
+
+| Milestone | Status | Scope |
+|---|---|---|
+| FW-024 | ✅ Completed | Middleware Foundation |
+| FW-025 | ✅ Completed | Observability Foundation |
+| FW-026 | ✅ Completed | Roadmap Verification |
+| FW-027 | ✅ Completed | Runtime Engine Foundation |
+| FW-028 | ✅ Completed | CLI Foundation Completion |
+| FW-029 | ✅ Completed | Plugin System Foundation |
+| FW-030 | ✅ Completed | Manifest Engine Foundation |
+
+## Current Implemented Foundation
+
+Forge currently provides:
+
+- Configuration management
+- Structured logging
+- Framework error handling
+- Dependency injection
+- Application lifecycle and runtime context
+- HTTP and middleware infrastructure
+- CLI foundation
+- Plugin contract and registry
+- Plugin configuration enablement
+- Manifest contract
+- YAML manifest loading
+- JSON manifest loading
+- Manifest validation
+- Exact module resolution
+
+## Remaining Platform Work
+
+The following capabilities remain future work:
+
+- Validation Engine
+- Package Registry
+- Compiler
+- Runtime loader
+- Scheduler
+- Remote package resolution
+- Advanced dependency and version resolution
+- AI Runtime
 
 # Long-Term Goal
 

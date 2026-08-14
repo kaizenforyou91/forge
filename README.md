@@ -199,30 +199,36 @@ MIT License
 # Current Development Stage
 
 ```text
-Workspace
+Core Foundation
 ████████████████████ 100%
 
-Documentation
-██████░░░░░░░░░░░░░░ 30%
+CLI Foundation
+████████████████████ 100%
 
-Foundation
-░░░░░░░░░░░░░░░░░░░░ 0%
+Runtime Foundation
+████████████████████ 100%
+
+Plugin Foundation
+████████████████████ 100%
 
 Manifest Engine
-░░░░░░░░░░░░░░░░░░░░ 0%
+████████████████████ 100%
 
 Validation Engine
 ░░░░░░░░░░░░░░░░░░░░ 0%
 
-Registry
+Package Registry
 ░░░░░░░░░░░░░░░░░░░░ 0%
 
-Runtime
+Compiler
 ░░░░░░░░░░░░░░░░░░░░ 0%
 
 AI Runtime
 ░░░░░░░░░░░░░░░░░░░░ 0%
 ```
+> Progress percentages represent the completed foundation scope for each
+> engineering area. They do not imply that the entire long-term platform
+> capability has been completed.
 
 ---
 
@@ -230,6 +236,8 @@ AI Runtime
 
 Forge is currently in the **Pre-Alpha** stage.
 
-The engineering foundation has been established, and active development of the platform is now in progress.
+The core engineering foundation is now substantially established.
+Active development is focused on extending the manifest-driven platform
+toward validation, registry, compiler, and full runtime capabilities.
 
 AI-First Engineering Operating System

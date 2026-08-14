@@ -1,6 +1,41 @@
 # Changelog
 
-## Unreleased
+# Unreleased
+
+## FW-030 — Manifest Engine Foundation
+
+- Added manifest contract.
+- Added YAML manifest loader.
+- Added JSON manifest loader.
+- Added manifest validation.
+- Added exact module resolution.
+- Added end-to-end YAML and JSON manifest pipeline coverage.
+- Added race, vet, build, and regression validation.
+
+## FW-029 — Plugin System Foundation
+
+- Added plugin contract.
+- Added plugin registry.
+- Integrated plugin registry with application lifecycle.
+- Added plugin configuration enablement.
+- Verified plugin integration with the application container.
+
+## FW-028 — CLI Foundation Completion
+
+- Completed CLI command construction.
+- Added configuration path handling.
+- Added configuration validation, show, init, watch, and doctor flows.
+- Added CLI regression tests.
+- Added configuration watcher cancellation hardening.
+
+## FW-027 — Runtime Engine Foundation
+
+- Added explicit application runtime states.
+- Added deterministic lifecycle transitions.
+- Added restart semantics.
+- Added startup rollback.
+- Added shutdown error aggregation.
+- Added deterministic lifecycle concurrency tests.
 
 ### Architecture
 
