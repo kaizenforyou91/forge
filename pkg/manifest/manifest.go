@@ -3,8 +3,9 @@ package manifest
 // Manifest defines the declarative application manifest.
 //
 // The contract is intentionally small in the foundation phase.
-// Parsing, schema validation, and dependency resolution are handled
-// by later Manifest Engine milestones.
+// The manifest contract is intentionally small.
+// Loading, structural validation, and module resolution are provided
+// by the Manifest Engine foundation.
 type Manifest struct {
 	Version string   `yaml:"version" json:"version"`
 	Name    string   `yaml:"name" json:"name"`
