@@ -17,4 +17,8 @@ var (
 	ErrInvalidPackageIntegrity = errors.New("invalid package integrity")
 	ErrIntegrityMismatch       = errors.New("package integrity mismatch")
 	ErrMissingPackageIntegrity = errors.New("missing package integrity")
+	ErrInvalidPackageSignature = errors.New("invalid package signature")
+	ErrSignatureMismatch       = errors.New("package signature mismatch")
+	ErrUntrustedPackageKey     = errors.New("untrusted package signing key")
+	ErrMissingPackageSignature = errors.New("missing package signature")
 )

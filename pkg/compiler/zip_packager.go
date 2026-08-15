@@ -22,16 +22,27 @@ import (
 const (
 	bundleManifestPath    = "bundle.json"
 	integrityManifestPath = "integrity.json"
+	signatureManifestPath = "signature.json"
 	artifactRootPath      = "artifacts"
 	artifactFileName      = "artifact"
 )
 
 // ZIPPackager creates deterministic artifact archives.
-type ZIPPackager struct{}
+type ZIPPackager struct {
+	signer PackageSigner
+}
 
 // NewZIPPackager creates a ZIP packager.
 func NewZIPPackager() *ZIPPackager {
 	return &ZIPPackager{}
+}
+
+func NewZIPPackagerWithSigner(
+	signer PackageSigner,
+) *ZIPPackager {
+	return &ZIPPackager{
+		signer: signer,
+	}
 }
 
 // Package writes an ArtifactBundle, its integrity manifest, and payloads
@@ -117,10 +128,9 @@ func (p *ZIPPackager) Package(
 		return err
 	}
 
-	entries := make([]zipPackageEntry, 0, len(bundle.Artifacts)+2)
+	entries := make([]zipPackageEntry, 0, len(bundle.Artifacts)+3)
 
-	entries = append(
-		entries,
+	entries = append(entries,
 		zipPackageEntry{
 			path:    bundleManifestPath,
 			payload: append([]byte(nil), bundleJSON...),
@@ -130,6 +140,27 @@ func (p *ZIPPackager) Package(
 			payload: append([]byte(nil), integrityJSON...),
 		},
 	)
+
+	if p.signer != nil {
+		signature, err := p.signer.Sign(integrityJSON)
+		if err != nil {
+			return fmt.Errorf(
+				"%w: sign package integrity: %v",
+				ErrInvalidPackageSignature,
+				err,
+			)
+		}
+
+		signatureJSON, err := MarshalPackageSignature(signature)
+		if err != nil {
+			return err
+		}
+
+		entries = append(entries, zipPackageEntry{
+			path:    signatureManifestPath,
+			payload: signatureJSON,
+		})
+	}
 
 	for _, artifact := range bundle.Artifacts {
 		key := artifact.Module + "@" + artifact.Version

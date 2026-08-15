@@ -10,11 +10,23 @@ import (
 )
 
 // ZIPPackageReader reads Forge deterministic ZIP packages.
-type ZIPPackageReader struct{}
+type ZIPPackageReader struct {
+	verifier PackageVerifier
+}
 
 // NewZIPPackageReader creates a ZIP package reader.
 func NewZIPPackageReader() *ZIPPackageReader {
 	return &ZIPPackageReader{}
+}
+
+// NewZIPPackageReaderWithVerifier creates a ZIP package reader
+// that verifies package signatures using the supplied verifier.
+func NewZIPPackageReaderWithVerifier(
+	verifier PackageVerifier,
+) *ZIPPackageReader {
+	return &ZIPPackageReader{
+		verifier: verifier,
+	}
 }
 
 // Read reads and verifies a ZIP package.
@@ -158,7 +170,8 @@ func (r *ZIPPackageReader) Read(
 
 	for path := range files {
 		if path == bundleManifestPath ||
-			path == integrityManifestPath {
+			path == integrityManifestPath ||
+			path == signatureManifestPath {
 			continue
 		}
 
