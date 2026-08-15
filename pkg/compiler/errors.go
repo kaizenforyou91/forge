@@ -21,4 +21,8 @@ var (
 	ErrSignatureMismatch       = errors.New("package signature mismatch")
 	ErrUntrustedPackageKey     = errors.New("untrusted package signing key")
 	ErrMissingPackageSignature = errors.New("missing package signature")
+	ErrNilTrustStore           = errors.New("trust store is nil")
+	ErrInvalidTrustKey         = errors.New("invalid trust key")
+	ErrDuplicateTrustKey       = errors.New("trust key already registered")
+	ErrTrustKeyNotFound        = errors.New("trust key not found")
 )
