@@ -111,6 +111,7 @@ func TestZIPPackagerContainsExpectedEntries(t *testing.T) {
 		"artifacts/logger/v1/artifact",
 		"artifacts/web/v1/artifact",
 		"bundle.json",
+		"integrity.json",
 	}
 
 	sort.Strings(got)

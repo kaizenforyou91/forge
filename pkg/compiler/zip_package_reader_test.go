@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -83,27 +84,40 @@ func TestZIPPackageReaderRequiresBundleJSON(t *testing.T) {
 
 func TestZIPPackageReaderRejectsMissingPayload(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "invalid.zip")
 
-	bundle := testPackageBundle()
+	validPath := filepath.Join(dir, "valid.zip")
+	brokenPath := filepath.Join(dir, "broken.zip")
 
-	data, err := MarshalArtifactBundle(bundle)
+	createValidFW051Package(t, validPath)
+
+	reader, err := zip.OpenReader(validPath)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer reader.Close()
 
-	if err := createZIP(
-		path,
-		map[string][]byte{
-			"bundle.json": data,
-		},
-	); err != nil {
-		t.Fatal(err)
+	entries := make(map[string][]byte)
+
+	for _, file := range reader.File {
+		data, err := readZIPEntry(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if file.Name == "artifacts/http/v1/artifact" {
+			continue
+		}
+
+		entries[file.Name] = data
 	}
 
-	_, _, err = NewZIPPackageReader().Read(path)
+	writeZIPEntriesForTest(t, brokenPath, entries)
+
+	packageReader := NewZIPPackageReader()
+
+	_, _, err = packageReader.Read(brokenPath)
 	if err == nil {
-		t.Fatal("expected missing payload error")
+		t.Fatal("expected missing artifact payload error")
 	}
 
 	if !errors.Is(err, ErrMissingArtifactPayload) {
@@ -116,35 +130,38 @@ func TestZIPPackageReaderRejectsMissingPayload(t *testing.T) {
 
 func TestZIPPackageReaderRejectsUnexpectedPayload(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "invalid.zip")
 
-	bundle := ArtifactBundle{
-		ManifestName:    "demo",
-		ManifestVersion: "v1",
-		Artifacts: []Artifact{
-			{Module: "http", Version: "v1"},
-		},
-	}
+	validPath := filepath.Join(dir, "valid.zip")
+	brokenPath := filepath.Join(dir, "broken.zip")
 
-	bundleData, err := MarshalArtifactBundle(bundle)
+	createValidFW051Package(t, validPath)
+
+	reader, err := zip.OpenReader(validPath)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer reader.Close()
 
-	if err := createZIP(
-		path,
-		map[string][]byte{
-			"bundle.json":                 bundleData,
-			"artifacts/http/v1/artifact":  []byte("http"),
-			"artifacts/extra/v1/artifact": []byte("extra"),
-		},
-	); err != nil {
-		t.Fatal(err)
+	entries := make(map[string][]byte)
+
+	for _, file := range reader.File {
+		data, err := readZIPEntry(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		entries[file.Name] = data
 	}
 
-	_, _, err = NewZIPPackageReader().Read(path)
+	entries["artifacts/unknown/v1/artifact"] = []byte("unexpected")
+
+	writeZIPEntriesForTest(t, brokenPath, entries)
+
+	packageReader := NewZIPPackageReader()
+
+	_, _, err = packageReader.Read(brokenPath)
 	if err == nil {
-		t.Fatal("expected unexpected entry error")
+		t.Fatal("expected unexpected artifact package entry error")
 	}
 
 	if !errors.Is(err, ErrInvalidArtifactPackage) {
@@ -221,18 +238,38 @@ func TestZIPPackageReaderRejectsTraversalEntry(t *testing.T) {
 
 func TestZIPPackageReaderRejectsInvalidBundleJSON(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "invalid.zip")
 
-	if err := createZIP(
-		path,
-		map[string][]byte{
-			"bundle.json": []byte(`{"manifest_name":`),
-		},
-	); err != nil {
+	validPath := filepath.Join(dir, "valid.zip")
+	brokenPath := filepath.Join(dir, "broken.zip")
+
+	createValidFW051Package(t, validPath)
+
+	reader, err := zip.OpenReader(validPath)
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer reader.Close()
 
-	_, _, err := NewZIPPackageReader().Read(path)
+	entries := make(map[string][]byte)
+
+	for _, file := range reader.File {
+		data, err := readZIPEntry(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if file.Name == bundleManifestPath {
+			data = []byte(`{"manifest_name":`)
+		}
+
+		entries[file.Name] = data
+	}
+
+	writeZIPEntriesForTest(t, brokenPath, entries)
+
+	packageReader := NewZIPPackageReader()
+
+	_, _, err = packageReader.Read(brokenPath)
 	if err == nil {
 		t.Fatal("expected invalid bundle JSON error")
 	}
@@ -422,4 +459,86 @@ func createZIPWithDuplicate(
 	}
 
 	return file.Close()
+}
+
+func writeZIPEntriesForTest(
+	t *testing.T,
+	path string,
+	entries map[string][]byte,
+) {
+	t.Helper()
+
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	writer := zip.NewWriter(file)
+
+	keys := make([]string, 0, len(entries))
+	for key := range entries {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		entry, err := writer.Create(key)
+		if err != nil {
+			writer.Close()
+			t.Fatal(err)
+		}
+
+		if _, err := entry.Write(entries[key]); err != nil {
+			writer.Close()
+			t.Fatal(err)
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func createValidFW051Package(
+	t *testing.T,
+	path string,
+) {
+	t.Helper()
+
+	bundle := ArtifactBundle{
+		ManifestName:    "demo",
+		ManifestVersion: "v1",
+		Artifacts: []Artifact{
+			{
+				Module:  "http",
+				Version: "v1",
+			},
+			{
+				Module:  "logger",
+				Version: "v1",
+			},
+			{
+				Module:  "web",
+				Version: "v1",
+			},
+		},
+	}
+
+	payloads := map[string][]byte{
+		"http@v1":   []byte("http-artifact"),
+		"logger@v1": []byte("logger-artifact"),
+		"web@v1":    []byte("web-artifact"),
+	}
+
+	packager := NewZIPPackager()
+
+	if err := packager.Package(
+		bundle,
+		payloads,
+		path,
+	); err != nil {
+		t.Fatal(err)
+	}
 }

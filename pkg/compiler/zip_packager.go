@@ -14,14 +14,16 @@ import (
 // ZIP artifact layout:
 //
 //	bundle.json
+//	integrity.json
 //	artifacts/<module>/<version>/artifact
 //
 // All entries use a fixed timestamp so repeated packaging of the same input
 // produces byte-identical archives.
 const (
-	bundleManifestPath = "bundle.json"
-	artifactRootPath   = "artifacts"
-	artifactFileName   = "artifact"
+	bundleManifestPath    = "bundle.json"
+	integrityManifestPath = "integrity.json"
+	artifactRootPath      = "artifacts"
+	artifactFileName      = "artifact"
 )
 
 // ZIPPackager creates deterministic artifact archives.
@@ -32,7 +34,8 @@ func NewZIPPackager() *ZIPPackager {
 	return &ZIPPackager{}
 }
 
-// Package writes an ArtifactBundle and its payloads into a deterministic ZIP.
+// Package writes an ArtifactBundle, its integrity manifest, and payloads
+// into a deterministic ZIP.
 //
 // Payloads are keyed by exact artifact identity:
 //
@@ -46,7 +49,10 @@ func (p *ZIPPackager) Package(
 	outputPath string,
 ) error {
 	if p == nil {
-		return fmt.Errorf("%w: packager is nil", ErrInvalidArtifactPackage)
+		return fmt.Errorf(
+			"%w: packager is nil",
+			ErrInvalidArtifactPackage,
+		)
 	}
 
 	if err := bundle.Validate(); err != nil {
@@ -68,6 +74,7 @@ func (p *ZIPPackager) Package(
 
 	for _, artifact := range bundle.Artifacts {
 		key := artifact.Module + "@" + artifact.Version
+
 		expected[key] = struct{}{}
 
 		if _, ok := payloads[key]; !ok {
@@ -96,12 +103,33 @@ func (p *ZIPPackager) Package(
 		return err
 	}
 
-	entries := make([]zipPackageEntry, 0, len(bundle.Artifacts)+1)
+	integrity, err := BuildPackageIntegrity(
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+	if err != nil {
+		return err
+	}
 
-	entries = append(entries, zipPackageEntry{
-		path:    bundleManifestPath,
-		payload: bundleJSON,
-	})
+	integrityJSON, err := MarshalPackageIntegrity(integrity)
+	if err != nil {
+		return err
+	}
+
+	entries := make([]zipPackageEntry, 0, len(bundle.Artifacts)+2)
+
+	entries = append(
+		entries,
+		zipPackageEntry{
+			path:    bundleManifestPath,
+			payload: append([]byte(nil), bundleJSON...),
+		},
+		zipPackageEntry{
+			path:    integrityManifestPath,
+			payload: append([]byte(nil), integrityJSON...),
+		},
+	)
 
 	for _, artifact := range bundle.Artifacts {
 		key := artifact.Module + "@" + artifact.Version

@@ -20,7 +20,6 @@ func NewZIPPackageReader() *ZIPPackageReader {
 // Read reads and verifies a ZIP package.
 //
 // It returns:
-//
 //   - the validated artifact bundle
 //   - artifact payloads keyed by module@version
 //
@@ -81,7 +80,6 @@ func (r *ZIPPackageReader) Read(
 
 		seen[file.Name] = struct{}{}
 
-		// Forge packages currently contain files only.
 		if strings.HasSuffix(file.Name, "/") {
 			return ArtifactBundle{}, nil, fmt.Errorf(
 				"%w: directory entry %q is not allowed",
@@ -112,13 +110,26 @@ func (r *ZIPPackageReader) Read(
 		)
 	}
 
+	integrityData, ok := files[integrityManifestPath]
+	if !ok {
+		return ArtifactBundle{}, nil, fmt.Errorf(
+			"%w: %s is missing",
+			ErrMissingPackageIntegrity,
+			integrityManifestPath,
+		)
+	}
+
 	bundle, err := UnmarshalArtifactBundle(bundleData)
 	if err != nil {
 		return ArtifactBundle{}, nil, err
 	}
 
-	expected := make(map[string]string, len(bundle.Artifacts))
+	integrity, err := UnmarshalPackageIntegrity(integrityData)
+	if err != nil {
+		return ArtifactBundle{}, nil, err
+	}
 
+	expected := make(map[string]string, len(bundle.Artifacts))
 	payloads := make(map[string][]byte, len(bundle.Artifacts))
 
 	for _, artifact := range bundle.Artifacts {
@@ -145,9 +156,9 @@ func (r *ZIPPackageReader) Read(
 		payloads[key] = append([]byte(nil), payload...)
 	}
 
-	// Reject any unknown file in the artifact area or package root.
 	for path := range files {
-		if path == bundleManifestPath {
+		if path == bundleManifestPath ||
+			path == integrityManifestPath {
 			continue
 		}
 
@@ -158,6 +169,15 @@ func (r *ZIPPackageReader) Read(
 				path,
 			)
 		}
+	}
+
+	if err := VerifyPackageIntegrity(
+		bundle,
+		bundleData,
+		payloads,
+		integrity,
+	); err != nil {
+		return ArtifactBundle{}, nil, err
 	}
 
 	return bundle, payloads, nil
