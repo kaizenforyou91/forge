@@ -12,11 +12,14 @@ import (
 // ZIPPackageReader reads Forge deterministic ZIP packages.
 type ZIPPackageReader struct {
 	verifier PackageVerifier
+	policy   PackageVerificationPolicy
 }
 
 // NewZIPPackageReader creates a ZIP package reader.
 func NewZIPPackageReader() *ZIPPackageReader {
-	return &ZIPPackageReader{}
+	return &ZIPPackageReader{
+		policy: DefaultPackageVerificationPolicy(),
+	}
 }
 
 // NewZIPPackageReaderWithVerifier creates a ZIP package reader
@@ -26,7 +29,46 @@ func NewZIPPackageReaderWithVerifier(
 ) *ZIPPackageReader {
 	return &ZIPPackageReader{
 		verifier: verifier,
+		policy:   DefaultPackageVerificationPolicy(),
 	}
+}
+
+// NewZIPPackageReaderWithPolicy creates a ZIP package reader
+// using the supplied verification policy.
+func NewZIPPackageReaderWithPolicy(
+	policy PackageVerificationPolicy,
+) (*ZIPPackageReader, error) {
+	if err := policy.Validate(); err != nil {
+		return nil, err
+	}
+
+	if policy.RequireSignature {
+		return nil, ErrPackageVerifierRequired
+	}
+
+	return &ZIPPackageReader{
+		policy: policy,
+	}, nil
+}
+
+// NewZIPPackageReaderWithPolicyAndVerifier creates a ZIP package reader
+// using both verification policy and package verifier.
+func NewZIPPackageReaderWithPolicyAndVerifier(
+	policy PackageVerificationPolicy,
+	verifier PackageVerifier,
+) (*ZIPPackageReader, error) {
+	if err := policy.Validate(); err != nil {
+		return nil, err
+	}
+
+	if policy.RequireSignature && verifier == nil {
+		return nil, ErrPackageVerifierRequired
+	}
+
+	return &ZIPPackageReader{
+		verifier: verifier,
+		policy:   policy,
+	}, nil
 }
 
 // Read reads and verifies a ZIP package.
@@ -141,6 +183,19 @@ func (r *ZIPPackageReader) Read(
 		return ArtifactBundle{}, nil, err
 	}
 
+	signature, signaturePresent, err := readOptionalPackageSignature(files)
+	if err != nil {
+		return ArtifactBundle{}, nil, err
+	}
+
+	if err := r.verifySignaturePolicy(
+		integrityData,
+		signature,
+		signaturePresent,
+	); err != nil {
+		return ArtifactBundle{}, nil, err
+	}
+
 	expected := make(map[string]string, len(bundle.Artifacts))
 	payloads := make(map[string][]byte, len(bundle.Artifacts))
 
@@ -194,6 +249,50 @@ func (r *ZIPPackageReader) Read(
 	}
 
 	return bundle, payloads, nil
+}
+
+func (r *ZIPPackageReader) verifySignaturePolicy(
+	payload []byte,
+	signature PackageSignature,
+	signaturePresent bool,
+) error {
+	if !signaturePresent {
+		if r.policy.RequireSignature {
+			return ErrMissingPackageSignature
+		}
+
+		return nil
+	}
+
+	if r.verifier == nil {
+		if r.policy.RequireSignature {
+			return ErrPackageVerifierRequired
+		}
+
+		return nil
+	}
+
+	if err := r.verifier.Verify(payload, signature); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func readOptionalPackageSignature(
+	files map[string][]byte,
+) (PackageSignature, bool, error) {
+	signatureData, ok := files[signatureManifestPath]
+	if !ok {
+		return PackageSignature{}, false, nil
+	}
+
+	signature, err := UnmarshalPackageSignature(signatureData)
+	if err != nil {
+		return PackageSignature{}, true, err
+	}
+
+	return signature, true, nil
 }
 
 func readZIPEntry(file *zip.File) ([]byte, error) {
