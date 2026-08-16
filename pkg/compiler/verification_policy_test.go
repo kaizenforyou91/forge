@@ -1,6 +1,9 @@
 package compiler
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestDefaultPackageVerificationPolicy(t *testing.T) {
 	policy := DefaultPackageVerificationPolicy()
@@ -36,8 +39,9 @@ func TestStrictPackageVerificationPolicy(t *testing.T) {
 
 func TestPackageVerificationPolicyValidate(t *testing.T) {
 	testCases := []struct {
-		name   string
-		policy PackageVerificationPolicy
+		name        string
+		policy      PackageVerificationPolicy
+		expectError bool
 	}{
 		{
 			name: "default",
@@ -45,6 +49,7 @@ func TestPackageVerificationPolicyValidate(t *testing.T) {
 				RequireIntegrity: true,
 				RequireSignature: false,
 			},
+			expectError: false,
 		},
 		{
 			name: "signature only",
@@ -52,6 +57,7 @@ func TestPackageVerificationPolicyValidate(t *testing.T) {
 				RequireIntegrity: false,
 				RequireSignature: true,
 			},
+			expectError: true,
 		},
 		{
 			name: "both disabled",
@@ -59,6 +65,7 @@ func TestPackageVerificationPolicyValidate(t *testing.T) {
 				RequireIntegrity: false,
 				RequireSignature: false,
 			},
+			expectError: false,
 		},
 		{
 			name: "strict",
@@ -66,14 +73,46 @@ func TestPackageVerificationPolicyValidate(t *testing.T) {
 				RequireIntegrity: true,
 				RequireSignature: true,
 			},
+			expectError: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := tc.policy.Validate(); err != nil {
-				t.Fatal(err)
+			err := tc.policy.Validate()
+
+			if tc.expectError {
+				if !errors.Is(err, ErrInvalidVerificationPolicy) {
+					t.Fatalf(
+						"expected ErrInvalidVerificationPolicy, got %v",
+						err,
+					)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+func TestPackageVerificationPolicyRejectsSignatureWithoutIntegrity(
+	t *testing.T,
+) {
+	policy := PackageVerificationPolicy{
+		RequireIntegrity: false,
+		RequireSignature: true,
+	}
+
+	err := policy.Validate()
+
+	if !errors.Is(err, ErrInvalidVerificationPolicy) {
+		t.Fatalf(
+			"expected ErrInvalidVerificationPolicy, got %v",
+			err,
+		)
 	}
 }

@@ -24,7 +24,7 @@ var (
 	ErrInvalidTrustKey           = errors.New("invalid trust key")
 	ErrDuplicateTrustKey         = errors.New("trust key already registered")
 	ErrTrustKeyNotFound          = errors.New("trust key not found")
-	ErrInvalidVerificationPolicy = errors.New("invalid verification policy")
 	ErrMissingPackageSignature   = errors.New("missing package signature")
 	ErrPackageVerifierRequired   = errors.New("package verifier is required")
+	ErrInvalidVerificationPolicy = errors.New("invalid package verification policy")
 )

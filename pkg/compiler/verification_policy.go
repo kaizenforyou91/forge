@@ -29,8 +29,11 @@ func StrictPackageVerificationPolicy() PackageVerificationPolicy {
 
 // Validate validates the policy configuration.
 func (p PackageVerificationPolicy) Validate() error {
-	// Current policy fields are boolean and therefore structurally valid.
-	// This method exists as an explicit contract so future policy fields
-	// can add validation without changing callers.
+	// A package signature signs integrity.json. Therefore a policy
+	// requiring signatures must also require integrity metadata.
+	if p.RequireSignature && !p.RequireIntegrity {
+		return ErrInvalidVerificationPolicy
+	}
+
 	return nil
 }
