@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/kaizenforyou91/forge/pkg/manifest"
+	"github.com/kaizenforyou91/forge/pkg/registry"
 )
 
 // ArtifactPackager packages a complete artifact bundle.
@@ -57,6 +58,56 @@ func PackageArtifacts(
 	return packager.Package(
 		bundle,
 		payloads,
+		outputPath,
+	)
+}
+
+// CompileAndPackageManifest resolves a manifest, compiles it,
+// and packages the resulting artifacts into one deterministic package.
+func CompileAndPackageManifest(
+	engine *Engine,
+	m manifest.Manifest,
+	packages *registry.Registry,
+	packager ArtifactPackager,
+	outputPath string,
+) error {
+	if engine == nil {
+		return ErrNilExecutor
+	}
+
+	if packager == nil {
+		return fmt.Errorf(
+			"%w: packager is nil",
+			ErrInvalidArtifactPackage,
+		)
+	}
+
+	if strings.TrimSpace(outputPath) == "" {
+		return fmt.Errorf(
+			"%w: output path is required",
+			ErrInvalidArtifactPackage,
+		)
+	}
+
+	resolved, err := manifest.ResolveDependencies(m, packages)
+	if err != nil {
+		return err
+	}
+
+	plan, err := manifest.BuildPlanForManifest(resolved)
+	if err != nil {
+		return err
+	}
+
+	artifacts, err := engine.Compile(plan)
+	if err != nil {
+		return err
+	}
+
+	return PackageArtifacts(
+		plan,
+		artifacts,
+		packager,
 		outputPath,
 	)
 }
