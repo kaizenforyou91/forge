@@ -42,10 +42,6 @@ func NewZIPPackageReaderWithPolicy(
 		return nil, err
 	}
 
-	if policy.RequireSignature {
-		return nil, ErrPackageVerifierRequired
-	}
-
 	return &ZIPPackageReader{
 		policy: policy,
 	}, nil
@@ -163,9 +159,15 @@ func (r *ZIPPackageReader) Read(
 			bundleManifestPath,
 		)
 	}
+	var integrityData []byte
+	integrityPresent := false
 
-	integrityData, ok := files[integrityManifestPath]
-	if !ok {
+	if data, ok := files[integrityManifestPath]; ok {
+		integrityData = data
+		integrityPresent = true
+	}
+
+	if r.policy.RequireIntegrity && !integrityPresent {
 		return ArtifactBundle{}, nil, fmt.Errorf(
 			"%w: %s is missing",
 			ErrMissingPackageIntegrity,
@@ -177,15 +179,25 @@ func (r *ZIPPackageReader) Read(
 	if err != nil {
 		return ArtifactBundle{}, nil, err
 	}
+	var integrity PackageIntegrity
 
-	integrity, err := UnmarshalPackageIntegrity(integrityData)
+	if integrityPresent {
+		integrity, err = UnmarshalPackageIntegrity(integrityData)
+		if err != nil {
+			return ArtifactBundle{}, nil, err
+		}
+	}
+	signature, signaturePresent, err := readOptionalPackageSignature(files)
 	if err != nil {
 		return ArtifactBundle{}, nil, err
 	}
 
-	signature, signaturePresent, err := readOptionalPackageSignature(files)
-	if err != nil {
-		return ArtifactBundle{}, nil, err
+	if signaturePresent && !integrityPresent {
+		return ArtifactBundle{}, nil, fmt.Errorf(
+			"%w: signature requires %s",
+			ErrMissingPackageIntegrity,
+			integrityManifestPath,
+		)
 	}
 
 	if err := r.verifySignaturePolicy(
@@ -238,14 +250,15 @@ func (r *ZIPPackageReader) Read(
 			)
 		}
 	}
-
-	if err := VerifyPackageIntegrity(
-		bundle,
-		bundleData,
-		payloads,
-		integrity,
-	); err != nil {
-		return ArtifactBundle{}, nil, err
+	if r.policy.RequireIntegrity {
+		if err := VerifyPackageIntegrity(
+			bundle,
+			bundleData,
+			payloads,
+			integrity,
+		); err != nil {
+			return ArtifactBundle{}, nil, err
+		}
 	}
 
 	return bundle, payloads, nil

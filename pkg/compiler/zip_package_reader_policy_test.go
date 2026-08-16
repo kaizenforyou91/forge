@@ -4,6 +4,8 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -77,18 +79,26 @@ func TestNewZIPPackageReaderWithPolicyAllowsDefaultPolicy(
 	}
 }
 
-func TestNewZIPPackageReaderWithPolicyRejectsRequiredSignatureWithoutVerifier(
+func TestNewZIPPackageReaderWithPolicyAllowsStrictPolicy(
 	t *testing.T,
 ) {
-	_, err := NewZIPPackageReaderWithPolicy(
+	reader, err := NewZIPPackageReaderWithPolicy(
 		StrictPackageVerificationPolicy(),
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if !errors.Is(err, ErrPackageVerifierRequired) {
-		t.Fatalf(
-			"expected ErrPackageVerifierRequired, got %v",
-			err,
-		)
+	if reader == nil {
+		t.Fatal("expected reader")
+	}
+
+	if !reader.policy.RequireIntegrity {
+		t.Fatal("strict policy must require integrity")
+	}
+
+	if !reader.policy.RequireSignature {
+		t.Fatal("strict policy must require signature")
 	}
 }
 
@@ -309,4 +319,69 @@ func mustSignProbe(
 	}
 
 	return signature
+}
+
+func TestZIPPackageReaderWithoutIntegrityAcceptsPackage(
+	t *testing.T,
+) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "unsigned-no-integrity.zip")
+
+	bundle := testPackageBundle()
+	payloads := testPackagePayloads()
+
+	packageData := map[string][]byte{}
+
+	bundleData, err := MarshalArtifactBundle(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	packageData[bundleManifestPath] = bundleData
+
+	for key, payload := range payloads {
+		parts := strings.SplitN(key, "@", 2)
+
+		archivePath := filepath.ToSlash(filepath.Join(
+			artifactRootPath,
+			parts[0],
+			parts[1],
+			artifactFileName,
+		))
+
+		packageData[archivePath] = append([]byte(nil), payload...)
+	}
+
+	writeZIPEntriesForTest(t, path, packageData)
+
+	policy := PackageVerificationPolicy{
+		RequireIntegrity: false,
+		RequireSignature: false,
+	}
+
+	reader, err := NewZIPPackageReaderWithPolicy(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gotBundle, gotPayloads, err := reader.Read(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(gotBundle, bundle) {
+		t.Fatalf(
+			"expected bundle %#v, got %#v",
+			bundle,
+			gotBundle,
+		)
+	}
+
+	if !reflect.DeepEqual(gotPayloads, payloads) {
+		t.Fatalf(
+			"expected payloads %#v, got %#v",
+			payloads,
+			gotPayloads,
+		)
+	}
 }
