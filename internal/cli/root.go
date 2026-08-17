@@ -34,6 +34,7 @@ func NewRootCommandWithApplication(
 		newVersionCmd(),
 		newDoctorCmd(),
 		newConfigCmd(),
+		newBuildCmd(),
 	)
 
 	return cmd

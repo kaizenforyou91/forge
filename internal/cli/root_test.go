@@ -9,13 +9,26 @@ import (
 func TestNewRootCommand(t *testing.T) {
 	cmd := NewRootCommand()
 
-	if cmd == nil {
-		t.Fatal("expected root command")
+	commands := map[string]bool{}
+
+	for _, command := range cmd.Commands() {
+		commands[command.Name()] = true
 	}
 
-	subcommands := cmd.Commands()
-	if len(subcommands) != 3 {
-		t.Fatalf("expected 3 subcommands, got %d", len(subcommands))
+	expected := []string{
+		"build",
+		"config",
+		"doctor",
+		"version",
+	}
+
+	for _, name := range expected {
+		if !commands[name] {
+			t.Fatalf(
+				"expected %q command to be registered",
+				name,
+			)
+		}
 	}
 }
 
