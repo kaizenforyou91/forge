@@ -38,11 +38,15 @@ func (e *ToolchainExecutor) Execute(
 		)
 	}
 
+	args := []string{"build"}
+
+	if request.ImportPath != "" {
+		args = append(args, request.ImportPath)
+	}
+
 	command := Command{
 		Name: "go",
-		Args: []string{
-			"build",
-		},
+		Args: args,
 	}
 
 	result, err := e.runner.Run(context.Background(), command)

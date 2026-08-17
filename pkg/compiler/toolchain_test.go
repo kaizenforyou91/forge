@@ -168,3 +168,50 @@ func TestToolchainExecutorDoesNotInvokeRunnerAfterFailure(t *testing.T) {
 
 	_ = context.Background()
 }
+
+func TestToolchainExecutorUsesImportPath(t *testing.T) {
+	runner := &fakeCommandRunner{
+		result: CommandResult{
+			ExitCode: 0,
+		},
+	}
+
+	executor, err := NewToolchainExecutor(runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = executor.Execute(ExecutionRequest{
+		Module:     "compiler@v1",
+		ImportPath: "github.com/kaizenforyou91/forge/pkg/compiler",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(runner.commands) != 1 {
+		t.Fatalf(
+			"expected 1 command, got %d",
+			len(runner.commands),
+		)
+	}
+
+	command := runner.commands[0]
+
+	if command.Name != "go" {
+		t.Fatalf("expected go command, got %q", command.Name)
+	}
+
+	want := []string{
+		"build",
+		"github.com/kaizenforyou91/forge/pkg/compiler",
+	}
+
+	if !reflect.DeepEqual(command.Args, want) {
+		t.Fatalf(
+			"expected args %#v, got %#v",
+			want,
+			command.Args,
+		)
+	}
+}

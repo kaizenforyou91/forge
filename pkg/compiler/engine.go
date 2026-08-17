@@ -9,8 +9,9 @@ import (
 // Engine executes a manifest build plan through an Executor
 // and optionally persists generated artifacts through an ArtifactWriter.
 type Engine struct {
-	executor Executor
-	writer   ArtifactWriter
+	executor       Executor
+	writer         ArtifactWriter
+	sourceResolver PackageSourceResolver
 }
 
 // NewEngine creates a compiler execution engine.
@@ -57,9 +58,21 @@ func (e *Engine) Compile(plan manifest.BuildPlan) ([]Artifact, error) {
 			)
 		}
 
+		importPath := ""
+
+		if e.sourceResolver != nil {
+			source, err := e.sourceResolver.Resolve(module, version)
+			if err != nil {
+				return nil, err
+			}
+
+			importPath = source.ImportPath
+		}
+
 		result, err := e.executor.Execute(ExecutionRequest{
 			Module:       step.Module,
 			Dependencies: append([]string(nil), step.Dependencies...),
+			ImportPath:   importPath,
 		})
 		if err != nil {
 			return nil, err
@@ -110,4 +123,18 @@ func splitModuleIdentity(key string) (string, string, bool) {
 	}
 
 	return "", "", false
+}
+
+func NewEngineWithSourceResolver(
+	executor Executor,
+	resolver PackageSourceResolver,
+) (*Engine, error) {
+	if executor == nil {
+		return nil, ErrNilExecutor
+	}
+
+	return &Engine{
+		executor:       executor,
+		sourceResolver: resolver,
+	}, nil
 }

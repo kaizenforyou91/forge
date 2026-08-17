@@ -14,16 +14,37 @@ var (
 
 // Module integrates the Forge compiler into the application lifecycle.
 type Module struct {
-	registry *registry.Registry
-	runner   *OSCommandRunner
-	executor *ToolchainExecutor
-	engine   *Engine
+	registry       *registry.Registry
+	sourceRegistry *PackageSourceRegistry
+	runner         *OSCommandRunner
+	executor       *ToolchainExecutor
+	engine         *Engine
 }
 
 // NewModule creates a compiler application module
 // with the default Forge compiler stack.
 func NewModule() *Module {
 	registryInstance := registry.New()
+	sourceRegistry := NewPackageSourceRegistry()
+
+	registerSource := func(source PackageSource) {
+		if err := sourceRegistry.Register(source); err != nil {
+			panic(err)
+		}
+	}
+
+	registerSource(PackageSource{
+		Name:       "forge",
+		Version:    "v1",
+		ImportPath: "github.com/kaizenforyou91/forge/cmd/forge",
+	})
+
+	registerSource(PackageSource{
+		Name:       "compiler",
+		Version:    "v1",
+		ImportPath: "github.com/kaizenforyou91/forge/pkg/compiler",
+	})
+
 	runner := NewOSCommandRunner()
 
 	executor, err := NewToolchainExecutor(runner)
@@ -31,16 +52,20 @@ func NewModule() *Module {
 		panic(err)
 	}
 
-	engine, err := NewEngine(executor)
+	engine, err := NewEngineWithSourceResolver(
+		executor,
+		sourceRegistry,
+	)
 	if err != nil {
 		panic(err)
 	}
 
 	return &Module{
-		registry: registryInstance,
-		runner:   runner,
-		executor: executor,
-		engine:   engine,
+		registry:       registryInstance,
+		sourceRegistry: sourceRegistry,
+		runner:         runner,
+		executor:       executor,
+		engine:         engine,
 	}
 }
 
@@ -49,7 +74,7 @@ func (m *Module) Name() string {
 	return "compiler"
 }
 
-// Register registers the compiler services into the application container.
+// Register registers compiler services into the application container.
 func (m *Module) Register(a *app.App) error {
 	if m == nil {
 		return ErrNilCompilerModule
@@ -62,6 +87,10 @@ func (m *Module) Register(a *app.App) error {
 	container := a.Container()
 
 	if err := container.RegisterSingleton(m.registry); err != nil {
+		return err
+	}
+
+	if err := container.RegisterSingleton(m.sourceRegistry); err != nil {
 		return err
 	}
 
@@ -81,15 +110,11 @@ func (m *Module) Register(a *app.App) error {
 }
 
 // Start starts the compiler module.
-//
-// The compiler currently has no background process to start.
 func (m *Module) Start(a *app.App) error {
 	return nil
 }
 
 // Stop stops the compiler module.
-//
-// The compiler currently has no background process to stop.
 func (m *Module) Stop(a *app.App) error {
 	return nil
 }
@@ -101,6 +126,15 @@ func (m *Module) Registry() *registry.Registry {
 	}
 
 	return m.registry
+}
+
+// SourceRegistry returns the compiler package source registry.
+func (m *Module) SourceRegistry() *PackageSourceRegistry {
+	if m == nil {
+		return nil
+	}
+
+	return m.sourceRegistry
 }
 
 // Runner returns the operating-system command runner.

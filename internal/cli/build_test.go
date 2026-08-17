@@ -23,7 +23,7 @@ func TestBuildCommandCreatesPackage(t *testing.T) {
 version: v1
 name: demo
 modules:
-  - name: demo
+  - name: forge
     version: v1
 `
 
@@ -85,7 +85,7 @@ func TestBuildCommandCreatesDeterministicPackageEntries(
 version: v1
 name: demo
 modules:
-  - name: demo
+  - name: forge
     version: v1
 `
 
@@ -118,9 +118,9 @@ modules:
 	defer reader.Close()
 
 	expected := map[string]bool{
-		"bundle.json":                false,
-		"integrity.json":             false,
-		"artifacts/demo/v1/artifact": false,
+		"bundle.json":                 false,
+		"integrity.json":              false,
+		"artifacts/forge/v1/artifact": false,
 	}
 
 	for _, file := range reader.File {
@@ -150,7 +150,7 @@ func TestBuildCommandSupportsJSONManifest(t *testing.T) {
 	"name": "demo",
 	"modules": [
 		{
-			"name": "demo",
+			"name": "forge",
 			"version": "v1"
 		}
 	]
@@ -196,7 +196,7 @@ func TestBuildCommandUsesDefaultOutputPath(t *testing.T) {
 version: v1
 name: demo
 modules:
-  - name: demo
+  - name: forge
     version: v1
 `
 
@@ -614,7 +614,7 @@ func TestBuildCommandOutputCanBeReadBack(
 version: v1
 name: demo
 modules:
-  - name: demo
+  - name: forge
     version: v1
 `
 

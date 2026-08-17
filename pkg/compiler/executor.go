@@ -4,6 +4,7 @@ package compiler
 type ExecutionRequest struct {
 	Module       string
 	Dependencies []string
+	ImportPath   string
 }
 
 // ExecutionResult describes the result returned by an execution backend.

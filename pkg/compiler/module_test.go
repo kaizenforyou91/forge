@@ -134,3 +134,27 @@ func TestModuleLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestModuleSourceRegistry(t *testing.T) {
+	module := NewModule()
+
+	if module.SourceRegistry() == nil {
+		t.Fatal("expected source registry")
+	}
+
+	source, err := module.SourceRegistry().Resolve(
+		"compiler",
+		"v1",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if source.ImportPath !=
+		"github.com/kaizenforyou91/forge/pkg/compiler" {
+		t.Fatalf(
+			"unexpected import path: %q",
+			source.ImportPath,
+		)
+	}
+}
