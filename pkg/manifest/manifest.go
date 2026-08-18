@@ -15,6 +15,7 @@ type Manifest struct {
 type Module struct {
 	Name         string       `yaml:"name" json:"name"`
 	Version      string       `yaml:"version" json:"version"`
+	ImportPath   string       `yaml:"import_path" json:"import_path"`
 	Dependencies []Dependency `yaml:"dependencies" json:"dependencies"`
 }
 

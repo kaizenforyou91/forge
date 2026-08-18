@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/kaizenforyou91/forge/internal/bootstrap"
+	"github.com/kaizenforyou91/forge/pkg/compiler"
 	"github.com/kaizenforyou91/forge/pkg/manifest"
 	"github.com/spf13/cobra"
 )
@@ -25,6 +26,7 @@ name: demo
 modules:
   - name: forge
     version: v1
+    import_path: github.com/kaizenforyou91/forge/cmd/forge
 `
 
 	if err := os.WriteFile(
@@ -87,6 +89,7 @@ name: demo
 modules:
   - name: forge
     version: v1
+    import_path: github.com/kaizenforyou91/forge/cmd/forge
 `
 
 	if err := os.WriteFile(
@@ -151,7 +154,8 @@ func TestBuildCommandSupportsJSONManifest(t *testing.T) {
 	"modules": [
 		{
 			"name": "forge",
-			"version": "v1"
+			"version": "v1",
+			"import_path": "github.com/kaizenforyou91/forge/cmd/forge"
 		}
 	]
 }`
@@ -198,6 +202,7 @@ name: demo
 modules:
   - name: forge
     version: v1
+    import_path: github.com/kaizenforyou91/forge/cmd/forge
 `
 
 	if err := os.WriteFile(
@@ -616,6 +621,7 @@ name: demo
 modules:
   - name: forge
     version: v1
+    import_path: github.com/kaizenforyou91/forge/cmd/forge
 `
 
 	if err := os.WriteFile(
@@ -734,5 +740,38 @@ func TestBuildCommandDoesNotRequireExplicitOutput(
 	flag := command.Flags().Lookup("output")
 	if flag == nil {
 		t.Fatal("expected output flag")
+	}
+}
+
+func TestRegisterManifestSources(t *testing.T) {
+	r := compiler.NewPackageSourceRegistry()
+
+	m := manifest.Manifest{
+		Version: "v1",
+		Name:    "demo",
+		Modules: []manifest.Module{
+			{
+				Name:       "forge",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/cmd/forge",
+			},
+		},
+	}
+
+	if err := registerManifestSources(r, m); err != nil {
+		t.Fatal(err)
+	}
+
+	source, err := r.Resolve("forge", "v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if source.ImportPath !=
+		"github.com/kaizenforyou91/forge/cmd/forge" {
+		t.Fatalf(
+			"unexpected import path: %q",
+			source.ImportPath,
+		)
 	}
 }

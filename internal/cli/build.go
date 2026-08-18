@@ -38,6 +38,11 @@ func newBuildCmd() *cobra.Command {
 				return err
 			}
 
+			sourceRegistry, err := resolveSourceRegistry(application)
+			if err != nil {
+				return err
+			}
+
 			engine, err := resolveEngine(application)
 			if err != nil {
 				return err
@@ -45,6 +50,13 @@ func newBuildCmd() *cobra.Command {
 
 			if err := registerManifestPackages(
 				registryInstance,
+				m,
+			); err != nil {
+				return err
+			}
+
+			if err := registerManifestSources(
+				sourceRegistry,
 				m,
 			); err != nil {
 				return err
@@ -149,6 +161,7 @@ func registerManifestPackages(
 	r *registry.Registry,
 	m manifest.Manifest,
 ) error {
+
 	if r == nil {
 		return fmt.Errorf("registry is nil")
 	}
@@ -174,4 +187,55 @@ func registerManifestPackages(
 	}
 
 	return nil
+}
+
+func registerManifestSources(
+	r *compiler.PackageSourceRegistry,
+	m manifest.Manifest,
+) error {
+	if r == nil {
+		return fmt.Errorf("package source registry is nil")
+	}
+
+	for _, module := range m.Modules {
+		if strings.TrimSpace(module.ImportPath) == "" {
+			return fmt.Errorf(
+				"module %q@%q has no import_path",
+				module.Name,
+				module.Version,
+			)
+		}
+
+		source := compiler.PackageSource{
+			Name:       module.Name,
+			Version:    module.Version,
+			ImportPath: module.ImportPath,
+		}
+
+		if err := r.Register(source); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func resolveSourceRegistry(
+	application *app.App,
+) (*compiler.PackageSourceRegistry, error) {
+	if application == nil {
+		return nil, fmt.Errorf("application is nil")
+	}
+
+	var value *compiler.PackageSourceRegistry
+
+	if err := application.Container().Resolve(&value); err != nil {
+		return nil, err
+	}
+
+	if value == nil {
+		return nil, fmt.Errorf("compiler package source registry is nil")
+	}
+
+	return value, nil
 }

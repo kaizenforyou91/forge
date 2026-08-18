@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/kaizenforyou91/forge/pkg/app"
@@ -135,26 +136,21 @@ func TestModuleLifecycle(t *testing.T) {
 	}
 }
 
-func TestModuleSourceRegistry(t *testing.T) {
+func TestModuleSourceRegistryStartsEmpty(t *testing.T) {
 	module := NewModule()
 
 	if module.SourceRegistry() == nil {
 		t.Fatal("expected source registry")
 	}
 
-	source, err := module.SourceRegistry().Resolve(
-		"compiler",
+	_, err := module.SourceRegistry().Resolve(
+		"forge",
 		"v1",
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if source.ImportPath !=
-		"github.com/kaizenforyou91/forge/pkg/compiler" {
+	if !errors.Is(err, ErrPackageSourceNotFound) {
 		t.Fatalf(
-			"unexpected import path: %q",
-			source.ImportPath,
+			"expected package source not found, got %v",
+			err,
 		)
 	}
 }

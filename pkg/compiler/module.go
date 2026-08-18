@@ -27,24 +27,6 @@ func NewModule() *Module {
 	registryInstance := registry.New()
 	sourceRegistry := NewPackageSourceRegistry()
 
-	registerSource := func(source PackageSource) {
-		if err := sourceRegistry.Register(source); err != nil {
-			panic(err)
-		}
-	}
-
-	registerSource(PackageSource{
-		Name:       "forge",
-		Version:    "v1",
-		ImportPath: "github.com/kaizenforyou91/forge/cmd/forge",
-	})
-
-	registerSource(PackageSource{
-		Name:       "compiler",
-		Version:    "v1",
-		ImportPath: "github.com/kaizenforyou91/forge/pkg/compiler",
-	})
-
 	runner := NewOSCommandRunner()
 
 	executor, err := NewToolchainExecutor(runner)
