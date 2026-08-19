@@ -3,6 +3,7 @@ package cli
 import (
 	"archive/zip"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -774,4 +775,193 @@ func TestRegisterManifestSources(t *testing.T) {
 			source.ImportPath,
 		)
 	}
+}
+
+func TestBuildCommandSupportsMultipleModulesWithDependencies(t *testing.T) {
+	dir := t.TempDir()
+
+	manifestPath := filepath.Join(dir, "forge.yaml")
+	outputPath := filepath.Join(dir, "multi.zip")
+
+	manifestData := `
+version: v1
+name: multi-demo
+modules:
+  - name: compiler
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/compiler
+    dependencies:
+      - name: core
+        version: v1
+
+  - name: core
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/app
+`
+
+	if err := os.WriteFile(
+		manifestPath,
+		[]byte(manifestData),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	application := bootstrap.NewApplication()
+
+	cmd := NewRootCommandWithApplication(application)
+	cmd.SetArgs([]string{
+		"build",
+		manifestPath,
+		"--output",
+		outputPath,
+	})
+
+	var stdout strings.Builder
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stdout)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(outputPath); err != nil {
+		t.Fatalf(
+			"expected package %q to exist: %v",
+			outputPath,
+			err,
+		)
+	}
+
+	reader, err := zip.OpenReader(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	expected := map[string]bool{
+		"bundle.json":                    false,
+		"integrity.json":                 false,
+		"artifacts/core/v1/artifact":     false,
+		"artifacts/compiler/v1/artifact": false,
+	}
+
+	for _, file := range reader.File {
+		if _, ok := expected[file.Name]; ok {
+			expected[file.Name] = true
+		}
+	}
+
+	for path, found := range expected {
+		if !found {
+			t.Fatalf("expected ZIP entry %q", path)
+		}
+	}
+
+	if !strings.Contains(stdout.String(), "Build completed:") {
+		t.Fatalf(
+			"expected build completion output, got %q",
+			stdout.String(),
+		)
+	}
+}
+
+func TestBuildCommandPreservesDependencyFirstArtifactOrder(t *testing.T) {
+	dir := t.TempDir()
+
+	manifestPath := filepath.Join(dir, "forge.yaml")
+	outputPath := filepath.Join(dir, "ordered.zip")
+
+	manifestData := `
+version: v1
+name: ordered-demo
+modules:
+  - name: compiler
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/compiler
+    dependencies:
+      - name: core
+        version: v1
+
+  - name: core
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/app
+`
+
+	if err := os.WriteFile(
+		manifestPath,
+		[]byte(manifestData),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	application := bootstrap.NewApplication()
+
+	cmd := NewRootCommandWithApplication(application)
+	cmd.SetArgs([]string{
+		"build",
+		manifestPath,
+		"--output",
+		outputPath,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := zip.OpenReader(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		if file.Name != "bundle.json" {
+			continue
+		}
+
+		stream, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stream.Close()
+
+		data, err := io.ReadAll(stream)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		bundle, err := compiler.UnmarshalArtifactBundle(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(bundle.Artifacts) != 2 {
+			t.Fatalf(
+				"expected 2 artifacts, got %d",
+				len(bundle.Artifacts),
+			)
+		}
+
+		if bundle.Artifacts[0].Module != "core" ||
+			bundle.Artifacts[0].Version != "v1" {
+			t.Fatalf(
+				"expected core@v1 first, got %#v",
+				bundle.Artifacts[0],
+			)
+		}
+
+		if bundle.Artifacts[1].Module != "compiler" ||
+			bundle.Artifacts[1].Version != "v1" {
+			t.Fatalf(
+				"expected compiler@v1 second, got %#v",
+				bundle.Artifacts[1],
+			)
+		}
+
+		return
+	}
+
+	t.Fatal("bundle.json not found")
 }
