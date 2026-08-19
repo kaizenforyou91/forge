@@ -777,6 +777,240 @@ func TestRegisterManifestSources(t *testing.T) {
 	}
 }
 
+func TestBuildCommandRejectsMissingDependency(t *testing.T) {
+	dir := t.TempDir()
+
+	manifestPath := filepath.Join(dir, "forge.yaml")
+	outputPath := filepath.Join(dir, "missing-dependency.zip")
+
+	manifestData := `
+version: v1
+name: missing-dependency
+modules:
+  - name: compiler
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/compiler
+    dependencies:
+      - name: core
+        version: v1
+`
+
+	if err := os.WriteFile(
+		manifestPath,
+		[]byte(manifestData),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := NewRootCommandWithApplication(
+		bootstrap.NewApplication(),
+	)
+
+	cmd.SetArgs([]string{
+		"build",
+		manifestPath,
+		"--output",
+		outputPath,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing dependency error")
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"dependency",
+	) {
+		t.Fatalf(
+			"expected dependency error, got %v",
+			err,
+		)
+	}
+
+	if _, statErr := os.Stat(outputPath); !os.IsNotExist(statErr) {
+		t.Fatalf(
+			"package must not be created, stat error: %v",
+			statErr,
+		)
+	}
+}
+
+func TestBuildCommandRejectsCircularDependency(t *testing.T) {
+	dir := t.TempDir()
+
+	manifestPath := filepath.Join(dir, "forge.yaml")
+	outputPath := filepath.Join(dir, "cycle.zip")
+
+	manifestData := `
+version: v1
+name: cycle
+modules:
+  - name: compiler
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/compiler
+    dependencies:
+      - name: core
+        version: v1
+
+  - name: core
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/app
+    dependencies:
+      - name: compiler
+        version: v1
+`
+
+	if err := os.WriteFile(
+		manifestPath,
+		[]byte(manifestData),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := NewRootCommandWithApplication(
+		bootstrap.NewApplication(),
+	)
+
+	cmd.SetArgs([]string{
+		"build",
+		manifestPath,
+		"--output",
+		outputPath,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected circular dependency error")
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"circular",
+	) {
+		t.Fatalf(
+			"expected circular dependency error, got %v",
+			err,
+		)
+	}
+
+	if _, statErr := os.Stat(outputPath); !os.IsNotExist(statErr) {
+		t.Fatalf(
+			"package must not be created, stat error: %v",
+			statErr,
+		)
+	}
+}
+
+func TestBuildCommandRejectsDuplicateModule(t *testing.T) {
+	dir := t.TempDir()
+
+	manifestPath := filepath.Join(dir, "forge.yaml")
+	outputPath := filepath.Join(dir, "duplicate.zip")
+
+	manifestData := `
+version: v1
+name: duplicate
+modules:
+  - name: forge
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/cmd/forge
+
+  - name: forge
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/cmd/forge
+`
+
+	if err := os.WriteFile(
+		manifestPath,
+		[]byte(manifestData),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := NewRootCommandWithApplication(
+		bootstrap.NewApplication(),
+	)
+
+	cmd.SetArgs([]string{
+		"build",
+		manifestPath,
+		"--output",
+		outputPath,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected duplicate module error")
+	}
+
+	if _, statErr := os.Stat(outputPath); !os.IsNotExist(statErr) {
+		t.Fatalf(
+			"package must not be created, stat error: %v",
+			statErr,
+		)
+	}
+}
+
+func TestBuildCommandRejectsMissingImportPath(t *testing.T) {
+	dir := t.TempDir()
+
+	manifestPath := filepath.Join(dir, "forge.yaml")
+	outputPath := filepath.Join(dir, "missing-source.zip")
+
+	manifestData := `
+version: v1
+name: missing-source
+modules:
+  - name: forge
+    version: v1
+`
+
+	if err := os.WriteFile(
+		manifestPath,
+		[]byte(manifestData),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := NewRootCommandWithApplication(
+		bootstrap.NewApplication(),
+	)
+
+	cmd.SetArgs([]string{
+		"build",
+		manifestPath,
+		"--output",
+		outputPath,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing import_path error")
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"import_path",
+	) {
+		t.Fatalf(
+			"expected import_path error, got %v",
+			err,
+		)
+	}
+
+	if _, statErr := os.Stat(outputPath); !os.IsNotExist(statErr) {
+		t.Fatalf(
+			"package must not be created, stat error: %v",
+			statErr,
+		)
+	}
+}
+
 func TestBuildCommandSupportsMultipleModulesWithDependencies(t *testing.T) {
 	dir := t.TempDir()
 
