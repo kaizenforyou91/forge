@@ -47,7 +47,9 @@ func NewArtifactBundle(
 	}
 
 	for i, artifact := range artifacts {
-		if artifact.Module == "" || artifact.Version == "" {
+		if artifact.Module == "" ||
+			artifact.Version == "" ||
+			artifact.ImportPath == "" {
 			return ArtifactBundle{}, fmt.Errorf(
 				"%w: artifact %d has invalid identity",
 				ErrInvalidArtifactBundle,
@@ -90,7 +92,9 @@ func (b ArtifactBundle) Validate() error {
 	seen := make(map[string]struct{}, len(b.Artifacts))
 
 	for i, artifact := range b.Artifacts {
-		if artifact.Module == "" || artifact.Version == "" {
+		if artifact.Module == "" ||
+			artifact.Version == "" ||
+			artifact.ImportPath == "" {
 			return fmt.Errorf(
 				"%w: artifact %d has invalid identity",
 				ErrInvalidArtifactBundle,

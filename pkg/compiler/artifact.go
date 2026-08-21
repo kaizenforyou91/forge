@@ -7,4 +7,5 @@ package compiler
 type Artifact struct {
 	Module  string
 	Version string
+	ImportPath string
 }

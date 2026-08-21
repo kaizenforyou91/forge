@@ -15,16 +15,19 @@ func integrityTestBundle() ArtifactBundle {
 		ManifestVersion: "v1",
 		Artifacts: []Artifact{
 			{
-				Module:  "logger",
-				Version: "v1",
+				Module:     "logger",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/logger",
+				Version:    "v1",
 			},
 			{
-				Module:  "http",
-				Version: "v1",
+				Module:     "http",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+				Version:    "v1",
 			},
 			{
-				Module:  "web",
-				Version: "v1",
+				Module:     "web",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/router",
+				Version:    "v1",
 			},
 		},
 	}

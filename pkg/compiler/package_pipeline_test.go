@@ -42,12 +42,14 @@ func TestPackageArtifactsBuildsBundleAndPayloads(t *testing.T) {
 
 	artifacts := []Artifact{
 		{
-			Module:  "http",
-			Version: "v1",
+			Module:     "http",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+			Version:    "v1",
 		},
 		{
-			Module:  "web",
-			Version: "v1",
+			Module:     "web",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/router",
+			Version:    "v1",
 		},
 	}
 
@@ -129,8 +131,9 @@ func TestPackageArtifactsRejectsArtifactMismatch(t *testing.T) {
 
 	artifacts := []Artifact{
 		{
-			Module:  "web",
-			Version: "v1",
+			Module:     "web",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/router",
+			Version:    "v1",
 		},
 	}
 

@@ -15,16 +15,19 @@ func testArtifactBundle() ArtifactBundle {
 		ManifestVersion: "v1",
 		Artifacts: []Artifact{
 			{
-				Module:  "logger",
-				Version: "v1",
+				Module:     "logger",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/logger",
 			},
 			{
-				Module:  "http",
-				Version: "v1",
+				Module:     "http",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
 			},
 			{
-				Module:  "web",
-				Version: "v1",
+				Module:     "web",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/router",
 			},
 		},
 	}
@@ -66,6 +69,14 @@ func TestMarshalArtifactBundle(t *testing.T) {
 			len(document.Artifacts),
 		)
 	}
+
+	if document.Artifacts[0].ImportPath !=
+		"github.com/kaizenforyou91/forge/pkg/logger" {
+		t.Fatalf(
+			"expected logger import path, got %q",
+			document.Artifacts[0].ImportPath,
+		)
+	}
 }
 
 func TestMarshalArtifactBundlePreservesArtifactOrder(t *testing.T) {
@@ -77,9 +88,21 @@ func TestMarshalArtifactBundlePreservesArtifactOrder(t *testing.T) {
 	}
 
 	want := []ArtifactDocument{
-		{Module: "logger", Version: "v1"},
-		{Module: "http", Version: "v1"},
-		{Module: "web", Version: "v1"},
+		{
+			Module:     "logger",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/logger",
+		},
+		{
+			Module:     "http",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+		},
+		{
+			Module:     "web",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/router",
+		},
 	}
 
 	var document ArtifactBundleDocument
@@ -140,14 +163,26 @@ func TestMarshalArtifactBundleRejectsInvalidBundle(t *testing.T) {
 
 func TestUnmarshalArtifactBundle(t *testing.T) {
 	data := []byte(`{
-		"manifest_name":"demo",
-		"manifest_version":"v1",
-		"artifacts":[
-			{"module":"logger","version":"v1"},
-			{"module":"http","version":"v1"},
-			{"module":"web","version":"v1"}
-		]
-	}`)
+        "manifest_name":"demo",
+        "manifest_version":"v1",
+        "artifacts":[
+            {
+                "module":"logger",
+                "version":"v1",
+                "import_path":"github.com/kaizenforyou91/forge/pkg/logger"
+            },
+            {
+                "module":"http",
+                "version":"v1",
+                "import_path":"github.com/kaizenforyou91/forge/pkg/http"
+            },
+            {
+                "module":"web",
+                "version":"v1",
+                "import_path":"github.com/kaizenforyou91/forge/pkg/router"
+            }
+        ]
+    }`)
 
 	got, err := UnmarshalArtifactBundle(data)
 	if err != nil {
@@ -197,13 +232,21 @@ func TestUnmarshalArtifactBundleRejectsEmptyDocument(t *testing.T) {
 
 func TestUnmarshalArtifactBundleValidatesDecodedBundle(t *testing.T) {
 	data := []byte(`{
-		"manifest_name":"demo",
-		"manifest_version":"v1",
-		"artifacts":[
-			{"module":"http","version":"v1"},
-			{"module":"http","version":"v1"}
-		]
-	}`)
+        "manifest_name":"demo",
+        "manifest_version":"v1",
+        "artifacts":[
+            {
+                "module":"http",
+                "version":"v1",
+                "import_path":"github.com/kaizenforyou91/forge/pkg/http"
+            },
+            {
+                "module":"http",
+                "version":"v1",
+                "import_path":"github.com/kaizenforyou91/forge/pkg/http"
+            }
+        ]
+    }`)
 
 	_, err := UnmarshalArtifactBundle(data)
 	if err == nil {
@@ -286,12 +329,16 @@ func TestArtifactBundleSerializationDoesNotMutateInput(t *testing.T) {
 
 func TestUnmarshalArtifactBundleCreatesIndependentSlices(t *testing.T) {
 	data := []byte(`{
-		"manifest_name":"demo",
-		"manifest_version":"v1",
-		"artifacts":[
-			{"module":"http","version":"v1"}
-		]
-	}`)
+        "manifest_name":"demo",
+        "manifest_version":"v1",
+        "artifacts":[
+            {
+                "module":"http",
+                "version":"v1",
+                "import_path":"github.com/kaizenforyou91/forge/pkg/http"
+            }
+        ]
+    }`)
 
 	bundle, err := UnmarshalArtifactBundle(data)
 	if err != nil {

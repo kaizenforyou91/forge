@@ -23,7 +23,11 @@ func TestZIPPackagerWithSignerIncludesSignature(t *testing.T) {
 		ManifestName:    "demo",
 		ManifestVersion: "v1",
 		Artifacts: []Artifact{
-			{Module: "http", Version: "v1"},
+			{
+				Module:     "http",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+			},
 		},
 	}
 
@@ -95,7 +99,11 @@ func TestZIPPackageReaderWithVerifierAcceptsValidSignature(
 		ManifestName:    "demo",
 		ManifestVersion: "v1",
 		Artifacts: []Artifact{
-			{Module: "http", Version: "v1"},
+			{
+				Module:     "http",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+			},
 		},
 	}
 
@@ -122,6 +130,14 @@ func TestZIPPackageReaderWithVerifierAcceptsValidSignature(
 		t.Fatalf(
 			"expected demo, got %q",
 			gotBundle.ManifestName,
+		)
+	}
+
+	if gotBundle.Artifacts[0].ImportPath !=
+		"github.com/kaizenforyou91/forge/pkg/http" {
+		t.Fatalf(
+			"unexpected artifact import path: %q",
+			gotBundle.Artifacts[0].ImportPath,
 		)
 	}
 

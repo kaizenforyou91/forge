@@ -19,8 +19,9 @@ type ArtifactBundleDocument struct {
 
 // ArtifactDocument is the stable serialized representation of one artifact.
 type ArtifactDocument struct {
-	Module  string `json:"module"`
-	Version string `json:"version"`
+	Module     string `json:"module"`
+	Version    string `json:"version"`
+	ImportPath string `json:"import_path"`
 }
 
 // MarshalArtifactBundle serializes an artifact bundle into deterministic JSON.
@@ -39,8 +40,9 @@ func MarshalArtifactBundle(bundle ArtifactBundle) ([]byte, error) {
 
 	for i, artifact := range bundle.Artifacts {
 		document.Artifacts[i] = ArtifactDocument{
-			Module:  artifact.Module,
-			Version: artifact.Version,
+			Module:     artifact.Module,
+			Version:    artifact.Version,
+			ImportPath: artifact.ImportPath,
 		}
 	}
 
@@ -86,8 +88,9 @@ func UnmarshalArtifactBundle(data []byte) (ArtifactBundle, error) {
 
 	for i, artifact := range document.Artifacts {
 		bundle.Artifacts[i] = Artifact{
-			Module:  artifact.Module,
-			Version: artifact.Version,
+			Module:     artifact.Module,
+			Version:    artifact.Version,
+			ImportPath: artifact.ImportPath,
 		}
 	}
 

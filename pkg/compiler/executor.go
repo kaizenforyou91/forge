@@ -11,6 +11,7 @@ type ExecutionRequest struct {
 type ExecutionResult struct {
 	Module  string
 	Version string
+	ImportPath string
 }
 
 // Executor executes one compiler request.

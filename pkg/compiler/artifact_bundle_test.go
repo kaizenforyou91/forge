@@ -28,12 +28,14 @@ func TestNewArtifactBundle(t *testing.T) {
 
 	artifacts := []Artifact{
 		{
-			Module:  "http",
-			Version: "v1",
+			Module:     "http",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
 		},
 		{
-			Module:  "web",
-			Version: "v1",
+			Module:     "web",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/router",
 		},
 	}
 
@@ -79,9 +81,21 @@ func TestNewArtifactBundlePreservesArtifactOrder(t *testing.T) {
 	}
 
 	artifacts := []Artifact{
-		{Module: "logger", Version: "v1"},
-		{Module: "http", Version: "v1"},
-		{Module: "web", Version: "v1"},
+		{
+			Module:     "logger",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/logger",
+		},
+		{
+			Module:     "http",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+		},
+		{
+			Module:     "web",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/router",
+		},
 	}
 
 	bundle, err := NewArtifactBundle(plan, artifacts)
@@ -135,7 +149,11 @@ func TestNewArtifactBundleRejectsInvalidManifestIdentity(t *testing.T) {
 	_, err := NewArtifactBundle(
 		plan,
 		[]Artifact{
-			{Module: "http", Version: "v1"},
+			{
+				Module:     "http",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+			},
 		},
 	)
 	if err == nil {
@@ -162,7 +180,11 @@ func TestNewArtifactBundleRejectsArtifactIdentityMismatch(t *testing.T) {
 	_, err := NewArtifactBundle(
 		plan,
 		[]Artifact{
-			{Module: "http", Version: "v2"},
+			{
+				Module:     "http",
+				Version:    "v2",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+			},
 		},
 	)
 	if err == nil {
@@ -208,6 +230,37 @@ func TestNewArtifactBundleRejectsInvalidArtifact(t *testing.T) {
 	}
 }
 
+func TestNewArtifactBundleRejectsMissingImportPath(t *testing.T) {
+	plan := manifest.BuildPlan{
+		ManifestName:    "demo",
+		ManifestVersion: "v1",
+		Steps: []manifest.BuildStep{
+			{Module: "http@v1"},
+		},
+	}
+
+	_, err := NewArtifactBundle(
+		plan,
+		[]Artifact{
+			{
+				Module:  "http",
+				Version: "v1",
+			},
+		},
+	)
+
+	if err == nil {
+		t.Fatal("expected missing import path error")
+	}
+
+	if !errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf(
+			"expected ErrInvalidArtifactBundle, got %v",
+			err,
+		)
+	}
+}
+
 func TestNewArtifactBundleDoesNotAliasArtifacts(t *testing.T) {
 	plan := manifest.BuildPlan{
 		ManifestName:    "demo",
@@ -219,8 +272,16 @@ func TestNewArtifactBundleDoesNotAliasArtifacts(t *testing.T) {
 	}
 
 	artifacts := []Artifact{
-		{Module: "http", Version: "v1"},
-		{Module: "web", Version: "v1"},
+		{
+			Module:     "http",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+		},
+		{
+			Module:     "web",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/router",
+		},
 	}
 
 	bundle, err := NewArtifactBundle(plan, artifacts)
@@ -240,8 +301,16 @@ func TestArtifactBundleValidate(t *testing.T) {
 		ManifestName:    "demo",
 		ManifestVersion: "v1",
 		Artifacts: []Artifact{
-			{Module: "http", Version: "v1"},
-			{Module: "web", Version: "v1"},
+			{
+				Module:     "http",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+			},
+			{
+				Module:     "web",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/router",
+			},
 		},
 	}
 
@@ -308,13 +377,46 @@ func TestArtifactBundleValidateRejectsInvalidArtifact(t *testing.T) {
 	}
 }
 
+func TestArtifactBundleValidateRejectsMissingImportPath(t *testing.T) {
+	bundle := ArtifactBundle{
+		ManifestName:    "demo",
+		ManifestVersion: "v1",
+		Artifacts: []Artifact{
+			{
+				Module:  "http",
+				Version: "v1",
+			},
+		},
+	}
+
+	err := bundle.Validate()
+	if err == nil {
+		t.Fatal("expected missing import path validation error")
+	}
+
+	if !errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf(
+			"expected ErrInvalidArtifactBundle, got %v",
+			err,
+		)
+	}
+}
+
 func TestArtifactBundleValidateRejectsDuplicateArtifact(t *testing.T) {
 	bundle := ArtifactBundle{
 		ManifestName:    "demo",
 		ManifestVersion: "v1",
 		Artifacts: []Artifact{
-			{Module: "http", Version: "v1"},
-			{Module: "http", Version: "v1"},
+			{
+				Module:     "http",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+			},
+			{
+				Module:     "http",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
+			},
 		},
 	}
 

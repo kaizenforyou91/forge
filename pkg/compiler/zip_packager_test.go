@@ -17,16 +17,19 @@ func testPackageBundle() ArtifactBundle {
 		ManifestVersion: "v1",
 		Artifacts: []Artifact{
 			{
-				Module:  "logger",
-				Version: "v1",
+				Module:     "logger",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/logger",
 			},
 			{
-				Module:  "http",
-				Version: "v1",
+				Module:     "http",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/http",
 			},
 			{
-				Module:  "web",
-				Version: "v1",
+				Module:     "web",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/router",
 			},
 		},
 	}
