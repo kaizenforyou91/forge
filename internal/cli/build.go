@@ -212,7 +212,7 @@ func registerManifestSources(
 			ImportPath: module.ImportPath,
 		}
 
-		if err := r.Register(source); err != nil {
+		if err := r.Ensure(source); err != nil {
 			return err
 		}
 	}

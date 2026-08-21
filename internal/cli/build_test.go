@@ -2,6 +2,7 @@ package cli
 
 import (
 	"archive/zip"
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -140,6 +141,214 @@ modules:
 				path,
 			)
 		}
+	}
+}
+
+func TestBuildCommandCanExecuteTwiceWithSameApplication(t *testing.T) {
+	dir := t.TempDir()
+
+	manifestPath := filepath.Join(dir, "forge.yaml")
+	firstOutputPath := filepath.Join(dir, "first.zip")
+	secondOutputPath := filepath.Join(dir, "second.zip")
+
+	manifestData := `
+version: v1
+name: demo
+modules:
+  - name: compiler
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/compiler
+`
+
+	if err := os.WriteFile(
+		manifestPath,
+		[]byte(manifestData),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	application := bootstrap.NewApplication()
+
+	for _, outputPath := range []string{
+		firstOutputPath,
+		secondOutputPath,
+	} {
+		cmd := NewRootCommandWithApplication(application)
+		cmd.SetArgs([]string{
+			"build",
+			manifestPath,
+			"--output",
+			outputPath,
+		})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, outputPath := range []string{
+		firstOutputPath,
+		secondOutputPath,
+	} {
+		if _, err := os.Stat(outputPath); err != nil {
+			t.Fatalf(
+				"expected package %q to exist: %v",
+				outputPath,
+				err,
+			)
+		}
+	}
+}
+
+func TestBuildCommandRepeatedExecutionProducesDeterministicPackage(
+	t *testing.T,
+) {
+	dir := t.TempDir()
+
+	manifestPath := filepath.Join(dir, "forge.yaml")
+	firstOutputPath := filepath.Join(dir, "first.zip")
+	secondOutputPath := filepath.Join(dir, "second.zip")
+
+	manifestData := `
+version: v1
+name: demo
+modules:
+  - name: compiler
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/compiler
+`
+
+	if err := os.WriteFile(
+		manifestPath,
+		[]byte(manifestData),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	application := bootstrap.NewApplication()
+
+	for _, outputPath := range []string{
+		firstOutputPath,
+		secondOutputPath,
+	} {
+		cmd := NewRootCommandWithApplication(application)
+		cmd.SetArgs([]string{
+			"build",
+			manifestPath,
+			"--output",
+			outputPath,
+		})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	first, err := os.ReadFile(firstOutputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := os.ReadFile(secondOutputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(first, second) {
+		t.Fatal("expected repeated builds to produce identical packages")
+	}
+}
+
+func TestBuildCommandRejectsConflictingImportPathWithSameApplication(
+	t *testing.T,
+) {
+	dir := t.TempDir()
+
+	firstManifestPath := filepath.Join(dir, "first.yaml")
+	secondManifestPath := filepath.Join(dir, "second.yaml")
+	firstOutputPath := filepath.Join(dir, "first.zip")
+	secondOutputPath := filepath.Join(dir, "second.zip")
+
+	firstManifestData := `
+version: v1
+name: demo
+modules:
+  - name: forge
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/cmd/forge
+`
+
+	secondManifestData := `
+version: v1
+name: demo
+modules:
+  - name: forge
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/compiler
+`
+
+	if err := os.WriteFile(
+		firstManifestPath,
+		[]byte(firstManifestData),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(
+		secondManifestPath,
+		[]byte(secondManifestData),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	application := bootstrap.NewApplication()
+
+	firstCommand := NewRootCommandWithApplication(application)
+	firstCommand.SetArgs([]string{
+		"build",
+		firstManifestPath,
+		"--output",
+		firstOutputPath,
+	})
+
+	if err := firstCommand.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(firstOutputPath); err != nil {
+		t.Fatalf(
+			"expected package %q to exist: %v",
+			firstOutputPath,
+			err,
+		)
+	}
+
+	secondCommand := NewRootCommandWithApplication(application)
+	secondCommand.SetArgs([]string{
+		"build",
+		secondManifestPath,
+		"--output",
+		secondOutputPath,
+	})
+
+	err := secondCommand.Execute()
+
+	if !errors.Is(err, compiler.ErrPackageSourceConflict) {
+		t.Fatalf(
+			"expected ErrPackageSourceConflict, got %v",
+			err,
+		)
+	}
+
+	if _, statErr := os.Stat(secondOutputPath); !os.IsNotExist(statErr) {
+		t.Fatalf(
+			"conflicting package must not be created, stat error: %v",
+			statErr,
+		)
 	}
 }
 
@@ -766,6 +975,117 @@ func TestRegisterManifestSources(t *testing.T) {
 	source, err := r.Resolve("forge", "v1")
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if source.ImportPath !=
+		"github.com/kaizenforyou91/forge/cmd/forge" {
+		t.Fatalf(
+			"unexpected import path: %q",
+			source.ImportPath,
+		)
+	}
+}
+
+func TestRegisterManifestSourcesIsIdempotentForIdenticalSources(
+	t *testing.T,
+) {
+	application := bootstrap.NewApplication()
+
+	registryInstance, err := resolveSourceRegistry(application)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := manifest.Manifest{
+		Version: "v1",
+		Name:    "demo",
+		Modules: []manifest.Module{
+			{
+				Name:       "forge",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/cmd/forge",
+			},
+		},
+	}
+
+	if err := registerManifestSources(registryInstance, m); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := registerManifestSources(registryInstance, m); err != nil {
+		t.Fatal(err)
+	}
+
+	if registryInstance.Count() != 1 {
+		t.Fatalf(
+			"expected 1 registered source, got %d",
+			registryInstance.Count(),
+		)
+	}
+
+	sources := registryInstance.List()
+	if len(sources) != 1 {
+		t.Fatalf("expected 1 listed source, got %d", len(sources))
+	}
+
+	if sources[0].Name != "forge" ||
+		sources[0].Version != "v1" ||
+		sources[0].ImportPath !=
+			"github.com/kaizenforyou91/forge/cmd/forge" {
+		t.Fatalf("unexpected source: %#v", sources[0])
+	}
+}
+
+func TestRegisterManifestSourcesRejectsConflictingImportPath(
+	t *testing.T,
+) {
+	application := bootstrap.NewApplication()
+
+	registryInstance, err := resolveSourceRegistry(application)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := manifest.Manifest{
+		Version: "v1",
+		Name:    "demo",
+		Modules: []manifest.Module{
+			{
+				Name:       "forge",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/cmd/forge",
+			},
+		},
+	}
+
+	second := manifest.Manifest{
+		Version: "v1",
+		Name:    "demo",
+		Modules: []manifest.Module{
+			{
+				Name:       "forge",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/compiler",
+			},
+		},
+	}
+
+	if err := registerManifestSources(registryInstance, first); err != nil {
+		t.Fatal(err)
+	}
+
+	err = registerManifestSources(registryInstance, second)
+
+	if !errors.Is(err, compiler.ErrPackageSourceConflict) {
+		t.Fatalf(
+			"expected ErrPackageSourceConflict, got %v",
+			err,
+		)
+	}
+
+	source, resolveErr := registryInstance.Resolve("forge", "v1")
+	if resolveErr != nil {
+		t.Fatal(resolveErr)
 	}
 
 	if source.ImportPath !=

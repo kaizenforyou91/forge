@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 )
@@ -9,6 +10,7 @@ import (
 var (
 	ErrInvalidPackageSource   = errors.New("invalid package source")
 	ErrDuplicatePackageSource = errors.New("package source already registered")
+	ErrPackageSourceConflict  = errors.New("package source conflict")
 	ErrPackageSourceNotFound  = errors.New("package source not found")
 )
 
@@ -45,14 +47,9 @@ func (r *PackageSourceRegistry) Register(
 		return ErrInvalidPackageSource
 	}
 
-	source.Name = strings.TrimSpace(source.Name)
-	source.Version = strings.TrimSpace(source.Version)
-	source.ImportPath = strings.TrimSpace(source.ImportPath)
-
-	if source.Name == "" ||
-		source.Version == "" ||
-		source.ImportPath == "" {
-		return ErrInvalidPackageSource
+	source, err := normalizePackageSource(source)
+	if err != nil {
+		return err
 	}
 
 	key := packageSourceKey(source.Name, source.Version)
@@ -62,6 +59,48 @@ func (r *PackageSourceRegistry) Register(
 
 	if _, exists := r.sources[key]; exists {
 		return ErrDuplicatePackageSource
+	}
+
+	r.sources[key] = source
+	r.order = append(r.order, key)
+
+	return nil
+}
+
+// Ensure registers a package source or verifies an existing source binding.
+//
+// Package identity is defined by name + version. Repeated identical source
+// bindings are accepted, while a different import path is a conflict.
+func (r *PackageSourceRegistry) Ensure(
+	source PackageSource,
+) error {
+	if r == nil {
+		return ErrInvalidPackageSource
+	}
+
+	source, err := normalizePackageSource(source)
+	if err != nil {
+		return err
+	}
+
+	key := packageSourceKey(source.Name, source.Version)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existing, exists := r.sources[key]
+	if exists {
+		if existing.ImportPath == source.ImportPath {
+			return nil
+		}
+
+		return fmt.Errorf(
+			"%w: %s is bound to %q, not %q",
+			ErrPackageSourceConflict,
+			key,
+			existing.ImportPath,
+			source.ImportPath,
+		)
 	}
 
 	r.sources[key] = source
@@ -129,6 +168,22 @@ func (r *PackageSourceRegistry) Count() int {
 
 func packageSourceKey(name, version string) string {
 	return name + "@" + version
+}
+
+func normalizePackageSource(
+	source PackageSource,
+) (PackageSource, error) {
+	source.Name = strings.TrimSpace(source.Name)
+	source.Version = strings.TrimSpace(source.Version)
+	source.ImportPath = strings.TrimSpace(source.ImportPath)
+
+	if source.Name == "" ||
+		source.Version == "" ||
+		source.ImportPath == "" {
+		return PackageSource{}, ErrInvalidPackageSource
+	}
+
+	return source, nil
 }
 
 type PackageSourceResolver interface {
