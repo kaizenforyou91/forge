@@ -70,6 +70,43 @@ func TestToolchainExecutorRunsGoBuild(t *testing.T) {
 	}
 }
 
+func TestToolchainExecutorPreservesImportPath(t *testing.T) {
+	runner := &fakeCommandRunner{
+		result: CommandResult{
+			ExitCode: 0,
+		},
+	}
+
+	executor, err := NewToolchainExecutor(runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := executor.Execute(ExecutionRequest{
+		Module:     "compiler@v1",
+		ImportPath: "github.com/kaizenforyou91/forge/pkg/compiler",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result.Module != "compiler" {
+		t.Fatalf("expected module %q, got %q", "compiler", result.Module)
+	}
+
+	if result.Version != "v1" {
+		t.Fatalf("expected version %q, got %q", "v1", result.Version)
+	}
+
+	if result.ImportPath != "github.com/kaizenforyou91/forge/pkg/compiler" {
+		t.Fatalf(
+			"expected import path %q, got %q",
+			"github.com/kaizenforyou91/forge/pkg/compiler",
+			result.ImportPath,
+		)
+	}
+}
+
 func TestToolchainExecutorRejectsMalformedModule(t *testing.T) {
 	runner := &fakeCommandRunner{}
 

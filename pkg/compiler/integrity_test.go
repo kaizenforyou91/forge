@@ -590,6 +590,52 @@ func TestVerifyPackageIntegrityRejectsBundleTampering(t *testing.T) {
 	}
 }
 
+func TestVerifyPackageIntegrityRejectsImportPathTampering(t *testing.T) {
+	bundle := integrityTestBundle()
+	bundleJSON, err := MarshalArtifactBundle(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payloads := integrityTestPayloads()
+
+	integrity, err := BuildPackageIntegrity(
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tamperedBundle := bundle
+	tamperedBundle.Artifacts = append([]Artifact(nil), bundle.Artifacts...)
+	tamperedBundle.Artifacts[0].ImportPath =
+		"github.com/kaizenforyou91/forge/pkg/tampered"
+
+	tamperedBundleJSON, err := MarshalArtifactBundle(tamperedBundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = VerifyPackageIntegrity(
+		tamperedBundle,
+		tamperedBundleJSON,
+		payloads,
+		integrity,
+	)
+	if err == nil {
+		t.Fatal("expected import path integrity mismatch")
+	}
+
+	if !errors.Is(err, ErrIntegrityMismatch) {
+		t.Fatalf(
+			"expected ErrIntegrityMismatch, got %v",
+			err,
+		)
+	}
+}
+
 func TestVerifyPackageIntegrityRejectsPayloadTampering(t *testing.T) {
 	bundle := integrityTestBundle()
 	bundleJSON := integrityTestBundleJSON(t)

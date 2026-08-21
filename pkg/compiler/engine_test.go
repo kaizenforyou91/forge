@@ -13,6 +13,16 @@ type fakeExecutor struct {
 	err      error
 }
 
+type provenanceExecutor struct{}
+
+func (provenanceExecutor) Execute(ExecutionRequest) (ExecutionResult, error) {
+	return ExecutionResult{
+		Module:     "compiler",
+		Version:    "v1",
+		ImportPath: "github.com/kaizenforyou91/forge/pkg/compiler",
+	}, nil
+}
+
 func (f *fakeExecutor) Execute(
 	request ExecutionRequest,
 ) (ExecutionResult, error) {
@@ -147,6 +157,48 @@ func TestEngineCompilesInBuildPlanOrder(t *testing.T) {
 			"unexpected artifacts:\nwant %#v\ngot  %#v",
 			wantArtifacts,
 			artifacts,
+		)
+	}
+}
+
+func TestEnginePreservesArtifactImportPath(t *testing.T) {
+	engine, err := NewEngine(provenanceExecutor{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	plan := manifest.BuildPlan{
+		ManifestVersion: "v1",
+		ManifestName:    "demo",
+		Steps: []manifest.BuildStep{
+			{Module: "compiler@v1"},
+		},
+	}
+
+	artifacts, err := engine.Compile(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(artifacts) != 1 {
+		t.Fatalf("expected 1 artifact, got %d", len(artifacts))
+	}
+
+	artifact := artifacts[0]
+
+	if artifact.Module != "compiler" {
+		t.Fatalf("expected module %q, got %q", "compiler", artifact.Module)
+	}
+
+	if artifact.Version != "v1" {
+		t.Fatalf("expected version %q, got %q", "v1", artifact.Version)
+	}
+
+	if artifact.ImportPath != "github.com/kaizenforyou91/forge/pkg/compiler" {
+		t.Fatalf(
+			"expected import path %q, got %q",
+			"github.com/kaizenforyou91/forge/pkg/compiler",
+			artifact.ImportPath,
 		)
 	}
 }
