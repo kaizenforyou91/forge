@@ -44,22 +44,62 @@ Forge is built around several engineering principles.
 
 ---
 
-# Planned Features
+# Platform Status
 
-The following components are planned for Forge.
+Forge is being developed incrementally. A status of "foundation complete" means
+that a tested implementation exists; it does not mean the component is complete
+or production-stable.
 
 | Component | Status |
 |-----------|--------|
 | Workspace | ✅ Bootstrap |
 | Documentation | 🚧 In Progress |
-| CLI | ⏳ Planned |
-| Manifest Engine | ⏳ Planned |
-| Validation Engine | ⏳ Planned |
-| Registry | ⏳ Planned |
-| Compiler | ⏳ Planned |
-| Runtime | ⏳ Planned |
-| Plugin System | ⏳ Planned |
+| CLI | 🚧 Foundation Complete / In Progress |
+| Manifest Engine | ✅ Complete |
+| Validation Engine | 🚧 Partial Manifest-Layer Foundation |
+| Registry | 🚧 Foundation Complete / In Progress |
+| Compiler | 🚧 Foundation Complete / Package Pipeline Hardening |
+| Runtime | 🚧 Foundation Complete / In Progress |
+| Plugin System | 🚧 Foundation Complete / In Progress |
 | AI Runtime | ⏳ Planned |
+
+---
+
+# Current Capabilities
+
+The current tested foundation includes:
+
+- Manifest-driven application architecture.
+- YAML and JSON manifest loading.
+- Exact module and version resolution.
+- Dependency-aware deterministic build planning.
+- Multi-module, dependency-first builds.
+- Import-path-aware compilation.
+- CLI builds through `forge build <manifest>`.
+- Deterministic artifact bundles and ZIP packages.
+- Package integrity metadata and verification.
+- Optional Ed25519 package signatures.
+- Trust-store-backed signature verification and configurable verification policy.
+- Artifact source provenance preserved through package read-back.
+- Configuration, structured logging, dependency injection, application lifecycle,
+  HTTP, middleware, and plugin foundations.
+
+The implemented top-level CLI commands are `forge version`, `forge doctor`,
+`forge config`, and `forge build`.
+
+Forge remains **Pre-Alpha**. The compiler and package pipeline are a tested
+foundation, not a stable production package format.
+
+## Known Limitations
+
+- The artifact bundle/package format does not yet have an explicit schema version.
+- Compatibility with packages created before artifact provenance was introduced is
+  not guaranteed.
+- Remote package registry and remote package resolution are not implemented.
+- Repeated builds in one application composition have unresolved package-source
+  registration semantics.
+- Default integrity verification proves package consistency. Without strict trusted
+  signatures, it does not prove publisher authenticity.
 
 ---
 
@@ -215,13 +255,13 @@ Manifest Engine
 ████████████████████ 100%
 
 Validation Engine
-░░░░░░░░░░░░░░░░░░░░ 0%
+Partial foundation in the manifest layer
 
 Package Registry
-░░░░░░░░░░░░░░░░░░░░ 0%
+Foundation complete / in progress
 
 Compiler
-░░░░░░░░░░░░░░░░░░░░ 0%
+Foundation complete / package pipeline hardening in progress
 
 AI Runtime
 ░░░░░░░░░░░░░░░░░░░░ 0%
@@ -236,8 +276,9 @@ AI Runtime
 
 Forge is currently in the **Pre-Alpha** stage.
 
-The core engineering foundation is now substantially established.
-Active development is focused on extending the manifest-driven platform
-toward validation, registry, compiler, and full runtime capabilities.
+The core engineering foundation is now substantially established. Active
+development is focused on package pipeline hardening and package-format
+stabilization while registry, validation, and runtime capabilities continue to
+evolve.
 
 AI-First Engineering Operating System

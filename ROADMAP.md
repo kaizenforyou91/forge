@@ -103,6 +103,10 @@ Commands:
 - forge fmt
 - forge version
 
+These are long-term Phase 2 command targets. The currently implemented
+top-level commands are `forge version`, `forge doctor`, `forge config`, and
+`forge build`.
+
 Status:
 
 Planned
@@ -341,9 +345,9 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 1 — Core Foundation | 🔄 Substantially Complete |
 | Phase 2 — CLI | 🔄 Foundation Complete / In Progress |
 | Phase 3 — Manifest Engine | ✅ Complete |
-| Phase 4 — Validation Engine | ⏳ Not Started |
-| Phase 5 — Registry | ⏳ Not Started |
-| Phase 6 — Compiler | ⏳ Not Started |
+| Phase 4 — Validation Engine | 🔄 Partial Foundation in Manifest Layer / Dedicated Validation Engine Not Started |
+| Phase 5 — Registry | 🔄 Foundation Complete / In Progress |
+| Phase 6 — Compiler | 🔄 Foundation Complete / Package Pipeline Hardening In Progress |
 | Phase 7 — Runtime | 🔄 Foundation Complete / In Progress |
 | Phase 8 — AI Runtime | ⏳ Not Started |
 
@@ -358,6 +362,25 @@ Implementation progress is tracked separately through engineering milestones.
 | FW-028 | ✅ Completed | CLI Foundation Completion |
 | FW-029 | ✅ Completed | Plugin System Foundation |
 | FW-030 | ✅ Completed | Manifest Engine Foundation |
+
+## Post-FW-030 Implemented Checkpoints
+
+The formal milestone list above currently ends at FW-030. The following
+checkpoints describe tested and committed implementation evidence without
+assigning new milestone or task identifiers:
+
+- Exact dependency resolution, dependency graph construction, and deterministic
+  dependency-first build order.
+- CLI `forge build` vertical slice for YAML and JSON manifests.
+- Multi-module dependency-aware compilation and packaging.
+- Package identity and package source registries.
+- Compiler execution abstraction, operating-system command runner, and
+  import-path-aware toolchain execution.
+- Artifact generation, deterministic artifact bundles, and deterministic ZIP
+  packaging.
+- Package integrity metadata and verification.
+- Ed25519 signing and verification, trust store, and package verification policy.
+- ZIP package read-back and artifact source provenance preservation.
 
 ## Current Implemented Foundation
 
@@ -377,14 +400,84 @@ Forge currently provides:
 - JSON manifest loading
 - Manifest validation
 - Exact module resolution
+- Dependency-aware deterministic build planning
+- Concurrency-safe in-memory package identity registry
+- Exact package name/version resolution
+- Package source registry
+- Deterministic dependency graph/order integration
+- Compiler execution abstraction
+- Operating-system command runner
+- Import-path-aware toolchain executor
+- Dependency-first build plan execution
+- Artifact generation and artifact bundles
+- Deterministic bundle serialization and ZIP packaging
+- Package integrity metadata and verification
+- Ed25519 signing and verification
+- Trust store and verification policy
+- ZIP package read-back
+- Artifact source provenance
+- CLI `forge build` for YAML and JSON manifests
+- Multi-module dependency-aware builds
+
+## Phase 5 — Registry Foundation
+
+Implemented foundation:
+
+- Concurrency-safe in-memory package identity registry.
+- Exact package name/version resolution.
+- Package source registry.
+- Deterministic dependency graph/order integration.
+
+Remaining work:
+
+- Remote registry and remote resolution.
+- Package acquisition.
+- Advanced version constraints.
+- Registry persistence and distribution policy.
+
+## Phase 6 — Compiler Foundation
+
+Implemented foundation:
+
+- Compiler execution abstraction and operating-system command runner.
+- Import-path-aware toolchain executor.
+- Dependency-first build plan execution.
+- Artifact generation and artifact bundles.
+- Deterministic bundle serialization and ZIP packaging.
+- Package integrity metadata and verification.
+- Ed25519 signing and verification, trust store, and verification policy.
+- ZIP read-back and artifact source provenance.
+- CLI build vertical slice for YAML, JSON, and multi-module dependency-aware builds.
+
+Remaining work:
+
+- Package schema/version contract.
+- Backward-compatibility policy.
+- Repeated-build package-source semantics.
+- Direct provenance unit coverage.
+- Import-path-only tamper acceptance test.
+- Compiler optimization.
+- Stable production package format.
+- Production-grade execution semantics.
+
+## Evidence-Based Current Roadmap Position
+
+```text
+Pre-Alpha
+→ Phase 6 — Compiler
+→ Package Pipeline Hardening
+→ Artifact Provenance
+→ Package-Format Stabilization
+```
 
 ## Remaining Platform Work
 
 The following capabilities remain future work:
 
-- Validation Engine
-- Package Registry
-- Compiler
+- Dedicated Validation Engine
+- Remote package registry and package acquisition
+- Package-format stabilization
+- Compiler optimization and production-grade execution semantics
 - Runtime loader
 - Scheduler
 - Remote package resolution

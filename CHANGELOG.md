@@ -2,6 +2,39 @@
 
 # Unreleased
 
+## Added
+
+- Added a dependency-aware compiler execution pipeline.
+- Added CLI `forge build` for YAML and JSON manifests.
+- Added a package source registry.
+- Added deterministic artifact bundle serialization and ZIP packaging.
+- Added package integrity metadata and verification.
+- Added Ed25519 signing, trust-store verification, and package verification policy.
+- Added YAML/JSON and multi-module build coverage.
+- Added artifact source provenance through package read-back.
+
+## Changed
+
+- Manifest module `import_path` is now the package source of truth.
+- Artifacts and bundle documents preserve import-path provenance.
+- Compiler composition is available through application bootstrap.
+
+## Tests
+
+- Added multi-module dependency-first build coverage.
+- Added invalid dependency rejection coverage.
+- Added integrity, signature, trust-store, and verification-policy coverage.
+- Added provenance serialization and package read-back coverage.
+
+## Known Limitations
+
+- A direct ToolchainExecutor result provenance test is missing.
+- A direct Engine-to-Artifact provenance test is missing.
+- Two comment-only placeholder tests remain in `internal/cli/build_test.go` and
+  do not count as coverage.
+- The package schema/version and backward-compatibility policy remain undefined.
+- Repeated package-source registration semantics remain unresolved.
+
 ## FW-030 — Manifest Engine Foundation
 
 - Added manifest contract.
@@ -54,18 +87,14 @@ This project follows **Semantic Versioning**.
 
 ## [Unreleased]
 
-### Planned
+### Remaining Platform Work
 
-- Security Policy
-- Architecture Decision Records (ADR)
-- GitHub Actions
-- Foundation Library
-- CLI Bootstrap
-- Manifest Engine
-- Validation Engine
-- Registry
-- Compiler
-- Runtime
+- Dedicated Validation Engine
+- Remote package registry, acquisition, and resolution
+- Advanced dependency and version constraints
+- Compiler package-format stabilization and optimization
+- Production-grade compiler execution semantics
+- Runtime loader and scheduler
 - AI Runtime
 
 ---
