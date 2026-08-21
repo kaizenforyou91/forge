@@ -68,8 +68,8 @@ func (e *ToolchainExecutor) Execute(
 	}
 
 	return ExecutionResult{
-		Module:  module,
-		Version: version,
+		Module:     module,
+		Version:    version,
 		ImportPath: request.ImportPath,
 	}, nil
 }

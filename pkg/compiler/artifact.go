@@ -5,7 +5,7 @@ package compiler
 // The foundation contract intentionally avoids execution details such as
 // filesystem paths, binaries, caches, or remote storage.
 type Artifact struct {
-	Module  string
-	Version string
+	Module     string
+	Version    string
 	ImportPath string
 }

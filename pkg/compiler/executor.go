@@ -9,8 +9,8 @@ type ExecutionRequest struct {
 
 // ExecutionResult describes the result returned by an execution backend.
 type ExecutionResult struct {
-	Module  string
-	Version string
+	Module     string
+	Version    string
 	ImportPath string
 }
 

@@ -79,8 +79,8 @@ func (e *Engine) Compile(plan manifest.BuildPlan) ([]Artifact, error) {
 		}
 
 		artifact := Artifact{
-			Module:  result.Module,
-			Version: result.Version,
+			Module:     result.Module,
+			Version:    result.Version,
 			ImportPath: result.ImportPath,
 		}
 
