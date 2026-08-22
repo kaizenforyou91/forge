@@ -53,6 +53,53 @@ func (r *Registry) Register(pkg Package) error {
 	return nil
 }
 
+// EnsureAll registers every missing package in a valid batch.
+//
+// Existing package identities and repeated identities within the batch are
+// accepted as idempotent no-ops. New packages retain their first-occurrence
+// input order.
+func (r *Registry) EnsureAll(packages []Package) error {
+	if r == nil {
+		return ErrInvalidPackage
+	}
+
+	unique := make([]Package, 0, len(packages))
+	seen := make(map[string]struct{}, len(packages))
+
+	for _, pkg := range packages {
+		if pkg.Name == "" || pkg.Version == "" {
+			return ErrInvalidPackage
+		}
+
+		key := packageKey(pkg.Name, pkg.Version)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+
+		seen[key] = struct{}{}
+		unique = append(unique, pkg)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	missing := make([]Package, 0, len(unique))
+	for _, pkg := range unique {
+		key := packageKey(pkg.Name, pkg.Version)
+		if _, exists := r.packages[key]; !exists {
+			missing = append(missing, pkg)
+		}
+	}
+
+	for _, pkg := range missing {
+		key := packageKey(pkg.Name, pkg.Version)
+		r.packages[key] = pkg
+		r.order = append(r.order, key)
+	}
+
+	return nil
+}
+
 // Get returns a package by exact name and version.
 func (r *Registry) Get(name, version string) (Package, error) {
 	key := packageKey(name, version)

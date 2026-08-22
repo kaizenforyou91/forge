@@ -94,9 +94,7 @@ func (r *PackageSourceRegistry) Ensure(
 			return nil
 		}
 
-		return fmt.Errorf(
-			"%w: %s is bound to %q, not %q",
-			ErrPackageSourceConflict,
+		return packageSourceConflictError(
 			key,
 			existing.ImportPath,
 			source.ImportPath,
@@ -105,6 +103,73 @@ func (r *PackageSourceRegistry) Ensure(
 
 	r.sources[key] = source
 	r.order = append(r.order, key)
+
+	return nil
+}
+
+// EnsureAll registers or verifies every package source in a batch.
+//
+// The complete batch is normalized and checked for conflicts before any
+// missing source is inserted. New sources retain their first-occurrence input
+// order.
+func (r *PackageSourceRegistry) EnsureAll(
+	sources []PackageSource,
+) error {
+	if r == nil {
+		return ErrInvalidPackageSource
+	}
+
+	unique := make([]PackageSource, 0, len(sources))
+	batch := make(map[string]PackageSource, len(sources))
+
+	for _, source := range sources {
+		normalized, err := normalizePackageSource(source)
+		if err != nil {
+			return err
+		}
+
+		key := packageSourceKey(normalized.Name, normalized.Version)
+		existing, exists := batch[key]
+		if exists {
+			if existing.ImportPath != normalized.ImportPath {
+				return packageSourceConflictError(
+					key,
+					existing.ImportPath,
+					normalized.ImportPath,
+				)
+			}
+
+			continue
+		}
+
+		batch[key] = normalized
+		unique = append(unique, normalized)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, source := range unique {
+		key := packageSourceKey(source.Name, source.Version)
+		existing, exists := r.sources[key]
+		if exists && existing.ImportPath != source.ImportPath {
+			return packageSourceConflictError(
+				key,
+				existing.ImportPath,
+				source.ImportPath,
+			)
+		}
+	}
+
+	for _, source := range unique {
+		key := packageSourceKey(source.Name, source.Version)
+		if _, exists := r.sources[key]; exists {
+			continue
+		}
+
+		r.sources[key] = source
+		r.order = append(r.order, key)
+	}
 
 	return nil
 }
@@ -184,6 +249,20 @@ func normalizePackageSource(
 	}
 
 	return source, nil
+}
+
+func packageSourceConflictError(
+	key,
+	existingImportPath,
+	requestedImportPath string,
+) error {
+	return fmt.Errorf(
+		"%w: %s is bound to %q, not %q",
+		ErrPackageSourceConflict,
+		key,
+		existingImportPath,
+		requestedImportPath,
+	)
 }
 
 type PackageSourceResolver interface {
