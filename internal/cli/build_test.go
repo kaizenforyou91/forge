@@ -4,17 +4,208 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/kaizenforyou91/forge/internal/bootstrap"
+	"github.com/kaizenforyou91/forge/pkg/app"
 	"github.com/kaizenforyou91/forge/pkg/compiler"
-	"github.com/kaizenforyou91/forge/pkg/manifest"
+	"github.com/kaizenforyou91/forge/pkg/registry"
 	"github.com/spf13/cobra"
 )
+
+type buildCommandRegistrySnapshot struct {
+	packages []registry.Package
+	sources  []compiler.PackageSource
+}
+
+func buildCommandRegistries(
+	t *testing.T,
+	application *app.App,
+) (*registry.Registry, *compiler.PackageSourceRegistry) {
+	t.Helper()
+
+	packages, err := resolveRegistry(application)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sources, err := resolveSourceRegistry(application)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return packages, sources
+}
+
+func snapshotBuildCommandRegistries(
+	packages *registry.Registry,
+	sources *compiler.PackageSourceRegistry,
+) buildCommandRegistrySnapshot {
+	return buildCommandRegistrySnapshot{
+		packages: packages.List(),
+		sources:  sources.List(),
+	}
+}
+
+func requireBuildCommandRegistrySnapshot(
+	t *testing.T,
+	packages *registry.Registry,
+	sources *compiler.PackageSourceRegistry,
+	want buildCommandRegistrySnapshot,
+) {
+	t.Helper()
+
+	got := snapshotBuildCommandRegistries(packages, sources)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected registry state %#v, got %#v", want, got)
+	}
+}
+
+func seedBuildCommandRegistries(
+	t *testing.T,
+	packages *registry.Registry,
+	sources *compiler.PackageSourceRegistry,
+) {
+	t.Helper()
+
+	if err := packages.EnsureAll([]registry.Package{
+		{Name: "existing", Version: "v1"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sources.EnsureAll([]compiler.PackageSource{
+		{
+			Name:       "existing",
+			Version:    "v1",
+			ImportPath: "example.com/forge/existing",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeBuildCommandManifest(
+	t *testing.T,
+	directory,
+	name,
+	data string,
+) string {
+	t.Helper()
+
+	path := filepath.Join(directory, name)
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	return path
+}
+
+func executeBuildCommand(
+	application *app.App,
+	manifestPath,
+	outputPath string,
+) error {
+	cmd := NewRootCommandWithApplication(application)
+	cmd.SetArgs([]string{
+		"build",
+		manifestPath,
+		"--output",
+		outputPath,
+	})
+
+	return cmd.Execute()
+}
+
+func requireBuildCommandOutputAbsent(
+	t *testing.T,
+	outputPath string,
+) {
+	t.Helper()
+
+	if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
+		t.Fatalf("expected no output at %q, got %v", outputPath, err)
+	}
+}
+
+func readBuildCommandBundle(
+	t *testing.T,
+	outputPath string,
+) compiler.ArtifactBundle {
+	t.Helper()
+
+	reader, err := zip.OpenReader(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		if file.Name != "bundle.json" {
+			continue
+		}
+
+		stream, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		data, readErr := io.ReadAll(stream)
+		closeErr := stream.Close()
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if closeErr != nil {
+			t.Fatal(closeErr)
+		}
+
+		bundle, err := compiler.UnmarshalArtifactBundle(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return bundle
+	}
+
+	t.Fatal("bundle.json not found")
+	return compiler.ArtifactBundle{}
+}
+
+func requireBuildCommandAdmissionFailureDoesNotMutateRegistries(
+	t *testing.T,
+	manifestData string,
+	checkError func(*testing.T, error),
+) {
+	t.Helper()
+
+	directory := t.TempDir()
+	manifestPath := writeBuildCommandManifest(
+		t,
+		directory,
+		"forge.yaml",
+		manifestData,
+	)
+	outputPath := filepath.Join(directory, "output.zip")
+	application := bootstrap.NewApplication()
+	packages, sources := buildCommandRegistries(t, application)
+	seedBuildCommandRegistries(t, packages, sources)
+	before := snapshotBuildCommandRegistries(packages, sources)
+
+	err := executeBuildCommand(application, manifestPath, outputPath)
+	if err == nil {
+		t.Fatal("expected build failure")
+	}
+
+	checkError(t, err)
+	requireBuildCommandRegistrySnapshot(t, packages, sources, before)
+	requireBuildCommandOutputAbsent(t, outputPath)
+}
 
 func TestBuildCommandCreatesPackage(t *testing.T) {
 	dir := t.TempDir()
@@ -611,106 +802,6 @@ func TestLoadManifestFileJSON(t *testing.T) {
 	}
 }
 
-func TestRegisterManifestPackages(t *testing.T) {
-	application := bootstrap.NewApplication()
-
-	registryInstance, err := resolveRegistry(application)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	m := manifest.Manifest{
-		Version: "v1",
-		Name:    "demo",
-		Modules: []manifest.Module{
-			{
-				Name:    "logger",
-				Version: "v1",
-			},
-			{
-				Name:    "http",
-				Version: "v1",
-			},
-		},
-	}
-
-	if err := registerManifestPackages(
-		registryInstance,
-		m,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, module := range m.Modules {
-		got, err := registryInstance.Get(
-			module.Name,
-			module.Version,
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if got.Name != module.Name {
-			t.Fatalf(
-				"expected package name %q, got %q",
-				module.Name,
-				got.Name,
-			)
-		}
-
-		if got.Version != module.Version {
-			t.Fatalf(
-				"expected package version %q, got %q",
-				module.Version,
-				got.Version,
-			)
-		}
-	}
-}
-
-func TestRegisterManifestPackagesIsIdempotent(
-	t *testing.T,
-) {
-	application := bootstrap.NewApplication()
-
-	registryInstance, err := resolveRegistry(application)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	m := manifest.Manifest{
-		Version: "v1",
-		Name:    "demo",
-		Modules: []manifest.Module{
-			{
-				Name:    "logger",
-				Version: "v1",
-			},
-		},
-	}
-
-	if err := registerManifestPackages(
-		registryInstance,
-		m,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := registerManifestPackages(
-		registryInstance,
-		m,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	if registryInstance.Count() != 1 {
-		t.Fatalf(
-			"expected 1 registered package, got %d",
-			registryInstance.Count(),
-		)
-	}
-}
-
 func TestResolveRegistryRejectsNilApplication(t *testing.T) {
 	_, err := resolveRegistry(nil)
 
@@ -953,150 +1044,6 @@ func TestBuildCommandDoesNotRequireExplicitOutput(
 	}
 }
 
-func TestRegisterManifestSources(t *testing.T) {
-	r := compiler.NewPackageSourceRegistry()
-
-	m := manifest.Manifest{
-		Version: "v1",
-		Name:    "demo",
-		Modules: []manifest.Module{
-			{
-				Name:       "forge",
-				Version:    "v1",
-				ImportPath: "github.com/kaizenforyou91/forge/cmd/forge",
-			},
-		},
-	}
-
-	if err := registerManifestSources(r, m); err != nil {
-		t.Fatal(err)
-	}
-
-	source, err := r.Resolve("forge", "v1")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if source.ImportPath !=
-		"github.com/kaizenforyou91/forge/cmd/forge" {
-		t.Fatalf(
-			"unexpected import path: %q",
-			source.ImportPath,
-		)
-	}
-}
-
-func TestRegisterManifestSourcesIsIdempotentForIdenticalSources(
-	t *testing.T,
-) {
-	application := bootstrap.NewApplication()
-
-	registryInstance, err := resolveSourceRegistry(application)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	m := manifest.Manifest{
-		Version: "v1",
-		Name:    "demo",
-		Modules: []manifest.Module{
-			{
-				Name:       "forge",
-				Version:    "v1",
-				ImportPath: "github.com/kaizenforyou91/forge/cmd/forge",
-			},
-		},
-	}
-
-	if err := registerManifestSources(registryInstance, m); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := registerManifestSources(registryInstance, m); err != nil {
-		t.Fatal(err)
-	}
-
-	if registryInstance.Count() != 1 {
-		t.Fatalf(
-			"expected 1 registered source, got %d",
-			registryInstance.Count(),
-		)
-	}
-
-	sources := registryInstance.List()
-	if len(sources) != 1 {
-		t.Fatalf("expected 1 listed source, got %d", len(sources))
-	}
-
-	if sources[0].Name != "forge" ||
-		sources[0].Version != "v1" ||
-		sources[0].ImportPath !=
-			"github.com/kaizenforyou91/forge/cmd/forge" {
-		t.Fatalf("unexpected source: %#v", sources[0])
-	}
-}
-
-func TestRegisterManifestSourcesRejectsConflictingImportPath(
-	t *testing.T,
-) {
-	application := bootstrap.NewApplication()
-
-	registryInstance, err := resolveSourceRegistry(application)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	first := manifest.Manifest{
-		Version: "v1",
-		Name:    "demo",
-		Modules: []manifest.Module{
-			{
-				Name:       "forge",
-				Version:    "v1",
-				ImportPath: "github.com/kaizenforyou91/forge/cmd/forge",
-			},
-		},
-	}
-
-	second := manifest.Manifest{
-		Version: "v1",
-		Name:    "demo",
-		Modules: []manifest.Module{
-			{
-				Name:       "forge",
-				Version:    "v1",
-				ImportPath: "github.com/kaizenforyou91/forge/pkg/compiler",
-			},
-		},
-	}
-
-	if err := registerManifestSources(registryInstance, first); err != nil {
-		t.Fatal(err)
-	}
-
-	err = registerManifestSources(registryInstance, second)
-
-	if !errors.Is(err, compiler.ErrPackageSourceConflict) {
-		t.Fatalf(
-			"expected ErrPackageSourceConflict, got %v",
-			err,
-		)
-	}
-
-	source, resolveErr := registryInstance.Resolve("forge", "v1")
-	if resolveErr != nil {
-		t.Fatal(resolveErr)
-	}
-
-	if source.ImportPath !=
-		"github.com/kaizenforyou91/forge/cmd/forge" {
-		t.Fatalf(
-			"unexpected import path: %q",
-			source.ImportPath,
-		)
-	}
-}
-
 func TestBuildCommandRejectsMissingDependency(t *testing.T) {
 	dir := t.TempDir()
 
@@ -1313,12 +1260,9 @@ modules:
 		t.Fatal("expected missing import_path error")
 	}
 
-	if !strings.Contains(
-		err.Error(),
-		"import_path",
-	) {
+	if !errors.Is(err, compiler.ErrInvalidPackageSource) {
 		t.Fatalf(
-			"expected import_path error, got %v",
+			"expected ErrInvalidPackageSource, got %v",
 			err,
 		)
 	}
@@ -1518,4 +1462,355 @@ modules:
 	}
 
 	t.Fatal("bundle.json not found")
+}
+
+func TestBuildCommandInvalidManifestDoesNotMutateRegistries(
+	t *testing.T,
+) {
+	requireBuildCommandAdmissionFailureDoesNotMutateRegistries(
+		t,
+		`version: v1
+modules:
+  - name: app
+    version: v1
+    import_path: example.com/forge/app
+`,
+		func(t *testing.T, err error) {
+			t.Helper()
+			if !strings.Contains(err.Error(), "manifest.name") {
+				t.Fatalf("expected manifest validation error, got %v", err)
+			}
+		},
+	)
+}
+
+func TestBuildCommandMissingImportPathDoesNotMutateRegistries(
+	t *testing.T,
+) {
+	requireBuildCommandAdmissionFailureDoesNotMutateRegistries(
+		t,
+		`version: v1
+name: missing-source
+modules:
+  - name: app
+    version: v1
+    import_path: "   "
+`,
+		func(t *testing.T, err error) {
+			t.Helper()
+			if !errors.Is(err, compiler.ErrInvalidPackageSource) {
+				t.Fatalf("expected ErrInvalidPackageSource, got %v", err)
+			}
+		},
+	)
+}
+
+func TestBuildCommandMissingDependencyDoesNotMutateRegistries(
+	t *testing.T,
+) {
+	requireBuildCommandAdmissionFailureDoesNotMutateRegistries(
+		t,
+		`version: v1
+name: missing-dependency
+modules:
+  - name: app
+    version: v1
+    import_path: example.com/forge/app
+    dependencies:
+      - name: missing
+        version: v1
+`,
+		func(t *testing.T, err error) {
+			t.Helper()
+			if !strings.Contains(err.Error(), "dependency") {
+				t.Fatalf("expected dependency error, got %v", err)
+			}
+		},
+	)
+}
+
+func TestBuildCommandCycleDoesNotMutateRegistries(t *testing.T) {
+	requireBuildCommandAdmissionFailureDoesNotMutateRegistries(
+		t,
+		`version: v1
+name: cycle
+modules:
+  - name: a
+    version: v1
+    import_path: example.com/forge/a
+    dependencies:
+      - name: b
+        version: v1
+  - name: b
+    version: v1
+    import_path: example.com/forge/b
+    dependencies:
+      - name: a
+        version: v1
+`,
+		func(t *testing.T, err error) {
+			t.Helper()
+			if !strings.Contains(err.Error(), "circular") {
+				t.Fatalf("expected circular dependency error, got %v", err)
+			}
+		},
+	)
+}
+
+func TestBuildCommandSourceConflictDoesNotPartiallyMutateRegistries(
+	t *testing.T,
+) {
+	directory := t.TempDir()
+	manifestPath := writeBuildCommandManifest(
+		t,
+		directory,
+		"forge.yaml",
+		`version: v1
+name: conflict
+modules:
+  - name: a
+    version: v1
+    import_path: example.com/forge/a
+  - name: b
+    version: v1
+    import_path: example.com/forge/requested-b
+  - name: c
+    version: v1
+    import_path: example.com/forge/c
+`,
+	)
+	outputPath := filepath.Join(directory, "conflict.zip")
+	application := bootstrap.NewApplication()
+	packages, sources := buildCommandRegistries(t, application)
+	canonicalPackage := registry.Package{Name: "b", Version: "v1"}
+	canonicalSource := compiler.PackageSource{
+		Name:       "b",
+		Version:    "v1",
+		ImportPath: "example.com/forge/canonical-b",
+	}
+
+	if err := packages.EnsureAll([]registry.Package{canonicalPackage}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sources.EnsureAll([]compiler.PackageSource{canonicalSource}); err != nil {
+		t.Fatal(err)
+	}
+
+	before := snapshotBuildCommandRegistries(packages, sources)
+	err := executeBuildCommand(application, manifestPath, outputPath)
+	if !errors.Is(err, compiler.ErrPackageSourceConflict) {
+		t.Fatalf("expected ErrPackageSourceConflict, got %v", err)
+	}
+
+	requireBuildCommandRegistrySnapshot(t, packages, sources, before)
+	requireBuildCommandOutputAbsent(t, outputPath)
+
+	for _, name := range []string{"a", "c"} {
+		if _, getErr := packages.Get(name, "v1"); !errors.Is(
+			getErr,
+			registry.ErrPackageNotFound,
+		) {
+			t.Fatalf("expected package %s@v1 to be absent, got %v", name, getErr)
+		}
+
+		if _, resolveErr := sources.Resolve(name, "v1"); !errors.Is(
+			resolveErr,
+			compiler.ErrPackageSourceNotFound,
+		) {
+			t.Fatalf("expected source %s@v1 to be absent, got %v", name, resolveErr)
+		}
+	}
+
+	got, resolveErr := sources.Resolve("b", "v1")
+	if resolveErr != nil {
+		t.Fatal(resolveErr)
+	}
+	if !reflect.DeepEqual(got, canonicalSource) {
+		t.Fatalf("expected canonical source %#v, got %#v", canonicalSource, got)
+	}
+}
+
+func TestBuildCommandSuccessfulAdmissionCommitsRegistries(t *testing.T) {
+	directory := t.TempDir()
+	manifestPath := writeBuildCommandManifest(
+		t,
+		directory,
+		"forge.yaml",
+		`version: v1
+name: admitted
+modules:
+  - name: compiler
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/compiler
+    dependencies:
+      - name: core
+        version: v1
+  - name: core
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/app
+`,
+	)
+	outputPath := filepath.Join(directory, "admitted.zip")
+	application := bootstrap.NewApplication()
+	packages, sources := buildCommandRegistries(t, application)
+
+	if err := executeBuildCommand(application, manifestPath, outputPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(outputPath); err != nil {
+		t.Fatalf("expected output package: %v", err)
+	}
+
+	wantPackages := []registry.Package{
+		{Name: "compiler", Version: "v1"},
+		{Name: "core", Version: "v1"},
+	}
+	wantSources := []compiler.PackageSource{
+		{
+			Name:       "compiler",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/compiler",
+		},
+		{
+			Name:       "core",
+			Version:    "v1",
+			ImportPath: "github.com/kaizenforyou91/forge/pkg/app",
+		},
+	}
+	requireBuildCommandRegistrySnapshot(
+		t,
+		packages,
+		sources,
+		buildCommandRegistrySnapshot{
+			packages: wantPackages,
+			sources:  wantSources,
+		},
+	)
+
+	bundle := readBuildCommandBundle(t, outputPath)
+	wantArtifactOrder := []string{"core@v1", "compiler@v1"}
+	if len(bundle.Artifacts) != len(wantArtifactOrder) {
+		t.Fatalf(
+			"expected %d artifacts, got %d",
+			len(wantArtifactOrder),
+			len(bundle.Artifacts),
+		)
+	}
+
+	for i, want := range wantArtifactOrder {
+		got := bundle.Artifacts[i].Module + "@" + bundle.Artifacts[i].Version
+		if got != want {
+			t.Fatalf("artifact %d: expected %q, got %q", i, want, got)
+		}
+	}
+}
+
+func TestBuildCommandExecutorFailureKeepsAdmittedRegistration(
+	t *testing.T,
+) {
+	directory := t.TempDir()
+	missingImportPath := "./__forge_executor_failure_source_does_not_exist__"
+	if _, err := os.Stat(missingImportPath); !os.IsNotExist(err) {
+		t.Fatalf("executor failure fixture unexpectedly exists: %v", err)
+	}
+
+	manifestPath := writeBuildCommandManifest(
+		t,
+		directory,
+		"forge.yaml",
+		fmt.Sprintf(`version: v1
+name: executor-failure
+modules:
+  - name: broken
+    version: v1
+    import_path: %s
+`, missingImportPath),
+	)
+	application := bootstrap.NewApplication()
+	packages, sources := buildCommandRegistries(t, application)
+	firstOutput := filepath.Join(directory, "first.zip")
+
+	err := executeBuildCommand(application, manifestPath, firstOutput)
+	if !errors.Is(err, compiler.ErrCommandFailed) {
+		t.Fatalf("expected ErrCommandFailed, got %v", err)
+	}
+	requireBuildCommandOutputAbsent(t, firstOutput)
+
+	wantState := buildCommandRegistrySnapshot{
+		packages: []registry.Package{{Name: "broken", Version: "v1"}},
+		sources: []compiler.PackageSource{
+			{
+				Name:       "broken",
+				Version:    "v1",
+				ImportPath: missingImportPath,
+			},
+		},
+	}
+	requireBuildCommandRegistrySnapshot(t, packages, sources, wantState)
+
+	secondOutput := filepath.Join(directory, "second.zip")
+	err = executeBuildCommand(application, manifestPath, secondOutput)
+	if !errors.Is(err, compiler.ErrCommandFailed) {
+		t.Fatalf("expected retry ErrCommandFailed, got %v", err)
+	}
+	requireBuildCommandOutputAbsent(t, secondOutput)
+	requireBuildCommandRegistrySnapshot(t, packages, sources, wantState)
+}
+
+func TestBuildCommandPackagingFailureKeepsAdmittedRegistration(
+	t *testing.T,
+) {
+	directory := t.TempDir()
+	manifestPath := writeBuildCommandManifest(
+		t,
+		directory,
+		"forge.yaml",
+		`version: v1
+name: packaging-failure
+modules:
+  - name: compiler
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/pkg/compiler
+`,
+	)
+	blockedOutput := filepath.Join(directory, "blocked-output")
+	if err := os.Mkdir(blockedOutput, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	application := bootstrap.NewApplication()
+	packages, sources := buildCommandRegistries(t, application)
+	err := executeBuildCommand(application, manifestPath, blockedOutput)
+	if !errors.Is(err, compiler.ErrInvalidArtifactPackage) {
+		t.Fatalf("expected ErrInvalidArtifactPackage, got %v", err)
+	}
+
+	info, statErr := os.Stat(blockedOutput)
+	if statErr != nil {
+		t.Fatal(statErr)
+	}
+	if !info.IsDir() {
+		t.Fatalf("expected blocked output to remain a directory, got %v", info.Mode())
+	}
+
+	entries, err := os.ReadDir(blockedOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected no final package entries, got %#v", entries)
+	}
+
+	wantState := buildCommandRegistrySnapshot{
+		packages: []registry.Package{{Name: "compiler", Version: "v1"}},
+		sources: []compiler.PackageSource{
+			{
+				Name:       "compiler",
+				Version:    "v1",
+				ImportPath: "github.com/kaizenforyou91/forge/pkg/compiler",
+			},
+		},
+	}
+	requireBuildCommandRegistrySnapshot(t, packages, sources, wantState)
 }

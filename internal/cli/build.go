@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -48,20 +47,6 @@ func newBuildCmd() *cobra.Command {
 				return err
 			}
 
-			if err := registerManifestPackages(
-				registryInstance,
-				m,
-			); err != nil {
-				return err
-			}
-
-			if err := registerManifestSources(
-				sourceRegistry,
-				m,
-			); err != nil {
-				return err
-			}
-
 			if strings.TrimSpace(outputPath) == "" {
 				outputPath = filepath.Join(
 					"build",
@@ -69,10 +54,18 @@ func newBuildCmd() *cobra.Command {
 				)
 			}
 
-			if err := compiler.CompileAndPackageManifest(
-				engine,
+			admission, err := compiler.AdmitManifest(
 				m,
 				registryInstance,
+				sourceRegistry,
+			)
+			if err != nil {
+				return err
+			}
+
+			if err := compiler.CompileAndPackagePlan(
+				engine,
+				admission.BuildPlan(),
 				compiler.NewZIPPackager(),
 				outputPath,
 			); err != nil {
@@ -155,69 +148,6 @@ func resolveEngine(
 	}
 
 	return value, nil
-}
-
-func registerManifestPackages(
-	r *registry.Registry,
-	m manifest.Manifest,
-) error {
-
-	if r == nil {
-		return fmt.Errorf("registry is nil")
-	}
-
-	for _, module := range m.Modules {
-		_, err := r.Get(module.Name, module.Version)
-
-		switch {
-		case err == nil:
-			continue
-
-		case errors.Is(err, registry.ErrPackageNotFound):
-			if err := r.Register(registry.Package{
-				Name:    module.Name,
-				Version: module.Version,
-			}); err != nil {
-				return err
-			}
-
-		default:
-			return err
-		}
-	}
-
-	return nil
-}
-
-func registerManifestSources(
-	r *compiler.PackageSourceRegistry,
-	m manifest.Manifest,
-) error {
-	if r == nil {
-		return fmt.Errorf("package source registry is nil")
-	}
-
-	for _, module := range m.Modules {
-		if strings.TrimSpace(module.ImportPath) == "" {
-			return fmt.Errorf(
-				"module %q@%q has no import_path",
-				module.Name,
-				module.Version,
-			)
-		}
-
-		source := compiler.PackageSource{
-			Name:       module.Name,
-			Version:    module.Version,
-			ImportPath: module.ImportPath,
-		}
-
-		if err := r.Ensure(source); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func resolveSourceRegistry(
