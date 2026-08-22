@@ -62,6 +62,45 @@ func PackageArtifacts(
 	)
 }
 
+// CompileAndPackagePlan compiles an existing build plan and packages the
+// resulting artifacts without performing dependency resolution or planning.
+func CompileAndPackagePlan(
+	engine *Engine,
+	plan manifest.BuildPlan,
+	packager ArtifactPackager,
+	outputPath string,
+) error {
+	if engine == nil {
+		return ErrNilExecutor
+	}
+
+	if packager == nil {
+		return fmt.Errorf(
+			"%w: packager is nil",
+			ErrInvalidArtifactPackage,
+		)
+	}
+
+	if strings.TrimSpace(outputPath) == "" {
+		return fmt.Errorf(
+			"%w: output path is required",
+			ErrInvalidArtifactPackage,
+		)
+	}
+
+	artifacts, err := engine.Compile(plan)
+	if err != nil {
+		return err
+	}
+
+	return PackageArtifacts(
+		plan,
+		artifacts,
+		packager,
+		outputPath,
+	)
+}
+
 // CompileAndPackageManifest resolves a manifest, compiles it,
 // and packages the resulting artifacts into one deterministic package.
 func CompileAndPackageManifest(
@@ -99,14 +138,9 @@ func CompileAndPackageManifest(
 		return err
 	}
 
-	artifacts, err := engine.Compile(plan)
-	if err != nil {
-		return err
-	}
-
-	return PackageArtifacts(
+	return CompileAndPackagePlan(
+		engine,
 		plan,
-		artifacts,
 		packager,
 		outputPath,
 	)
