@@ -381,6 +381,19 @@ assigning new milestone or task identifiers:
 - Package integrity metadata and verification.
 - Ed25519 signing and verification, trust store, and package verification policy.
 - ZIP package read-back and artifact source provenance preservation.
+- Direct artifact provenance coverage from toolchain execution through artifacts.
+- Import-path-only integrity tampering coverage.
+- Idempotent package-source `Ensure` with explicit source-conflict semantics.
+- Failure-atomic `Registry.EnsureAll` and `PackageSourceRegistry.EnsureAll` with
+  deterministic successful insertion order.
+- Prebuilt `BuildPlan` execution through `CompileAndPackagePlan`.
+- Pure `ManifestAdmissionPlan` preflight with snapshot-based dependency and
+  source analysis.
+- Commit-time source revalidation and controlled manifest admission.
+- CLI integration through `AdmitManifest` and `CompileAndPackagePlan`.
+- Predictable admission failures leave no candidate registration.
+- Downstream executor or package failures retain accepted admission state.
+- Repeated shared-application builds remain byte-deterministic.
 
 ## Current Implemented Foundation
 
@@ -404,6 +417,9 @@ Forge currently provides:
 - Concurrency-safe in-memory package identity registry
 - Exact package name/version resolution
 - Package source registry
+- Strict source registration, idempotent source `Ensure`, and explicit source
+  conflict behavior
+- Failure-atomic package and source batch `EnsureAll` operations
 - Deterministic dependency graph/order integration
 - Compiler execution abstraction
 - Operating-system command runner
@@ -418,6 +434,13 @@ Forge currently provides:
 - Artifact source provenance
 - CLI `forge build` for YAML and JSON manifests
 - Multi-module dependency-aware builds
+- Prebuilt `BuildPlan` compilation and packaging
+- Pure manifest-admission preflight and controlled admission
+- Snapshot-based dependency/source analysis and commit-time source revalidation
+- Declaration-order admission with dependency-first execution
+- Predictable admission failures without persistent candidate mutation
+- Accepted admission state retained after downstream failures
+- Shared-application repeated deterministic builds
 
 ## Phase 5 — Registry Foundation
 
@@ -426,6 +449,11 @@ Implemented foundation:
 - Concurrency-safe in-memory package identity registry.
 - Exact package name/version resolution.
 - Package source registry.
+- Strict source registration.
+- Idempotent source `Ensure` with explicit source-conflict behavior.
+- Failure-atomic package batch `EnsureAll`.
+- Failure-atomic source batch `EnsureAll`.
+- Deterministic successful insertion order.
 - Deterministic dependency graph/order integration.
 
 Remaining work:
@@ -433,7 +461,8 @@ Remaining work:
 - Remote registry and remote resolution.
 - Package acquisition.
 - Advanced version constraints.
-- Registry persistence and distribution policy.
+- Registry persistence.
+- Remote and distributed transaction semantics.
 
 ## Phase 6 — Compiler Foundation
 
@@ -441,24 +470,32 @@ Implemented foundation:
 
 - Compiler execution abstraction and operating-system command runner.
 - Import-path-aware toolchain executor.
-- Dependency-first build plan execution.
+- Deterministic `BuildPlan` with dependency-first execution.
+- Prebuilt `BuildPlan` compilation and packaging pipeline.
 - Artifact generation and artifact bundles.
+- Artifact provenance.
 - Deterministic bundle serialization and ZIP packaging.
 - Package integrity metadata and verification.
 - Ed25519 signing and verification, trust store, and verification policy.
 - ZIP read-back and artifact source provenance.
 - CLI build vertical slice for YAML, JSON, and multi-module dependency-aware builds.
+- Pure manifest-admission preflight and controlled manifest admission.
+- CLI admission and prepared-plan execution.
+- No persistent candidate mutation for predictable admission failures.
+- Accepted registration remains committed after downstream execution or package
+  failure.
 
 Remaining work:
 
 - Package schema/version contract.
 - Backward-compatibility policy.
-- Repeated-build package-source semantics.
-- Direct provenance unit coverage.
-- Import-path-only tamper acceptance test.
 - Compiler optimization.
 - Stable production package format.
 - Production-grade execution semantics.
+- Strict cross-registry transaction visibility.
+- Process-crash recovery between registry commits.
+- Concurrent full-build isolation.
+- Same-output-path concurrent-build coordination.
 
 ## Evidence-Based Current Roadmap Position
 
@@ -466,9 +503,12 @@ Remaining work:
 Pre-Alpha
 → Phase 6 — Compiler
 → Package Pipeline Hardening
-→ Artifact Provenance
 → Package-Format Stabilization
 ```
+
+Completed checkpoint: **Manifest Admission Hardening**
+
+Next review: **Package Schema Version and Backward-Compatibility Contract Review**
 
 ## Remaining Platform Work
 

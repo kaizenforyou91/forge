@@ -12,12 +12,23 @@
 - Added Ed25519 signing, trust-store verification, and package verification policy.
 - Added YAML/JSON and multi-module build coverage.
 - Added artifact source provenance through package read-back.
+- Added idempotent package-source `Ensure` and the explicit
+  `ErrPackageSourceConflict` sentinel.
+- Added failure-atomic package and package-source batch `EnsureAll` operations.
+- Added the prebuilt `BuildPlan` execution pipeline.
+- Added pure manifest-admission preflight and a manifest admission coordinator.
+- Added CLI manifest-admission integration.
 
 ## Changed
 
 - Manifest module `import_path` is now the package source of truth.
 - Artifacts and bundle documents preserve import-path provenance.
 - Compiler composition is available through application bootstrap.
+- CLI build now executes a prepared `BuildPlan`.
+- Predictable manifest-admission failures occur before persistent candidate
+  mutation.
+- Accepted registry state remains after executor or packaging failure.
+- Repeated builds with a shared application are idempotent and byte-deterministic.
 
 ## Tests
 
@@ -25,15 +36,22 @@
 - Added invalid dependency rejection coverage.
 - Added integrity, signature, trust-store, and verification-policy coverage.
 - Added provenance serialization and package read-back coverage.
+- Added direct `ToolchainExecutor` and Engine-to-Artifact provenance tests.
+- Added import-path-only tampering coverage.
+- Added concurrent batch registry tests.
+- Added repeated-build and deterministic-output coverage.
+- Added admission zero-mutation and live conflict revalidation tests.
+- Added executor and package failure-state tests.
 
 ## Known Limitations
 
-- A direct ToolchainExecutor result provenance test is missing.
-- A direct Engine-to-Artifact provenance test is missing.
-- Two comment-only placeholder tests remain in `internal/cli/build_test.go` and
-  do not count as coverage.
-- The package schema/version and backward-compatibility policy remain undefined.
-- Repeated package-source registration semantics remain unresolved.
+- The package schema/version contract remains undefined.
+- Backward compatibility remains undefined.
+- Remote package registry is not implemented.
+- Strict cross-registry atomicity is not guaranteed.
+- Process-crash atomicity is not guaranteed.
+- Full concurrent-build isolation is not guaranteed.
+- Same-output-path concurrency remains unresolved.
 
 ## FW-030 — Manifest Engine Foundation
 

@@ -4,7 +4,7 @@
 
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
 ![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)
-![License](https://img.shields.io/badge/license-MIT-blue)
+![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
 Forge is an AI-native application platform written in Go. It is designed to build, validate, package, and run applications using a manifest-driven architecture.
 
@@ -81,6 +81,21 @@ The current tested foundation includes:
 - Optional Ed25519 package signatures.
 - Trust-store-backed signature verification and configurable verification policy.
 - Artifact source provenance preserved through package read-back.
+- Strict package-source registration with idempotent `Ensure` and explicit
+  source-binding conflict rejection.
+- Failure-atomic package and package-source batch registration through
+  `EnsureAll`.
+- Shared-application repeated builds with byte-deterministic package output.
+- Prepared `BuildPlan` execution through `CompileAndPackagePlan`.
+- Pure manifest-admission preflight with snapshot-based package and source
+  conflict analysis.
+- Commit-time live source conflict revalidation and declaration-order admission.
+- Dependency-first execution after successful admission.
+- No persistent candidate registration after predictable admission failures:
+  invalid manifests, missing import paths, source conflicts, missing
+  dependencies, or dependency cycles.
+- Accepted admission state remains committed after executor or package-output
+  failure.
 - Configuration, structured logging, dependency injection, application lifecycle,
   HTTP, middleware, and plugin foundations.
 
@@ -90,14 +105,20 @@ The implemented top-level CLI commands are `forge version`, `forge doctor`,
 Forge remains **Pre-Alpha**. The compiler and package pipeline are a tested
 foundation, not a stable production package format.
 
+Manifest Admission Hardening is an implemented and validated checkpoint. The
+next review covers the package schema version and backward-compatibility contract.
+
 ## Known Limitations
 
 - The artifact bundle/package format does not yet have an explicit schema version.
 - Compatibility with packages created before artifact provenance was introduced is
   not guaranteed.
-- Remote package registry and remote package resolution are not implemented.
-- Repeated builds in one application composition have unresolved package-source
-  registration semantics.
+- Remote package registry, resolution, and package acquisition are not implemented.
+- Strict atomic visibility across the package and package-source registries is
+  not guaranteed.
+- Process-crash atomicity between source and package commits is not guaranteed.
+- Full concurrent-build isolation is not implemented.
+- Concurrent builds targeting the same output path are not coordinated.
 - Default integrity verification proves package consistency. Without strict trusted
   signatures, it does not prove publisher authenticity.
 
@@ -232,7 +253,7 @@ Contribution guidelines will be published after the first alpha release.
 
 # License
 
-MIT License
+Apache License 2.0
 
 ---
 
