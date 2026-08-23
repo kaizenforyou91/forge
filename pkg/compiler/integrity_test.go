@@ -52,12 +52,61 @@ func integrityTestPayloads() map[string][]byte {
 	}
 }
 
+func integrityTestPackageMetadataJSON(t *testing.T) []byte {
+	t.Helper()
+
+	data, err := marshalPackageMetadata(currentPackageMetadata())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return data
+}
+
+func buildTestPackageIntegrity(
+	bundle ArtifactBundle,
+	bundleJSON []byte,
+	payloads map[string][]byte,
+) (PackageIntegrity, error) {
+	metadataJSON, err := marshalPackageMetadata(currentPackageMetadata())
+	if err != nil {
+		return PackageIntegrity{}, err
+	}
+
+	return BuildPackageIntegrity(
+		metadataJSON,
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+}
+
+func verifyTestPackageIntegrity(
+	bundle ArtifactBundle,
+	bundleJSON []byte,
+	payloads map[string][]byte,
+	integrity PackageIntegrity,
+) error {
+	metadataJSON, err := marshalPackageMetadata(currentPackageMetadata())
+	if err != nil {
+		return err
+	}
+
+	return VerifyPackageIntegrity(
+		metadataJSON,
+		bundle,
+		bundleJSON,
+		payloads,
+		integrity,
+	)
+}
+
 func TestBuildPackageIntegrity(t *testing.T) {
 	bundle := integrityTestBundle()
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -66,11 +115,17 @@ func TestBuildPackageIntegrity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if integrity.Version != 1 {
+	if integrity.Version != 2 {
 		t.Fatalf(
-			"expected integrity version 1, got %d",
+			"expected integrity version 2, got %d",
 			integrity.Version,
 		)
+	}
+
+	if integrity.PackageMetadataSHA256 != sha256Hex(
+		integrityTestPackageMetadataJSON(t),
+	) {
+		t.Fatal("expected package metadata SHA-256")
 	}
 
 	if integrity.Algorithm != "sha256" {
@@ -123,12 +178,90 @@ func TestBuildPackageIntegrity(t *testing.T) {
 	}
 }
 
+func TestBuildPackageIntegrityUsesVersionTwo(t *testing.T) {
+	integrity, err := buildTestPackageIntegrity(
+		integrityTestBundle(),
+		integrityTestBundleJSON(t),
+		integrityTestPayloads(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if integrity.Version != 2 {
+		t.Fatalf("expected version 2, got %d", integrity.Version)
+	}
+}
+
+func TestBuildPackageIntegrityIncludesPackageMetadataDigest(t *testing.T) {
+	metadataJSON := []byte(`{"package_format_version":1,"bundle_schema_version":1}`)
+	integrity, err := BuildPackageIntegrity(
+		metadataJSON,
+		integrityTestBundle(),
+		integrityTestBundleJSON(t),
+		integrityTestPayloads(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := integrity.PackageMetadataSHA256, sha256Hex(metadataJSON); got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestBuildPackageIntegrityRejectsNilPackageMetadata(t *testing.T) {
+	_, err := BuildPackageIntegrity(
+		nil,
+		integrityTestBundle(),
+		integrityTestBundleJSON(t),
+		integrityTestPayloads(),
+	)
+	if !errors.Is(err, ErrInvalidPackageIntegrity) {
+		t.Fatalf("expected ErrInvalidPackageIntegrity, got %v", err)
+	}
+}
+
+func TestPackageIntegrityValidateRejectsMissingPackageMetadataDigest(t *testing.T) {
+	integrity, err := buildTestPackageIntegrity(
+		integrityTestBundle(),
+		integrityTestBundleJSON(t),
+		integrityTestPayloads(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	integrity.PackageMetadataSHA256 = ""
+
+	if err := integrity.Validate(); !errors.Is(err, ErrInvalidPackageIntegrity) {
+		t.Fatalf("expected ErrInvalidPackageIntegrity, got %v", err)
+	}
+}
+
+func TestPackageIntegrityValidateRejectsInvalidPackageMetadataDigest(t *testing.T) {
+	for _, digest := range []string{"short", strings.Repeat("z", 64)} {
+		integrity, err := buildTestPackageIntegrity(
+			integrityTestBundle(),
+			integrityTestBundleJSON(t),
+			integrityTestPayloads(),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		integrity.PackageMetadataSHA256 = digest
+
+		if err := integrity.Validate(); !errors.Is(err, ErrInvalidPackageIntegrity) {
+			t.Fatalf("expected ErrInvalidPackageIntegrity, got %v", err)
+		}
+	}
+}
+
 func TestBuildPackageIntegrityIsDeterministic(t *testing.T) {
 	bundle := integrityTestBundle()
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	first, err := BuildPackageIntegrity(
+	first, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -137,7 +270,7 @@ func TestBuildPackageIntegrityIsDeterministic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	second, err := BuildPackageIntegrity(
+	second, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -160,7 +293,7 @@ func TestBuildPackageIntegrityPreservesArtifactOrder(t *testing.T) {
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -181,7 +314,7 @@ func TestBuildPackageIntegrityPreservesArtifactOrder(t *testing.T) {
 }
 
 func TestBuildPackageIntegrityRejectsNilBundleJSON(t *testing.T) {
-	_, err := BuildPackageIntegrity(
+	_, err := buildTestPackageIntegrity(
 		integrityTestBundle(),
 		nil,
 		integrityTestPayloads(),
@@ -202,7 +335,7 @@ func TestBuildPackageIntegrityRejectsMissingPayload(t *testing.T) {
 	payloads := integrityTestPayloads()
 	delete(payloads, "http@v1")
 
-	_, err := BuildPackageIntegrity(
+	_, err := buildTestPackageIntegrity(
 		integrityTestBundle(),
 		integrityTestBundleJSON(t),
 		payloads,
@@ -223,7 +356,7 @@ func TestBuildPackageIntegrityRejectsUnexpectedPayload(t *testing.T) {
 	payloads := integrityTestPayloads()
 	payloads["unexpected@v1"] = []byte("unexpected")
 
-	_, err := BuildPackageIntegrity(
+	_, err := buildTestPackageIntegrity(
 		integrityTestBundle(),
 		integrityTestBundleJSON(t),
 		payloads,
@@ -241,7 +374,7 @@ func TestBuildPackageIntegrityRejectsUnexpectedPayload(t *testing.T) {
 }
 
 func TestPackageIntegrityValidate(t *testing.T) {
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		integrityTestBundle(),
 		integrityTestBundleJSON(t),
 		integrityTestPayloads(),
@@ -375,7 +508,7 @@ func TestPackageIntegrityValidateRejectsDuplicateArtifact(t *testing.T) {
 }
 
 func TestMarshalPackageIntegrity(t *testing.T) {
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		integrityTestBundle(),
 		integrityTestBundleJSON(t),
 		integrityTestPayloads(),
@@ -409,7 +542,7 @@ func TestMarshalPackageIntegrity(t *testing.T) {
 }
 
 func TestMarshalPackageIntegrityIsDeterministic(t *testing.T) {
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		integrityTestBundle(),
 		integrityTestBundleJSON(t),
 		integrityTestPayloads(),
@@ -437,8 +570,29 @@ func TestMarshalPackageIntegrityIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestMarshalPackageIntegrityVersionTwo(t *testing.T) {
+	integrity, err := buildTestPackageIntegrity(
+		integrityTestBundle(),
+		integrityTestBundleJSON(t),
+		integrityTestPayloads(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := MarshalPackageIntegrity(integrity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prefix := []byte(`{"version":2,"algorithm":"sha256","package_metadata_sha256":"`)
+	if !bytes.HasPrefix(data, prefix) {
+		t.Fatalf("expected canonical v2 prefix %s, got %s", prefix, data)
+	}
+}
+
 func TestUnmarshalPackageIntegrity(t *testing.T) {
-	original, err := BuildPackageIntegrity(
+	original, err := buildTestPackageIntegrity(
 		integrityTestBundle(),
 		integrityTestBundleJSON(t),
 		integrityTestPayloads(),
@@ -463,6 +617,52 @@ func TestUnmarshalPackageIntegrity(t *testing.T) {
 			original,
 			got,
 		)
+	}
+}
+
+func TestUnmarshalPackageIntegrityAcceptsVersionTwo(t *testing.T) {
+	integrity, err := buildTestPackageIntegrity(
+		integrityTestBundle(),
+		integrityTestBundleJSON(t),
+		integrityTestPayloads(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := MarshalPackageIntegrity(integrity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := UnmarshalPackageIntegrity(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Version != 2 {
+		t.Fatalf("expected version 2, got %d", got.Version)
+	}
+}
+
+func TestUnmarshalPackageIntegrityRejectsVersionOne(t *testing.T) {
+	integrity, err := buildTestPackageIntegrity(
+		integrityTestBundle(),
+		integrityTestBundleJSON(t),
+		integrityTestPayloads(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	integrity.Version = 1
+
+	data, err := json.Marshal(integrity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = UnmarshalPackageIntegrity(data)
+	if !errors.Is(err, ErrInvalidPackageIntegrity) {
+		t.Fatalf("expected ErrInvalidPackageIntegrity, got %v", err)
 	}
 }
 
@@ -497,7 +697,7 @@ func TestUnmarshalPackageIntegrityRejectsEmptyDocument(t *testing.T) {
 }
 
 func TestUnmarshalPackageIntegrityCreatesIndependentSlice(t *testing.T) {
-	original, err := BuildPackageIntegrity(
+	original, err := buildTestPackageIntegrity(
 		integrityTestBundle(),
 		integrityTestBundleJSON(t),
 		integrityTestPayloads(),
@@ -528,7 +728,7 @@ func TestVerifyPackageIntegrity(t *testing.T) {
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -537,7 +737,7 @@ func TestVerifyPackageIntegrity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := VerifyPackageIntegrity(
+	if err := verifyTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -552,7 +752,7 @@ func TestVerifyPackageIntegrityRejectsBundleTampering(t *testing.T) {
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -572,7 +772,7 @@ func TestVerifyPackageIntegrityRejectsBundleTampering(t *testing.T) {
 		t.Fatal("failed to tamper with bundle JSON")
 	}
 
-	err = VerifyPackageIntegrity(
+	err = verifyTestPackageIntegrity(
 		bundle,
 		tamperedJSON,
 		payloads,
@@ -590,6 +790,69 @@ func TestVerifyPackageIntegrityRejectsBundleTampering(t *testing.T) {
 	}
 }
 
+func TestVerifyPackageIntegrityDetectsPackageMetadataMismatch(t *testing.T) {
+	metadataJSON := integrityTestPackageMetadataJSON(t)
+	bundle := integrityTestBundle()
+	bundleJSON := integrityTestBundleJSON(t)
+	payloads := integrityTestPayloads()
+	integrity, err := BuildPackageIntegrity(
+		metadataJSON,
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tamperedMetadata := append(append([]byte(nil), metadataJSON...), ' ')
+	err = VerifyPackageIntegrity(
+		tamperedMetadata,
+		bundle,
+		bundleJSON,
+		payloads,
+		integrity,
+	)
+	if !errors.Is(err, ErrIntegrityMismatch) {
+		t.Fatalf("expected ErrIntegrityMismatch, got %v", err)
+	}
+}
+
+func TestChangingOnlyPackageMetadataChangesIntegrityDigest(t *testing.T) {
+	bundle := integrityTestBundle()
+	bundleJSON := integrityTestBundleJSON(t)
+	payloads := integrityTestPayloads()
+
+	first, err := BuildPackageIntegrity(
+		[]byte(`{"package_format_version":1,"bundle_schema_version":1}`),
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := BuildPackageIntegrity(
+		[]byte("{\"package_format_version\":1,\"bundle_schema_version\":1} "),
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if first.PackageMetadataSHA256 == second.PackageMetadataSHA256 {
+		t.Fatal("expected metadata digests to differ")
+	}
+	if first.BundleSHA256 != second.BundleSHA256 {
+		t.Fatal("expected bundle digest to remain unchanged")
+	}
+	if !reflect.DeepEqual(first.Artifacts, second.Artifacts) {
+		t.Fatal("expected artifact digests to remain unchanged")
+	}
+}
+
 func TestVerifyPackageIntegrityRejectsImportPathTampering(t *testing.T) {
 	bundle := integrityTestBundle()
 	bundleJSON, err := MarshalArtifactBundle(bundle)
@@ -599,7 +862,7 @@ func TestVerifyPackageIntegrityRejectsImportPathTampering(t *testing.T) {
 
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -618,7 +881,7 @@ func TestVerifyPackageIntegrityRejectsImportPathTampering(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = VerifyPackageIntegrity(
+	err = verifyTestPackageIntegrity(
 		tamperedBundle,
 		tamperedBundleJSON,
 		payloads,
@@ -641,7 +904,7 @@ func TestVerifyPackageIntegrityRejectsPayloadTampering(t *testing.T) {
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -658,7 +921,7 @@ func TestVerifyPackageIntegrityRejectsPayloadTampering(t *testing.T) {
 
 	tampered["http@v1"][0] = 'X'
 
-	err = VerifyPackageIntegrity(
+	err = verifyTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		tampered,
@@ -681,7 +944,7 @@ func TestVerifyPackageIntegrityRejectsArtifactReordering(t *testing.T) {
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -700,7 +963,7 @@ func TestVerifyPackageIntegrityRejectsArtifactReordering(t *testing.T) {
 		reorderedBundle.Artifacts[1],
 		reorderedBundle.Artifacts[0]
 
-	err = VerifyPackageIntegrity(
+	err = verifyTestPackageIntegrity(
 		reorderedBundle,
 		bundleJSON,
 		payloads,
@@ -723,7 +986,7 @@ func TestVerifyPackageIntegrityRejectsMissingPayload(t *testing.T) {
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -734,7 +997,7 @@ func TestVerifyPackageIntegrityRejectsMissingPayload(t *testing.T) {
 
 	delete(payloads, "http@v1")
 
-	err = VerifyPackageIntegrity(
+	err = verifyTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -757,7 +1020,7 @@ func TestVerifyPackageIntegrityRejectsUnexpectedPayload(t *testing.T) {
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -768,7 +1031,7 @@ func TestVerifyPackageIntegrityRejectsUnexpectedPayload(t *testing.T) {
 
 	payloads["unexpected@v1"] = []byte("unexpected")
 
-	err = VerifyPackageIntegrity(
+	err = verifyTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -791,7 +1054,7 @@ func TestVerifyPackageIntegrityRejectsIntegrityArtifactMismatch(t *testing.T) {
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -802,7 +1065,7 @@ func TestVerifyPackageIntegrityRejectsIntegrityArtifactMismatch(t *testing.T) {
 
 	integrity.Artifacts[0].Module = "changed"
 
-	err = VerifyPackageIntegrity(
+	err = verifyTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -825,7 +1088,7 @@ func TestVerifyPackageIntegrityDoesNotMutateInputs(t *testing.T) {
 	bundleJSON := integrityTestBundleJSON(t)
 	payloads := integrityTestPayloads()
 
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,
@@ -844,7 +1107,7 @@ func TestVerifyPackageIntegrityDoesNotMutateInputs(t *testing.T) {
 
 	originalIntegrity := integrity
 
-	if err := VerifyPackageIntegrity(
+	if err := verifyTestPackageIntegrity(
 		bundle,
 		bundleJSON,
 		payloads,

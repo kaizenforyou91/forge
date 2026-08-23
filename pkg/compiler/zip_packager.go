@@ -13,6 +13,7 @@ import (
 
 // ZIP artifact layout:
 //
+//	package.json
 //	bundle.json
 //	integrity.json
 //	artifacts/<module>/<version>/artifact
@@ -20,6 +21,7 @@ import (
 // All entries use a fixed timestamp so repeated packaging of the same input
 // produces byte-identical archives.
 const (
+	packageMetadataPath   = "package.json"
 	bundleManifestPath    = "bundle.json"
 	integrityManifestPath = "integrity.json"
 	signatureManifestPath = "signature.json"
@@ -109,12 +111,20 @@ func (p *ZIPPackager) Package(
 		}
 	}
 
+	packageMetadataJSON, err := marshalPackageMetadata(
+		currentPackageMetadata(),
+	)
+	if err != nil {
+		return err
+	}
+
 	bundleJSON, err := MarshalArtifactBundle(bundle)
 	if err != nil {
 		return err
 	}
 
 	integrity, err := BuildPackageIntegrity(
+		packageMetadataJSON,
 		bundle,
 		bundleJSON,
 		payloads,
@@ -128,9 +138,13 @@ func (p *ZIPPackager) Package(
 		return err
 	}
 
-	entries := make([]zipPackageEntry, 0, len(bundle.Artifacts)+3)
+	entries := make([]zipPackageEntry, 0, len(bundle.Artifacts)+4)
 
 	entries = append(entries,
+		zipPackageEntry{
+			path:    packageMetadataPath,
+			payload: append([]byte(nil), packageMetadataJSON...),
+		},
 		zipPackageEntry{
 			path:    bundleManifestPath,
 			payload: append([]byte(nil), bundleJSON...),

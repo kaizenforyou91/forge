@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"crypto/ed25519"
 	"encoding/base64"
+	"errors"
 	"path/filepath"
 	"testing"
 )
@@ -50,16 +51,33 @@ func TestZIPPackagerWithSignerIncludesSignature(t *testing.T) {
 	defer reader.Close()
 
 	found := false
+	foundIntegrityV2 := false
 
 	for _, file := range reader.File {
-		if file.Name == signatureManifestPath {
+		switch file.Name {
+		case signatureManifestPath:
 			found = true
-			break
+			signature, err := UnmarshalPackageSignature(readArchiveFile(t, file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if signature.Version != 1 {
+				t.Fatalf("expected signature version 1, got %d", signature.Version)
+			}
+		case integrityManifestPath:
+			integrity, err := UnmarshalPackageIntegrity(readArchiveFile(t, file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			foundIntegrityV2 = integrity.Version == 2
 		}
 	}
 
 	if !found {
 		t.Fatal("expected signature.json in signed package")
+	}
+	if !foundIntegrityV2 {
+		t.Fatal("expected signed integrity schema version 2")
 	}
 }
 
@@ -149,10 +167,90 @@ func TestZIPPackageReaderWithVerifierAcceptsValidSignature(
 func TestZIPPackageReaderWithVerifierRejectsTamperedSignature(
 	t *testing.T,
 ) {
-	// Fixture:
-	// 1. Create a signed ZIP.
-	// 2. Replace signature.json with another valid signature
-	//    created by a different key.
-	// 3. Read using the original trusted verifier.
-	// 4. Expect ErrUntrustedPackageKey or ErrSignatureMismatch.
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	tamperedPath := filepath.Join(dir, "tampered.zip")
+
+	signer, err := GenerateEd25519Signer("forge-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherSigner, err := GenerateEd25519Signer("other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe, err := signer.Sign([]byte("probe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicKey, err := base64.StdEncoding.DecodeString(probe.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := NewEd25519Verifier()
+	if err := verifier.TrustKey(probe.KeyID, ed25519.PublicKey(publicKey)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+	entries := readZIPEntriesForTest(t, validPath)
+	otherSignature, err := otherSigner.Sign(entries[integrityManifestPath])
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries[signatureManifestPath], err = MarshalPackageSignature(otherSignature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeZIPEntriesForTest(t, tamperedPath, entries)
+
+	_, _, err = NewZIPPackageReaderWithVerifier(verifier).Read(tamperedPath)
+	if !errors.Is(err, ErrUntrustedPackageKey) {
+		t.Fatalf("expected ErrUntrustedPackageKey, got %v", err)
+	}
+}
+
+func TestSignedZIPPackageRejectsPackageMetadataTampering(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	tamperedPath := filepath.Join(dir, "tampered.zip")
+
+	signer, err := GenerateEd25519Signer("forge-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe, err := signer.Sign([]byte("probe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicKey, err := base64.StdEncoding.DecodeString(probe.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := NewEd25519Verifier()
+	if err := verifier.TrustKey(probe.KeyID, ed25519.PublicKey(publicKey)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+	entries := readZIPEntriesForTest(t, validPath)
+	entries[packageMetadataPath] = append(entries[packageMetadataPath], ' ')
+	writeZIPEntriesForTest(t, tamperedPath, entries)
+
+	_, _, err = NewZIPPackageReaderWithVerifier(verifier).Read(tamperedPath)
+	if !errors.Is(err, ErrIntegrityMismatch) {
+		t.Fatalf("expected ErrIntegrityMismatch, got %v", err)
+	}
 }

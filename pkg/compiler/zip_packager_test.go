@@ -115,6 +115,7 @@ func TestZIPPackagerContainsExpectedEntries(t *testing.T) {
 		"artifacts/web/v1/artifact",
 		"bundle.json",
 		"integrity.json",
+		"package.json",
 	}
 
 	sort.Strings(got)
@@ -125,6 +126,85 @@ func TestZIPPackagerContainsExpectedEntries(t *testing.T) {
 			want,
 			got,
 		)
+	}
+}
+
+func TestZIPPackagerWritesPackageMetadata(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bundle.zip")
+
+	if err := NewZIPPackager().Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		path,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	want, err := marshalPackageMetadata(currentPackageMetadata())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	count := 0
+	for _, file := range reader.File {
+		if file.Name != packageMetadataPath {
+			continue
+		}
+		count++
+		if got := readArchiveFile(t, file); !bytes.Equal(got, want) {
+			t.Fatalf("expected package metadata %s, got %s", want, got)
+		}
+	}
+
+	if count != 1 {
+		t.Fatalf("expected package.json exactly once, got %d", count)
+	}
+}
+
+func TestZIPPackagerBindsPackageMetadataToIntegrity(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bundle.zip")
+
+	if err := NewZIPPackager().Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		path,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	var metadataJSON, integrityJSON []byte
+	for _, file := range reader.File {
+		switch file.Name {
+		case packageMetadataPath:
+			metadataJSON = readArchiveFile(t, file)
+		case integrityManifestPath:
+			integrityJSON = readArchiveFile(t, file)
+		}
+	}
+
+	integrity, err := UnmarshalPackageIntegrity(integrityJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if integrity.Version != 2 {
+		t.Fatalf("expected integrity version 2, got %d", integrity.Version)
+	}
+	if got, want := integrity.PackageMetadataSHA256, sha256Hex(metadataJSON); got != want {
+		t.Fatalf("expected metadata digest %q, got %q", want, got)
 	}
 }
 

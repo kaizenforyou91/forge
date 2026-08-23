@@ -151,6 +151,19 @@ func (r *ZIPPackageReader) Read(
 		files[file.Name] = data
 	}
 
+	packageMetadataData, ok := files[packageMetadataPath]
+	if !ok {
+		return ArtifactBundle{}, nil, fmt.Errorf(
+			"%w: %s is missing",
+			ErrLegacyPackageUnsupported,
+			packageMetadataPath,
+		)
+	}
+
+	if _, err := unmarshalPackageMetadata(packageMetadataData); err != nil {
+		return ArtifactBundle{}, nil, err
+	}
+
 	bundleData, ok := files[bundleManifestPath]
 	if !ok {
 		return ArtifactBundle{}, nil, fmt.Errorf(
@@ -236,7 +249,8 @@ func (r *ZIPPackageReader) Read(
 	}
 
 	for path := range files {
-		if path == bundleManifestPath ||
+		if path == packageMetadataPath ||
+			path == bundleManifestPath ||
 			path == integrityManifestPath ||
 			path == signatureManifestPath {
 			continue
@@ -252,6 +266,7 @@ func (r *ZIPPackageReader) Read(
 	}
 	if r.policy.RequireIntegrity {
 		if err := VerifyPackageIntegrity(
+			packageMetadataData,
 			bundle,
 			bundleData,
 			payloads,

@@ -331,6 +331,7 @@ func TestZIPPackageReaderWithoutIntegrityAcceptsPackage(
 	payloads := testPackagePayloads()
 
 	packageData := map[string][]byte{}
+	packageData[packageMetadataPath] = mustPackageMetadataJSON(t)
 
 	bundleData, err := MarshalArtifactBundle(bundle)
 	if err != nil {
@@ -383,5 +384,42 @@ func TestZIPPackageReaderWithoutIntegrityAcceptsPackage(
 			payloads,
 			gotPayloads,
 		)
+	}
+}
+
+func TestZIPPackageReaderWithoutIntegrityStillValidatesPackageMetadata(
+	t *testing.T,
+) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "invalid-metadata.zip")
+
+	bundleData, err := MarshalArtifactBundle(testPackageBundle())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	packageData := map[string][]byte{
+		packageMetadataPath: []byte(`{"package_format_version":2,"bundle_schema_version":1}`),
+		bundleManifestPath:  bundleData,
+	}
+	for key, payload := range testPackagePayloads() {
+		parts := strings.SplitN(key, "@", 2)
+		packageData[filepath.ToSlash(filepath.Join(
+			artifactRootPath,
+			parts[0],
+			parts[1],
+			artifactFileName,
+		))] = append([]byte(nil), payload...)
+	}
+	writeZIPEntriesForTest(t, path, packageData)
+
+	reader, err := NewZIPPackageReaderWithPolicy(PackageVerificationPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err = reader.Read(path)
+	if !errors.Is(err, ErrUnsupportedPackageFormat) {
+		t.Fatalf("expected ErrUnsupportedPackageFormat, got %v", err)
 	}
 }

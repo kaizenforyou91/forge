@@ -8,14 +8,15 @@ import (
 	"strings"
 )
 
-const packageIntegrityVersion = 1
+const packageIntegrityVersion = 2
 
 // PackageIntegrity describes cryptographic integrity of a Forge package.
 type PackageIntegrity struct {
-	Version      int              `json:"version"`
-	Algorithm    string           `json:"algorithm"`
-	BundleSHA256 string           `json:"bundle_sha256"`
-	Artifacts    []ArtifactDigest `json:"artifacts"`
+	Version               int              `json:"version"`
+	Algorithm             string           `json:"algorithm"`
+	PackageMetadataSHA256 string           `json:"package_metadata_sha256"`
+	BundleSHA256          string           `json:"bundle_sha256"`
+	Artifacts             []ArtifactDigest `json:"artifacts"`
 }
 
 // ArtifactDigest contains the SHA-256 digest of one artifact payload.
@@ -30,12 +31,20 @@ type ArtifactDigest struct {
 // bundleJSON is hashed as stored in bundle.json.
 // Artifact payloads are hashed independently by exact module@version identity.
 func BuildPackageIntegrity(
+	packageMetadataJSON []byte,
 	bundle ArtifactBundle,
 	bundleJSON []byte,
 	payloads map[string][]byte,
 ) (PackageIntegrity, error) {
 	if err := bundle.Validate(); err != nil {
 		return PackageIntegrity{}, err
+	}
+
+	if packageMetadataJSON == nil {
+		return PackageIntegrity{}, fmt.Errorf(
+			"%w: package.json payload is nil",
+			ErrInvalidPackageIntegrity,
+		)
 	}
 
 	if bundleJSON == nil {
@@ -50,10 +59,11 @@ func BuildPackageIntegrity(
 	}
 
 	integrity := PackageIntegrity{
-		Version:      packageIntegrityVersion,
-		Algorithm:    "sha256",
-		BundleSHA256: sha256Hex(bundleJSON),
-		Artifacts:    make([]ArtifactDigest, 0, len(bundle.Artifacts)),
+		Version:               packageIntegrityVersion,
+		Algorithm:             "sha256",
+		PackageMetadataSHA256: sha256Hex(packageMetadataJSON),
+		BundleSHA256:          sha256Hex(bundleJSON),
+		Artifacts:             make([]ArtifactDigest, 0, len(bundle.Artifacts)),
 	}
 
 	seen := make(map[string]struct{}, len(bundle.Artifacts))
@@ -120,6 +130,13 @@ func (p PackageIntegrity) Validate() error {
 			"%w: unsupported integrity algorithm %q",
 			ErrInvalidPackageIntegrity,
 			p.Algorithm,
+		)
+	}
+
+	if !validSHA256(p.PackageMetadataSHA256) {
+		return fmt.Errorf(
+			"%w: invalid package metadata SHA-256 digest",
+			ErrInvalidPackageIntegrity,
 		)
 	}
 
@@ -215,6 +232,7 @@ func UnmarshalPackageIntegrity(
 
 // VerifyPackageIntegrity verifies bundle and payload digests.
 func VerifyPackageIntegrity(
+	packageMetadataJSON []byte,
 	bundle ArtifactBundle,
 	bundleJSON []byte,
 	payloads map[string][]byte,
@@ -226,6 +244,13 @@ func VerifyPackageIntegrity(
 
 	if err := bundle.Validate(); err != nil {
 		return err
+	}
+
+	if actual := sha256Hex(packageMetadataJSON); actual != integrity.PackageMetadataSHA256 {
+		return fmt.Errorf(
+			"%w: package.json SHA-256 mismatch",
+			ErrIntegrityMismatch,
+		)
 	}
 
 	if actual := sha256Hex(bundleJSON); actual != integrity.BundleSHA256 {
