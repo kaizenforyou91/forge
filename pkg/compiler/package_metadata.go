@@ -52,6 +52,14 @@ func marshalPackageMetadata(
 func unmarshalPackageMetadata(
 	data []byte,
 ) (packageMetadataDocument, error) {
+	if err := rejectDuplicatePackageMetadataKeys(data); err != nil {
+		return packageMetadataDocument{}, fmt.Errorf(
+			"%w: inspect package metadata object: %v",
+			ErrInvalidPackageMetadata,
+			err,
+		)
+	}
+
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 
@@ -101,6 +109,63 @@ func unmarshalPackageMetadata(
 	}
 
 	return metadata, nil
+}
+
+func rejectDuplicatePackageMetadataKeys(data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+
+	delimiter, ok := token.(json.Delim)
+	if !ok || delimiter != '{' {
+		return fmt.Errorf("top-level JSON value must be an object")
+	}
+
+	seen := make(map[string]struct{})
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+
+		key, ok := token.(string)
+		if !ok {
+			return fmt.Errorf("object key must be a string")
+		}
+
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf("duplicate object key %q", key)
+		}
+		seen[key] = struct{}{}
+
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return err
+		}
+	}
+
+	token, err = decoder.Token()
+	if err != nil {
+		return err
+	}
+
+	delimiter, ok = token.(json.Delim)
+	if !ok || delimiter != '}' {
+		return fmt.Errorf("top-level JSON object is not closed")
+	}
+
+	if token, err = decoder.Token(); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("unexpected trailing JSON token %v", token)
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 func validatePackageMetadata(metadata packageMetadataDocument) error {

@@ -133,6 +133,52 @@ func TestUnmarshalPackageMetadataRejectsUnknownField(t *testing.T) {
 	}
 }
 
+func TestUnmarshalPackageMetadataRejectsDuplicatePackageFormatVersion(
+	t *testing.T,
+) {
+	data := []byte(`{"package_format_version":1,"package_format_version":2,"bundle_schema_version":1}`)
+
+	_, err := unmarshalPackageMetadata(data)
+	if !errors.Is(err, ErrInvalidPackageMetadata) {
+		t.Fatalf("expected ErrInvalidPackageMetadata, got %v", err)
+	}
+}
+
+func TestUnmarshalPackageMetadataRejectsDuplicateBundleSchemaVersion(
+	t *testing.T,
+) {
+	data := []byte(`{"package_format_version":1,"bundle_schema_version":1,"bundle_schema_version":1}`)
+
+	_, err := unmarshalPackageMetadata(data)
+	if !errors.Is(err, ErrInvalidPackageMetadata) {
+		t.Fatalf("expected ErrInvalidPackageMetadata, got %v", err)
+	}
+}
+
+func TestUnmarshalPackageMetadataRejectsDuplicateKnownFieldBeforeSemanticValidation(
+	t *testing.T,
+) {
+	data := []byte(`{"package_format_version":1,"package_format_version":999,"bundle_schema_version":1}`)
+
+	_, err := unmarshalPackageMetadata(data)
+	if !errors.Is(err, ErrInvalidPackageMetadata) {
+		t.Fatalf("expected ErrInvalidPackageMetadata, got %v", err)
+	}
+
+	if errors.Is(err, ErrUnsupportedPackageFormat) {
+		t.Fatalf("expected structural metadata error, got %v", err)
+	}
+}
+
+func TestUnmarshalPackageMetadataRejectsDuplicateUnknownField(t *testing.T) {
+	data := []byte(`{"package_format_version":1,"bundle_schema_version":1,"future":1,"future":2}`)
+
+	_, err := unmarshalPackageMetadata(data)
+	if !errors.Is(err, ErrInvalidPackageMetadata) {
+		t.Fatalf("expected ErrInvalidPackageMetadata, got %v", err)
+	}
+}
+
 func TestUnmarshalPackageMetadataRejectsUnsupportedPackageFormat(t *testing.T) {
 	for _, version := range []int{-1, 0, currentPackageFormatVersion + 1} {
 		t.Run(versionTestName(version), func(t *testing.T) {
