@@ -394,6 +394,16 @@ assigning new milestone or task identifiers:
 - Predictable admission failures leave no candidate registration.
 - Downstream executor or package failures retain accepted admission state.
 - Repeated shared-application builds remain byte-deterministic.
+- Explicit `package.json` compatibility metadata for package format v1 and
+  artifact bundle schema v1.
+- Independently versioned integrity schema v2 and signature schema v1.
+- Duplicate-key rejection for authoritative package metadata.
+- Exact-byte package metadata integrity binding and coordinated writer/reader
+  version dispatch.
+- Fail-closed unsupported-version behavior and explicit legacy/unversioned
+  package rejection.
+- Compatibility, downgrade, and tamper hardening with deterministic
+  current-format writer/reader round trips.
 
 ## Current Implemented Foundation
 
@@ -427,10 +437,13 @@ Forge currently provides:
 - Dependency-first build plan execution
 - Artifact generation and artifact bundles
 - Deterministic bundle serialization and ZIP packaging
-- Package integrity metadata and verification
-- Ed25519 signing and verification
+- Explicit package compatibility metadata and package format version dispatch
+- Package format v1 and artifact bundle schema v1
+- Integrity schema v2 with exact package metadata, bundle, and payload binding
+- Signature schema v1 with Ed25519 signing and verification
 - Trust store and verification policy
-- ZIP package read-back
+- Versioned ZIP package read-back with a strict current compatibility window
+- Legacy package rejection and package tamper/downgrade hardening
 - Artifact source provenance
 - CLI `forge build` for YAML and JSON manifests
 - Multi-module dependency-aware builds
@@ -475,9 +488,15 @@ Implemented foundation:
 - Artifact generation and artifact bundles.
 - Artifact provenance.
 - Deterministic bundle serialization and ZIP packaging.
-- Package integrity metadata and verification.
-- Ed25519 signing and verification, trust store, and verification policy.
-- ZIP read-back and artifact source provenance.
+- Explicit package compatibility metadata and package format version dispatch.
+- Package format v1 and artifact bundle schema v1.
+- Integrity schema v2 with exact package metadata, bundle, and payload binding.
+- Signature schema v1 with Ed25519 signing and verification, trust store, and
+  verification policy.
+- Versioned ZIP read-back with a strict current compatibility window.
+- Legacy/unversioned package rejection and current-format tamper/downgrade
+  hardening.
+- Artifact source provenance.
 - CLI build vertical slice for YAML, JSON, and multi-module dependency-aware builds.
 - Pure manifest-admission preflight and controlled manifest admission.
 - CLI admission and prepared-plan execution.
@@ -487,15 +506,18 @@ Implemented foundation:
 
 Remaining work:
 
-- Package schema/version contract.
-- Backward-compatibility policy.
+- Secondary-document strict JSON decoding.
+- Legacy inspection and migration tooling.
+- Multi-version compatibility if required.
+- Cross-toolchain golden archive validation.
+- Resource limits and oversized archive protection.
 - Compiler optimization.
-- Stable production package format.
 - Production-grade execution semantics.
+- Remote registry negotiation and package acquisition.
 - Strict cross-registry transaction visibility.
 - Process-crash recovery between registry commits.
 - Concurrent full-build isolation.
-- Same-output-path concurrent-build coordination.
+- Same-output-path concurrency coordination.
 
 ## Evidence-Based Current Roadmap Position
 
@@ -503,12 +525,15 @@ Remaining work:
 Pre-Alpha
 → Phase 6 — Compiler
 → Package Pipeline Hardening
-→ Package-Format Stabilization
+→ Package Format Stabilization: Completed
 ```
 
-Completed checkpoint: **Manifest Admission Hardening**
+Completed checkpoints: **Manifest Admission Hardening** and
+**Package Format Stabilization**
 
-Next review: **Package Schema Version and Backward-Compatibility Contract Review**
+The next technical direction will be selected after this documentation
+checkpoint between a Validation Engine Consolidation Review and a Runtime /
+Package Loading Integration Review.
 
 ## Remaining Platform Work
 
@@ -516,7 +541,7 @@ The following capabilities remain future work:
 
 - Dedicated Validation Engine
 - Remote package registry and package acquisition
-- Package-format stabilization
+- Package-format production hardening and legacy tooling
 - Compiler optimization and production-grade execution semantics
 - Runtime loader
 - Scheduler

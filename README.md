@@ -76,10 +76,16 @@ The current tested foundation includes:
 - Multi-module, dependency-first builds.
 - Import-path-aware compilation.
 - CLI builds through `forge build <manifest>`.
-- Deterministic artifact bundles and ZIP packages.
-- Package integrity metadata and verification.
-- Optional Ed25519 package signatures.
-- Trust-store-backed signature verification and configurable verification policy.
+- Explicit compatibility metadata for package format v1 and artifact bundle
+  schema v1.
+- Deterministic versioned ZIP packages with integrity schema v2 and optional
+  signature schema v1.
+- Exact-byte integrity binding for package metadata, bundles, and artifact
+  payloads.
+- Strict trust-store-backed signature verification and configurable verification
+  policy.
+- Normal-reader rejection of legacy/unversioned packages and unsupported package
+  or bundle versions.
 - Artifact source provenance preserved through package read-back.
 - Strict package-source registration with idempotent `Ensure` and explicit
   source-binding conflict rejection.
@@ -103,24 +109,29 @@ The implemented top-level CLI commands are `forge version`, `forge doctor`,
 `forge config`, and `forge build`.
 
 Forge remains **Pre-Alpha**. The compiler and package pipeline are a tested
-foundation, not a stable production package format.
+foundation, not a production-ready package ecosystem or stable production
+format.
 
-Manifest Admission Hardening is an implemented and validated checkpoint. The
-next review covers the package schema version and backward-compatibility contract.
+Manifest Admission Hardening and Package Format Stabilization are implemented
+and validated technical checkpoints. Phase 6 and the Compiler remain in progress.
 
 ## Known Limitations
 
-- The artifact bundle/package format does not yet have an explicit schema version.
-- Compatibility with packages created before artifact provenance was introduced is
-  not guaranteed.
+- Only package format v1 and bundle schema v1 are currently supported.
+- Legacy packages are rejected by the normal reader; legacy inspection and
+  migration tooling are not implemented.
+- Multiple-version reader support is not implemented.
+- Secondary JSON documents remain permissive toward unknown and duplicate fields.
 - Remote package registry, resolution, and package acquisition are not implemented.
 - Strict atomic visibility across the package and package-source registries is
   not guaranteed.
 - Process-crash atomicity between source and package commits is not guaranteed.
 - Full concurrent-build isolation is not implemented.
 - Concurrent builds targeting the same output path are not coordinated.
-- Default integrity verification proves package consistency. Without strict trusted
-  signatures, it does not prove publisher authenticity.
+- No-integrity mode provides structural validation only and no cryptographic
+  tamper resistance.
+- Unsigned integrity proves consistency, not publisher authenticity.
+- The package format remains Pre-Alpha and is not production-stable.
 
 ---
 
@@ -297,9 +308,9 @@ AI Runtime
 
 Forge is currently in the **Pre-Alpha** stage.
 
-The core engineering foundation is now substantially established. Active
-development is focused on package pipeline hardening and package-format
-stabilization while registry, validation, and runtime capabilities continue to
+The core engineering foundation is now substantially established. Package Format
+Stabilization is a completed technical checkpoint within ongoing package pipeline
+hardening, while registry, validation, and runtime capabilities continue to
 evolve.
 
 AI-First Engineering Operating System

@@ -18,6 +18,11 @@
 - Added the prebuilt `BuildPlan` execution pipeline.
 - Added pure manifest-admission preflight and a manifest admission coordinator.
 - Added CLI manifest-admission integration.
+- Added authoritative `package.json` compatibility metadata with package format
+  version 1 and artifact bundle schema version 1.
+- Added integrity schema version 2 with an exact package metadata digest.
+- Added the independently versioned signature schema version 1 contract.
+- Added coordinated current-version ZIP writer and reader support.
 
 ## Changed
 
@@ -29,6 +34,14 @@
   mutation.
 - Accepted registry state remains after executor or packaging failure.
 - Repeated builds with a shared application are idempotent and byte-deterministic.
+- Integrity now binds the exact stored `package.json` bytes.
+- The normal reader now rejects legacy unversioned packages without silent
+  migration or `ImportPath` inference.
+- Unsupported package and bundle versions now fail closed.
+- Package compatibility and tamper behavior are now explicit, with reader error
+  precedence hardened at security boundaries.
+- Package Format Stabilization is now a completed technical checkpoint within
+  ongoing Phase 6 package pipeline hardening.
 
 ## Tests
 
@@ -42,12 +55,22 @@
 - Added repeated-build and deterministic-output coverage.
 - Added admission zero-mutation and live conflict revalidation tests.
 - Added executor and package failure-state tests.
+- Added package metadata duplicate-key and integrity v2 coverage.
+- Added version stripping, downgrade, and unsupported-version coverage.
+- Added metadata, bundle, payload, and regenerated-integrity tamper coverage.
+- Added no-integrity and strict signature policy coverage.
+- Added deterministic current-format writer/reader round-trip coverage.
 
 ## Known Limitations
 
-- The package schema/version contract remains undefined.
-- Backward compatibility remains undefined.
+- Legacy package inspection and migration tooling are not implemented.
+- Multiple package-format and bundle-schema versions are not supported.
+- Secondary JSON documents remain permissive toward unknown and duplicate fields.
 - Remote package registry is not implemented.
+- No-integrity mode provides structural validation without cryptographic tamper
+  resistance.
+- Unsigned packages do not provide publisher authenticity.
+- The production package format remains Pre-Alpha.
 - Strict cross-registry atomicity is not guaranteed.
 - Process-crash atomicity is not guaranteed.
 - Full concurrent-build isolation is not guaranteed.
@@ -110,7 +133,7 @@ This project follows **Semantic Versioning**.
 - Dedicated Validation Engine
 - Remote package registry, acquisition, and resolution
 - Advanced dependency and version constraints
-- Compiler package-format stabilization and optimization
+- Compiler package-format production hardening, legacy tooling, and optimization
 - Production-grade compiler execution semantics
 - Runtime loader and scheduler
 - AI Runtime
