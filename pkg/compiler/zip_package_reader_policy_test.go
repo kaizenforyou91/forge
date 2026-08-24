@@ -268,6 +268,36 @@ func TestZIPPackageReaderStrictPolicyRejectsUnsignedPackage(
 	}
 }
 
+func TestZIPPackageReaderStrictPolicyRejectsMissingIntegrity(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	changedPath := filepath.Join(dir, "missing-integrity.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readZIPEntriesForTest(t, validPath)
+	delete(entries, integrityManifestPath)
+	writeZIPEntriesForTest(t, changedPath, entries)
+
+	reader, err := NewZIPPackageReaderWithPolicyAndVerifier(
+		StrictPackageVerificationPolicy(),
+		verifier,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = reader.Read(changedPath)
+	if !errors.Is(err, ErrMissingPackageIntegrity) {
+		t.Fatalf("expected ErrMissingPackageIntegrity, got %v", err)
+	}
+}
+
 func TestZIPPackageReaderDefaultPolicyAcceptsUnsignedPackage(
 	t *testing.T,
 ) {
@@ -304,6 +334,58 @@ func TestZIPPackageReaderDefaultPolicyAcceptsUnsignedPackage(
 
 	if string(gotPayloads["http@v1"]) != string(expectedPayloads["http@v1"]) {
 		t.Fatal("unexpected payload")
+	}
+}
+
+func TestZIPPackageReaderDefaultPolicyRejectsMissingIntegrity(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	changedPath := filepath.Join(dir, "missing-integrity.zip")
+	if err := NewZIPPackager().Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readZIPEntriesForTest(t, validPath)
+	delete(entries, integrityManifestPath)
+	writeZIPEntriesForTest(t, changedPath, entries)
+
+	_, _, err := NewZIPPackageReader().Read(changedPath)
+	if !errors.Is(err, ErrMissingPackageIntegrity) {
+		t.Fatalf("expected ErrMissingPackageIntegrity, got %v", err)
+	}
+}
+
+func TestZIPPackageReaderRejectsSignatureWithoutIntegrity(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	changedPath := filepath.Join(dir, "signature-without-integrity.zip")
+	signer, err := GenerateEd25519Signer("forge-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readZIPEntriesForTest(t, validPath)
+	delete(entries, integrityManifestPath)
+	writeZIPEntriesForTest(t, changedPath, entries)
+
+	reader, err := NewZIPPackageReaderWithPolicy(PackageVerificationPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = reader.Read(changedPath)
+	if !errors.Is(err, ErrMissingPackageIntegrity) {
+		t.Fatalf("expected ErrMissingPackageIntegrity, got %v", err)
 	}
 }
 
@@ -421,5 +503,120 @@ func TestZIPPackageReaderWithoutIntegrityStillValidatesPackageMetadata(
 	_, _, err = reader.Read(path)
 	if !errors.Is(err, ErrUnsupportedPackageFormat) {
 		t.Fatalf("expected ErrUnsupportedPackageFormat, got %v", err)
+	}
+}
+
+func TestZIPPackageReaderWithoutIntegrityEnforcesStructuralValidation(t *testing.T) {
+	policy := PackageVerificationPolicy{}
+	reader, err := NewZIPPackageReaderWithPolicy(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(map[string][]byte)
+		want   error
+	}{
+		{
+			name: "missing package metadata",
+			mutate: func(entries map[string][]byte) {
+				delete(entries, packageMetadataPath)
+			},
+			want: ErrLegacyPackageUnsupported,
+		},
+		{
+			name: "malformed package metadata",
+			mutate: func(entries map[string][]byte) {
+				entries[packageMetadataPath] = []byte(`{"package_format_version":`)
+			},
+			want: ErrInvalidPackageMetadata,
+		},
+		{
+			name: "invalid bundle",
+			mutate: func(entries map[string][]byte) {
+				entries[bundleManifestPath] = []byte(`{"manifest_name":"","manifest_version":"v1","artifacts":[]}`)
+			},
+			want: ErrInvalidArtifactBundle,
+		},
+		{
+			name: "missing payload",
+			mutate: func(entries map[string][]byte) {
+				delete(entries, "artifacts/http/v1/artifact")
+			},
+			want: ErrMissingArtifactPayload,
+		},
+		{
+			name: "extra payload",
+			mutate: func(entries map[string][]byte) {
+				entries["artifacts/extra/v1/artifact"] = []byte("extra")
+			},
+			want: ErrInvalidArtifactPackage,
+		},
+		{
+			name: "unexpected top-level entry",
+			mutate: func(entries map[string][]byte) {
+				entries["unexpected.json"] = []byte(`{}`)
+			},
+			want: ErrInvalidArtifactPackage,
+		},
+		{
+			name: "unsafe entry",
+			mutate: func(entries map[string][]byte) {
+				entries["../escape"] = []byte("unsafe")
+			},
+			want: ErrInvalidArtifactPackage,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			validPath := filepath.Join(dir, "valid.zip")
+			changedPath := filepath.Join(dir, "changed.zip")
+			if err := NewZIPPackager().Package(
+				testPackageBundle(),
+				testPackagePayloads(),
+				validPath,
+			); err != nil {
+				t.Fatal(err)
+			}
+
+			entries := readZIPEntriesForTest(t, validPath)
+			delete(entries, integrityManifestPath)
+			test.mutate(entries)
+			writeZIPEntriesForTest(t, changedPath, entries)
+
+			_, _, err := reader.Read(changedPath)
+			if !errors.Is(err, test.want) {
+				t.Fatalf("expected %v, got %v", test.want, err)
+			}
+		})
+	}
+}
+
+func TestZIPPackageReaderWithoutIntegrityAcceptsSupportedMetadataTamper(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	changedPath := filepath.Join(dir, "changed.zip")
+	if err := NewZIPPackager().Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readZIPEntriesForTest(t, validPath)
+	delete(entries, integrityManifestPath)
+	entries[packageMetadataPath] = append(entries[packageMetadataPath], '\n')
+	writeZIPEntriesForTest(t, changedPath, entries)
+
+	reader, err := NewZIPPackageReaderWithPolicy(PackageVerificationPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := reader.Read(changedPath); err != nil {
+		t.Fatalf("expected structurally valid metadata tamper to be accepted, got %v", err)
 	}
 }

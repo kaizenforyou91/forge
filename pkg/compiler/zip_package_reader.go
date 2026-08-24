@@ -172,6 +172,12 @@ func (r *ZIPPackageReader) Read(
 			bundleManifestPath,
 		)
 	}
+
+	bundle, err := UnmarshalArtifactBundle(bundleData)
+	if err != nil {
+		return ArtifactBundle{}, nil, err
+	}
+
 	var integrityData []byte
 	integrityPresent := false
 
@@ -188,10 +194,6 @@ func (r *ZIPPackageReader) Read(
 		)
 	}
 
-	bundle, err := UnmarshalArtifactBundle(bundleData)
-	if err != nil {
-		return ArtifactBundle{}, nil, err
-	}
 	var integrity PackageIntegrity
 
 	if integrityPresent {

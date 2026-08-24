@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -139,6 +140,165 @@ func TestZIPPackageReaderDetectsPackageMetadataIntegrityMismatch(t *testing.T) {
 	if !errors.Is(err, ErrIntegrityMismatch) {
 		t.Fatalf("expected ErrIntegrityMismatch, got %v", err)
 	}
+}
+
+func TestZIPPackageReaderRejectsPackageVersionStrippingAndDowngrade(t *testing.T) {
+	tests := []struct {
+		name     string
+		metadata string
+		want     error
+	}{
+		{
+			name:     "missing package format version",
+			metadata: `{"bundle_schema_version":1}`,
+			want:     ErrInvalidPackageMetadata,
+		},
+		{
+			name:     "missing bundle schema version",
+			metadata: `{"package_format_version":1}`,
+			want:     ErrInvalidPackageMetadata,
+		},
+		{
+			name:     "zero package format version",
+			metadata: `{"package_format_version":0,"bundle_schema_version":1}`,
+			want:     ErrUnsupportedPackageFormat,
+		},
+		{
+			name:     "negative package format version",
+			metadata: `{"package_format_version":-1,"bundle_schema_version":1}`,
+			want:     ErrUnsupportedPackageFormat,
+		},
+		{
+			name:     "future package format version",
+			metadata: `{"package_format_version":2,"bundle_schema_version":1}`,
+			want:     ErrUnsupportedPackageFormat,
+		},
+		{
+			name:     "unsupported bundle schema version",
+			metadata: `{"package_format_version":1,"bundle_schema_version":2}`,
+			want:     ErrUnsupportedPackageFormat,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			requireZIPPackageReaderMetadataError(
+				t,
+				[]byte(test.metadata),
+				test.want,
+			)
+		})
+	}
+}
+
+func TestZIPPackageReaderRejectsIntegrityVersionDowngradeAndFuture(t *testing.T) {
+	for _, version := range []int{0, 1, packageIntegrityVersion + 1} {
+		t.Run(fmt.Sprintf("version_%d", version), func(t *testing.T) {
+			dir := t.TempDir()
+			validPath := filepath.Join(dir, "valid.zip")
+			changedPath := filepath.Join(dir, "changed.zip")
+			createValidFW051Package(t, validPath)
+
+			entries := readZIPEntriesForTest(t, validPath)
+			entries[integrityManifestPath] = bytes.Replace(
+				entries[integrityManifestPath],
+				[]byte(`"version":2`),
+				[]byte(fmt.Sprintf(`"version":%d`, version)),
+				1,
+			)
+			writeZIPEntriesForTest(t, changedPath, entries)
+
+			_, _, err := NewZIPPackageReader().Read(changedPath)
+			if !errors.Is(err, ErrInvalidPackageIntegrity) {
+				t.Fatalf("expected ErrInvalidPackageIntegrity, got %v", err)
+			}
+		})
+	}
+}
+
+func TestZIPPackageReaderTamperMatrix(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(map[string][]byte)
+	}{
+		{
+			name: "bundle json",
+			mutate: func(entries map[string][]byte) {
+				entries[bundleManifestPath] = append(entries[bundleManifestPath], ' ')
+			},
+		},
+		{
+			name: "artifact payload",
+			mutate: func(entries map[string][]byte) {
+				entries["artifacts/http/v1/artifact"] = []byte("tampered")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			validPath := filepath.Join(dir, "valid.zip")
+			tamperedPath := filepath.Join(dir, "tampered.zip")
+			createValidFW051Package(t, validPath)
+
+			entries := readZIPEntriesForTest(t, validPath)
+			test.mutate(entries)
+			writeZIPEntriesForTest(t, tamperedPath, entries)
+
+			_, _, err := NewZIPPackageReader().Read(tamperedPath)
+			if !errors.Is(err, ErrIntegrityMismatch) {
+				t.Fatalf("expected ErrIntegrityMismatch, got %v", err)
+			}
+		})
+	}
+}
+
+func TestZIPPackageReaderStableErrorPrecedence(t *testing.T) {
+	t.Run("unsafe structure before metadata presence", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "unsafe.zip")
+		writeZIPEntriesForTest(t, path, map[string][]byte{
+			"../escape": []byte("unsafe"),
+		})
+		_, _, err := NewZIPPackageReader().Read(path)
+		if !errors.Is(err, ErrInvalidArtifactPackage) {
+			t.Fatalf("expected ErrInvalidArtifactPackage, got %v", err)
+		}
+	})
+
+	t.Run("metadata presence before bundle presence", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "missing-documents.zip")
+		writeZIPEntriesForTest(t, path, map[string][]byte{
+			"placeholder": []byte("value"),
+		})
+		_, _, err := NewZIPPackageReader().Read(path)
+		if !errors.Is(err, ErrLegacyPackageUnsupported) {
+			t.Fatalf("expected ErrLegacyPackageUnsupported, got %v", err)
+		}
+	})
+
+	t.Run("metadata decode before bundle presence", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "invalid-metadata.zip")
+		writeZIPEntriesForTest(t, path, map[string][]byte{
+			packageMetadataPath: []byte(`{"package_format_version":`),
+		})
+		_, _, err := NewZIPPackageReader().Read(path)
+		if !errors.Is(err, ErrInvalidPackageMetadata) {
+			t.Fatalf("expected ErrInvalidPackageMetadata, got %v", err)
+		}
+	})
+
+	t.Run("bundle decode before integrity policy", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "invalid-bundle.zip")
+		writeZIPEntriesForTest(t, path, map[string][]byte{
+			packageMetadataPath: mustPackageMetadataJSON(t),
+			bundleManifestPath:  []byte(`{"manifest_name":""}`),
+		})
+		_, _, err := NewZIPPackageReader().Read(path)
+		if !errors.Is(err, ErrInvalidArtifactBundle) {
+			t.Fatalf("expected ErrInvalidArtifactBundle, got %v", err)
+		}
+	})
 }
 
 func TestZIPPackageReaderRejectsMissingPayload(t *testing.T) {

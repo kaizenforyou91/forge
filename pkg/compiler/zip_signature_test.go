@@ -254,3 +254,155 @@ func TestSignedZIPPackageRejectsPackageMetadataTampering(t *testing.T) {
 		t.Fatalf("expected ErrIntegrityMismatch, got %v", err)
 	}
 }
+
+func TestSignedZIPPackageRejectsRegeneratedIntegrityWithExistingSignature(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	tamperedPath := filepath.Join(dir, "tampered.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readZIPEntriesForTest(t, validPath)
+	entries[packageMetadataPath] = append(entries[packageMetadataPath], '\n')
+	integrity, err := BuildPackageIntegrity(
+		entries[packageMetadataPath],
+		testPackageBundle(),
+		entries[bundleManifestPath],
+		testPackagePayloads(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries[integrityManifestPath], err = MarshalPackageIntegrity(integrity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeZIPEntriesForTest(t, tamperedPath, entries)
+
+	_, _, err = NewZIPPackageReaderWithVerifier(verifier).Read(tamperedPath)
+	if !errors.Is(err, ErrSignatureMismatch) {
+		t.Fatalf("expected ErrSignatureMismatch, got %v", err)
+	}
+}
+
+func TestUnsignedZIPPackageAcceptsRegeneratedIntegrity(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	changedPath := filepath.Join(dir, "changed.zip")
+	if err := NewZIPPackager().Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readZIPEntriesForTest(t, validPath)
+	entries[packageMetadataPath] = append(entries[packageMetadataPath], '\n')
+	integrity, err := BuildPackageIntegrity(
+		entries[packageMetadataPath],
+		testPackageBundle(),
+		entries[bundleManifestPath],
+		testPackagePayloads(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries[integrityManifestPath], err = MarshalPackageIntegrity(integrity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeZIPEntriesForTest(t, changedPath, entries)
+
+	if _, _, err := NewZIPPackageReader().Read(changedPath); err != nil {
+		t.Fatalf("expected internally consistent unsigned package, got %v", err)
+	}
+}
+
+func TestSignedZIPPackageRejectsModifiedFormatDeclaration(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	tamperedPath := filepath.Join(dir, "tampered.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readZIPEntriesForTest(t, validPath)
+	entries[packageMetadataPath] = []byte(
+		`{"package_format_version":0,"bundle_schema_version":1}`,
+	)
+	writeZIPEntriesForTest(t, tamperedPath, entries)
+
+	_, _, err := NewZIPPackageReaderWithVerifier(verifier).Read(tamperedPath)
+	if !errors.Is(err, ErrUnsupportedPackageFormat) {
+		t.Fatalf("expected ErrUnsupportedPackageFormat, got %v", err)
+	}
+}
+
+func TestSignedZIPPackageRejectsSignatureByteTampering(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	tamperedPath := filepath.Join(dir, "tampered.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readZIPEntriesForTest(t, validPath)
+	signature, err := UnmarshalPackageSignature(entries[signatureManifestPath])
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature.Signature = base64.StdEncoding.EncodeToString(make([]byte, ed25519.SignatureSize))
+	entries[signatureManifestPath], err = MarshalPackageSignature(signature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeZIPEntriesForTest(t, tamperedPath, entries)
+
+	_, _, err = NewZIPPackageReaderWithVerifier(verifier).Read(tamperedPath)
+	if !errors.Is(err, ErrSignatureMismatch) {
+		t.Fatalf("expected ErrSignatureMismatch, got %v", err)
+	}
+}
+
+func trustedTestSignerAndVerifier(
+	t *testing.T,
+) (*Ed25519Signer, *Ed25519Verifier) {
+	t.Helper()
+
+	signer, err := GenerateEd25519Signer("forge-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe, err := signer.Sign([]byte("probe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicKey, err := base64.StdEncoding.DecodeString(probe.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := NewEd25519Verifier()
+	if err := verifier.TrustKey(probe.KeyID, ed25519.PublicKey(publicKey)); err != nil {
+		t.Fatal(err)
+	}
+
+	return signer, verifier
+}
