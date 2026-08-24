@@ -19,6 +19,8 @@ func (r *fakeCommandRunner) Run(
 	r.commands = append(r.commands, Command{
 		Name: command.Name,
 		Args: append([]string(nil), command.Args...),
+		Dir:  command.Dir,
+		Env:  append([]string(nil), command.Env...),
 	})
 
 	return r.result, r.err
@@ -40,6 +42,8 @@ func TestCommandRunnerReceivesCommand(t *testing.T) {
 		Command{
 			Name: "go",
 			Args: []string{"build"},
+			Dir:  "working-directory",
+			Env:  []string{"FORGE_COMMAND_TEST=value"},
 		},
 	)
 	if err != nil {
@@ -50,6 +54,8 @@ func TestCommandRunnerReceivesCommand(t *testing.T) {
 		{
 			Name: "go",
 			Args: []string{"build"},
+			Dir:  "working-directory",
+			Env:  []string{"FORGE_COMMAND_TEST=value"},
 		},
 	}
 

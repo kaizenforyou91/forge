@@ -8,6 +8,8 @@ import (
 type Command struct {
 	Name string
 	Args []string
+	Dir  string
+	Env  []string
 }
 
 // CommandResult represents captured command execution output.

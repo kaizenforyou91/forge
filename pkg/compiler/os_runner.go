@@ -37,6 +37,14 @@ func (r *OSCommandRunner) Run(
 		command.Args...,
 	)
 
+	if command.Dir != "" {
+		cmd.Dir = command.Dir
+	}
+
+	if command.Env != nil {
+		cmd.Env = command.Env
+	}
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return CommandResult{}, fmt.Errorf("create stdout pipe: %w", err)
