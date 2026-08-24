@@ -76,12 +76,21 @@ The current tested foundation includes:
 - Multi-module, dependency-first builds.
 - Import-path-aware compilation.
 - CLI builds through `forge build <manifest>`.
-- Explicit compatibility metadata for package format v1 and artifact bundle
-  schema v1.
+- Explicit reader dispatch for package format/bundle schema pairs `(1,1)` and
+  `(2,2)`.
+- `forge build` remains on package format v1 and bundle schema v1, with
+  identity/provenance artifact payloads.
+- Package format v2 and bundle schema v2 define runnable application packages
+  with a `RuntimeDescriptor`, the `application_executable` runtime kind, a
+  logical entrypoint, and host target OS/architecture metadata.
+- A separate runnable compiler path builds a real host Go application
+  executable and packages its exact bytes as the single v2 entrypoint artifact.
 - Deterministic versioned ZIP packages with integrity schema v2 and optional
   signature schema v1.
 - Exact-byte integrity binding for package metadata, bundles, and artifact
   payloads.
+- Verified read-back of real executable package payloads; optional trusted
+  signatures authenticate their integrity transitively.
 - Strict trust-store-backed signature verification and configurable verification
   policy.
 - Normal-reader rejection of legacy/unversioned packages and unsupported package
@@ -112,16 +121,30 @@ Forge remains **Pre-Alpha**. The compiler and package pipeline are a tested
 foundation, not a production-ready package ecosystem or stable production
 format.
 
-Manifest Admission Hardening and Package Format Stabilization are implemented
-and validated technical checkpoints. Phase 6 and the Compiler remain in progress.
+Manifest Admission Hardening, Package Format Stabilization, Runnable Package
+Contract R1A, and Real Executable Output R1B are implemented and validated
+technical checkpoints. Package execution is not implemented. Phase 6 and the
+Compiler remain in progress.
 
 ## Known Limitations
 
-- Only package format v1 and bundle schema v1 are currently supported.
+- `forge build` still emits package format v1 identity/provenance packages; no
+  user-facing runnable-package build command exists.
+- The manifest has no durable application-entrypoint field; callers of the
+  runnable compiler must provide an explicit logical entrypoint.
+- Runtime loading, secure executable materialization, package execution,
+  process lifecycle, exit propagation, and `forge run` are not implemented.
+- Runnable package v2 currently contains one entrypoint artifact and does not
+  serialize dependency provenance or an SBOM.
+- Executable size limits and runtime sandboxing are not implemented.
+- Executable builds partly inherit the host build environment and are not
+  guaranteed to be reproducible across toolchains.
 - Legacy packages are rejected by the normal reader; legacy inspection and
   migration tooling are not implemented.
-- Multiple-version reader support is not implemented.
-- Secondary JSON documents remain permissive toward unknown and duplicate fields.
+- The reader supports only the explicit `(1,1)` and `(2,2)` package/bundle
+  version pairs; broader multi-version compatibility is not implemented.
+- Bundle schema v1 and the integrity/signature JSON decoders retain permissive
+  unknown- or duplicate-field behavior in some paths.
 - Remote package registry, resolution, and package acquisition are not implemented.
 - Strict atomic visibility across the package and package-source registries is
   not guaranteed.

@@ -23,6 +23,14 @@
 - Added integrity schema version 2 with an exact package metadata digest.
 - Added the independently versioned signature schema version 1 contract.
 - Added coordinated current-version ZIP writer and reader support.
+- Added package format version 2 and artifact bundle schema version 2 for
+  runnable application packages.
+- Added `RuntimeDescriptor` with the `application_executable` runtime kind,
+  logical entrypoint identity, and host target OS/architecture metadata.
+- Added a real host Go application executable builder with main-package
+  validation and controlled output.
+- Added `RunnablePackageCompiler` with private temporary-output ownership and
+  exact executable payload packaging.
 
 ## Changed
 
@@ -42,6 +50,14 @@
   precedence hardened at security boundaries.
 - Package Format Stabilization is now a completed technical checkpoint within
   ongoing Phase 6 package pipeline hardening.
+- The package reader now explicitly dispatches the supported `(1,1)` and
+  `(2,2)` package-format/bundle-schema pairs.
+- Integrity validation is schema-aware internally while integrity schema 2 and
+  signature schema 1 remain unchanged.
+- Runnable packages preserve exact host executable bytes in their single
+  entrypoint artifact.
+- `forge build` intentionally remains on package format 1 with
+  identity/provenance payloads.
 
 ## Tests
 
@@ -60,12 +76,29 @@
 - Added metadata, bundle, payload, and regenerated-integrity tamper coverage.
 - Added no-integrity and strict signature policy coverage.
 - Added deterministic current-format writer/reader round-trip coverage.
+- Added real Go executable build and package-v2 real-binary round-trip coverage.
+- Added independent executable SHA-256 verification and signed strict-reader
+  verification.
+- Added executable payload and runtime metadata tamper rejection coverage.
+- Added temporary-output cleanup and source-fixture immutability coverage.
+- Added a v1 CLI regression proving `forge build` remains an identity package.
 
 ## Known Limitations
 
 - Legacy package inspection and migration tooling are not implemented.
-- Multiple package-format and bundle-schema versions are not supported.
-- Secondary JSON documents remain permissive toward unknown and duplicate fields.
+- Only the explicit package-format/bundle-schema pairs `(1,1)` and `(2,2)` are
+  supported; broader compatibility and migration tooling do not exist.
+- The v1 bundle codec and integrity/signature document decoders remain
+  permissive toward unknown and duplicate fields.
+- `forge build` still emits package format 1, and there is no user-facing
+  runnable package build workflow.
+- Manifest metadata has no durable application-entrypoint contract.
+- Runtime loading, executable materialization and execution, process lifecycle,
+  and `forge run` are not implemented.
+- Runnable packages do not serialize dependency provenance or an SBOM.
+- Executable builds inherit part of the host build environment and are not
+  guaranteed reproducible across toolchains.
+- Executable size limits and runtime sandboxing are not implemented.
 - Remote package registry is not implemented.
 - No-integrity mode provides structural validation without cryptographic tamper
   resistance.
@@ -134,8 +167,13 @@ This project follows **Semantic Versioning**.
 - Remote package registry, acquisition, and resolution
 - Advanced dependency and version constraints
 - Compiler package-format production hardening, legacy tooling, and optimization
-- Production-grade compiler execution semantics
-- Runtime loader and scheduler
+- Durable manifest application-entrypoint metadata and a user-facing runnable
+  build workflow
+- Build isolation, resource limits, dependency provenance, and reproducibility
+  hardening
+- Verified runtime package loading, host-platform authorization, secure
+  executable materialization, process lifecycle, and `forge run`
+- Runtime scheduler
 - AI Runtime
 
 ---

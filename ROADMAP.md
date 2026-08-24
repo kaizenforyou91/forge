@@ -404,6 +404,21 @@ assigning new milestone or task identifiers:
   package rejection.
 - Compatibility, downgrade, and tamper hardening with deterministic
   current-format writer/reader round trips.
+- Package format v2 and bundle schema v2 with `RuntimeDescriptor`, the
+  `application_executable` runtime kind, logical entrypoint identity, and host
+  target metadata.
+- Explicit reader dispatch for supported `(1,1)` and `(2,2)` package/bundle
+  version pairs, schema-aware integrity validation, and internal v2 ZIP
+  assembly while preserving v1 `forge build` output.
+- A separate context-aware Go application executable builder with explicit
+  working directory and environment, main-package validation, host GOOS/GOARCH,
+  and `go build -trimpath -buildvcs=false -o`.
+- `RunnablePackageCompiler` ownership of entrypoint/source resolution, private
+  temporary output, exact executable-byte capture, one-artifact package v2
+  assembly, cleanup, and optional signing.
+- Real host executable integration proof covering exact read-back, independent
+  SHA-256 verification, tamper rejection, cleanup, source immutability, and no
+  application execution.
 
 ## Current Implemented Foundation
 
@@ -438,12 +453,18 @@ Forge currently provides:
 - Artifact generation and artifact bundles
 - Deterministic bundle serialization and ZIP packaging
 - Explicit package compatibility metadata and package format version dispatch
-- Package format v1 and artifact bundle schema v1
+- Package format v1/bundle schema v1 identity packages and package format
+  v2/bundle schema v2 runnable application packages
 - Integrity schema v2 with exact package metadata, bundle, and payload binding
 - Signature schema v1 with Ed25519 signing and verification
 - Trust store and verification policy
-- Versioned ZIP package read-back with a strict current compatibility window
+- Versioned ZIP package read-back with explicit `(1,1)` and `(2,2)` dispatch
 - Legacy package rejection and package tamper/downgrade hardening
+- Runnable application metadata with `RuntimeDescriptor`, logical entrypoint,
+  `application_executable` kind, and host OS/architecture target
+- Host Go application executable builder and `RunnablePackageCompiler`
+- Exact real executable-byte packaging as a one-artifact package v2 with
+  integrity and optional signing
 - Artifact source provenance
 - CLI `forge build` for YAML and JSON manifests
 - Multi-module dependency-aware builds
@@ -489,13 +510,23 @@ Implemented foundation:
 - Artifact provenance.
 - Deterministic bundle serialization and ZIP packaging.
 - Explicit package compatibility metadata and package format version dispatch.
-- Package format v1 and artifact bundle schema v1.
+- Package format v1/bundle schema v1 identity packages and package format
+  v2/bundle schema v2 runnable application packages.
 - Integrity schema v2 with exact package metadata, bundle, and payload binding.
 - Signature schema v1 with Ed25519 signing and verification, trust store, and
   verification policy.
-- Versioned ZIP read-back with a strict current compatibility window.
+- Versioned ZIP read-back with explicit `(1,1)` and `(2,2)` dispatch.
 - Legacy/unversioned package rejection and current-format tamper/downgrade
   hardening.
+- `RuntimeDescriptor` with the `application_executable` kind, logical
+  entrypoint, and host OS/architecture target.
+- Context-aware host Go executable building with explicit working directory and
+  environment, main-package validation, and controlled `go build -o` output.
+- `RunnablePackageCompiler` with private temporary-output ownership, exact
+  executable-byte capture, one-artifact package v2 assembly, cleanup, and
+  optional signing.
+- Real executable package v2 integration with exact read-back, digest, tamper,
+  cleanup, and source-immutability proof.
 - Artifact source provenance.
 - CLI build vertical slice for YAML, JSON, and multi-module dependency-aware builds.
 - Pure manifest-admission preflight and controlled manifest admission.
@@ -508,11 +539,18 @@ Remaining work:
 
 - Secondary-document strict JSON decoding.
 - Legacy inspection and migration tooling.
-- Multi-version compatibility if required.
+- Compatibility beyond the explicitly supported `(1,1)` and `(2,2)` pairs if
+  required.
 - Cross-toolchain golden archive validation.
-- Resource limits and oversized archive protection.
+- A durable manifest application-entrypoint contract.
+- A user-facing runnable build workflow.
+- A verified runtime package loader and host-platform authorization.
+- Secure executable materialization, process lifecycle, exit propagation, and
+  `forge run`.
+- Executable, resource, and oversized-archive limits.
+- Dependency provenance and SBOM support for runnable packages.
+- Build isolation and cross-toolchain reproducibility hardening.
 - Compiler optimization.
-- Production-grade execution semantics.
 - Remote registry negotiation and package acquisition.
 - Strict cross-registry transaction visibility.
 - Process-crash recovery between registry commits.
@@ -526,24 +564,32 @@ Pre-Alpha
 → Phase 6 — Compiler
 → Package Pipeline Hardening
 → Package Format Stabilization: Completed
+→ Runnable Package Contract R1A: Completed
+→ Real Executable Output R1B: Completed
 ```
 
-Completed checkpoints: **Manifest Admission Hardening** and
-**Package Format Stabilization**
+Completed checkpoints: **Manifest Admission Hardening**, **Package Format
+Stabilization**, **Runnable Package Contract R1A**, and **Real Executable Output
+R1B**.
 
-The next technical direction will be selected after this documentation
-checkpoint between a Validation Engine Consolidation Review and a Runtime /
-Package Loading Integration Review.
+The next runnable-flow decisions are a durable manifest application-entrypoint
+contract and a verified runtime package loader. Runtime loading, application
+execution, and a user-facing `forge run` command are not implemented.
 
 ## Remaining Platform Work
 
 The following capabilities remain future work:
 
 - Dedicated Validation Engine
+- Durable manifest application-entrypoint metadata
+- User-facing runnable package build workflow
 - Remote package registry and package acquisition
 - Package-format production hardening and legacy tooling
-- Compiler optimization and production-grade execution semantics
-- Runtime loader
+- Compiler optimization, build isolation, resource limits, dependency
+  provenance, and reproducibility hardening
+- Verified runtime package loader and host-platform authorization
+- Secure executable materialization, process lifecycle, exit propagation, and
+  `forge run`
 - Scheduler
 - Remote package resolution
 - Advanced dependency and version resolution
