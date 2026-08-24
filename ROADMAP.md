@@ -419,6 +419,16 @@ assigning new milestone or task identifiers:
 - Real host executable integration proof covering exact read-back, independent
   SHA-256 verification, tamper rejection, cleanup, source immutability, and no
   application execution.
+- R2A-1 bounded versioned reads with detailed validated package/bundle version
+  evidence, verified signer evidence, same-handle archive-size checks, bounded
+  entry reads, overflow-safe accounting, fixed Alpha limits, and Store-only
+  runtime policy.
+- R2A-2 strict verified runtime loading with mandatory integrity and trusted
+  signatures, v1 non-runnable classification, v2 Alpha one-artifact validation,
+  exact host GOOS/GOARCH authorization, detached executable bytes, source
+  immutability, and no extraction or execution.
+- The intended R2A-3 security-integration scope was already covered directly by
+  R2A-2, so no redundant implementation checkpoint was required.
 
 ## Current Implemented Foundation
 
@@ -465,6 +475,11 @@ Forge currently provides:
 - Host Go application executable builder and `RunnablePackageCompiler`
 - Exact real executable-byte packaging as a one-artifact package v2 with
   integrity and optional signing
+- Detailed validated package-read evidence and bounded Alpha runtime ingestion
+  with finite archive, entry, document, artifact, and total-uncompressed limits
+- Strict trusted runtime package loading with v1 non-runnable classification,
+  v2 one-artifact validation, exact host authorization, verified signer
+  evidence, and detached executable bytes without extraction or execution
 - Artifact source provenance
 - CLI `forge build` for YAML and JSON manifests
 - Multi-module dependency-aware builds
@@ -527,6 +542,13 @@ Implemented foundation:
   optional signing.
 - Real executable package v2 integration with exact read-back, digest, tamper,
   cleanup, and source-immutability proof.
+- Bounded version-aware package reads with validated version and signer evidence,
+  same-handle archive-size validation, bounded actual reads, overflow-safe total
+  accounting, fixed Alpha limits, and Store-only runtime policy.
+- Strict verified runtime package loading with mandatory integrity and trusted
+  signatures, v1 non-runnable classification, v2 Alpha one-artifact validation,
+  exact host GOOS/GOARCH authorization, detached bytes, source immutability, and
+  no extraction or execution.
 - Artifact source provenance.
 - CLI build vertical slice for YAML, JSON, and multi-module dependency-aware builds.
 - Pure manifest-admission preflight and controlled manifest admission.
@@ -544,10 +566,14 @@ Remaining work:
 - Cross-toolchain golden archive validation.
 - A durable manifest application-entrypoint contract.
 - A user-facing runnable build workflow.
-- A verified runtime package loader and host-platform authorization.
-- Secure executable materialization, process lifecycle, exit propagation, and
-  `forge run`.
-- Executable, resource, and oversized-archive limits.
+- R2B secure executable materialization: private temporary-directory lifecycle,
+  controlled filename, safe write/close and fsync decision, executable
+  permissions, post-write validation, cleanup ownership, and the
+  materialization-to-process handoff.
+- Process runner, lifecycle, cancellation/shutdown, exit propagation,
+  supervision, and `forge run`.
+- Process memory/CPU limits, sandboxing, and other execution resource controls.
+- Binary-header validation and trust snapshot/revocation policy.
 - Dependency provenance and SBOM support for runnable packages.
 - Build isolation and cross-toolchain reproducibility hardening.
 - Compiler optimization.
@@ -566,15 +592,18 @@ Pre-Alpha
 → Package Format Stabilization: Completed
 → Runnable Package Contract R1A: Completed
 → Real Executable Output R1B: Completed
+→ Verified Runtime Package Loader R2A: Completed
+→ Secure Executable Materialization R2B: Next
 ```
 
 Completed checkpoints: **Manifest Admission Hardening**, **Package Format
-Stabilization**, **Runnable Package Contract R1A**, and **Real Executable Output
-R1B**.
+Stabilization**, **Runnable Package Contract R1A**, **Real Executable Output
+R1B**, and **Verified Runtime Package Loader R2A**.
 
-The next runnable-flow decisions are a durable manifest application-entrypoint
-contract and a verified runtime package loader. Runtime loading, application
-execution, and a user-facing `forge run` command are not implemented.
+The next runtime boundary is **R2B Secure Executable Materialization**. A durable
+manifest application-entrypoint contract remains required before a user-facing
+runnable build workflow. Executable materialization, application execution, and
+a user-facing `forge run` command are not implemented.
 
 ## Remaining Platform Work
 
@@ -585,11 +614,13 @@ The following capabilities remain future work:
 - User-facing runnable package build workflow
 - Remote package registry and package acquisition
 - Package-format production hardening and legacy tooling
-- Compiler optimization, build isolation, resource limits, dependency
+- Compiler optimization, build isolation, process resource controls, dependency
   provenance, and reproducibility hardening
-- Verified runtime package loader and host-platform authorization
-- Secure executable materialization, process lifecycle, exit propagation, and
+- Secure executable materialization with private filesystem lifecycle,
+  permissions, post-write validation, cleanup, and process handoff
+- Process runner, cancellation/shutdown, supervision, exit propagation, and
   `forge run`
+- Binary-header validation and trust snapshot/revocation policy
 - Scheduler
 - Remote package resolution
 - Advanced dependency and version resolution

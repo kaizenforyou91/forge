@@ -93,6 +93,18 @@ The current tested foundation includes:
   signatures authenticate their integrity transitively.
 - Strict trust-store-backed signature verification and configurable verification
   policy.
+- Bounded, version-aware package reads expose validated package and bundle
+  versions, copied payloads, and a signer KeyID only after successful trusted
+  verification.
+- The strict runtime loader always requires integrity, a trusted signature,
+  Store-only ZIP entries, and the fixed Alpha read limits: 80 MiB per archive,
+  16 entries, 1 MiB per document, 64 MiB per artifact, and 72 MiB total
+  uncompressed data.
+- General inspection can read v1 packages, but the runtime loader classifies
+  them as non-runnable. Runnable v2 packages must satisfy the Alpha
+  one-artifact contract and exactly match the host OS and architecture.
+- Successful runtime loading returns detached verified executable bytes and
+  verified signer identity without extracting files or executing the payload.
 - Normal-reader rejection of legacy/unversioned packages and unsupported package
   or bundle versions.
 - Artifact source provenance preserved through package read-back.
@@ -122,8 +134,9 @@ foundation, not a production-ready package ecosystem or stable production
 format.
 
 Manifest Admission Hardening, Package Format Stabilization, Runnable Package
-Contract R1A, and Real Executable Output R1B are implemented and validated
-technical checkpoints. Package execution is not implemented. Phase 6 and the
+Contract R1A, Real Executable Output R1B, and Verified Runtime Package Loader
+R2A are implemented and validated technical checkpoints. Executable
+materialization and package execution are not implemented. Phase 6 and the
 Compiler remain in progress.
 
 ## Known Limitations
@@ -132,11 +145,15 @@ Compiler remain in progress.
   user-facing runnable-package build command exists.
 - The manifest has no durable application-entrypoint field; callers of the
   runnable compiler must provide an explicit logical entrypoint.
-- Runtime loading, secure executable materialization, package execution,
-  process lifecycle, exit propagation, and `forge run` are not implemented.
+- Secure executable materialization, package execution, process lifecycle, exit
+  propagation, and `forge run` are not implemented.
 - Runnable package v2 currently contains one entrypoint artifact and does not
   serialize dependency provenance or an SBOM.
-- Executable size limits and runtime sandboxing are not implemented.
+- Runtime package ingestion has fixed Alpha byte and entry ceilings. Process
+  memory/CPU controls, materialized-executable lifecycle policy, and runtime
+  sandboxing are not implemented.
+- Binary-header validation and trust snapshot/revocation epoch semantics are not
+  implemented.
 - Executable builds partly inherit the host build environment and are not
   guaranteed to be reproducible across toolchains.
 - Legacy packages are rejected by the normal reader; legacy inspection and

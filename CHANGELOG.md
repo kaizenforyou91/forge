@@ -31,6 +31,13 @@
   validation and controlled output.
 - Added `RunnablePackageCompiler` with private temporary-output ownership and
   exact executable payload packaging.
+- Added `PackageReadResult` for validated package/bundle version evidence,
+  caller-owned payload copies, and verified signer KeyID evidence.
+- Added configurable `PackageReadLimits` and fixed Alpha runtime limits with
+  same-handle archive-size checks, bounded entry reads, overflow-safe total
+  accounting, and Store-only runtime ingestion.
+- Added `VerifiedRunnablePackageLoader` and a detached verified runnable-package
+  result with private metadata and copy-returning executable access.
 
 ## Changed
 
@@ -58,6 +65,14 @@
   entrypoint artifact.
 - `forge build` intentionally remains on package format 1 with
   identity/provenance payloads.
+- Runtime loading now always requires integrity, a trusted Ed25519 signature,
+  and Store-only archives under the fixed Alpha package-read limits.
+- Runtime package reads enforce ceilings of 80 MiB per archive, 16 entries,
+  1 MiB per document, 64 MiB per artifact, and 72 MiB total uncompressed data.
+- Strict runtime loading classifies validated v1 packages as non-runnable and
+  requires runnable v2 packages to match the host GOOS/GOARCH exactly.
+- Verified executable bytes are detached from the source archive, and verified
+  signer KeyID evidence is retained without extraction or execution.
 
 ## Tests
 
@@ -82,6 +97,16 @@
 - Added executable payload and runtime metadata tamper rejection coverage.
 - Added temporary-output cleanup and source-fixture immutability coverage.
 - Added a v1 CLI regression proving `forge build` remains an identity package.
+- Added bounded archive, entry-count, document, artifact, total-uncompressed,
+  actual-read, overflow, and Store-only package-read coverage.
+- Added trusted signed v2 runtime loading and trusted signed v1 non-runnable
+  classification coverage.
+- Added missing, untrusted, and invalid signature coverage plus executable
+  payload and runtime-metadata tamper detection at the runtime-loader boundary.
+- Added host-platform mismatch, multi-artifact rejection, executable-byte copy
+  isolation, source-package immutability, and no-extraction coverage.
+- Added a real executable end-to-end load proof through the public runnable
+  compiler and strict verified runtime loader without executing the payload.
 
 ## Known Limitations
 
@@ -93,12 +118,16 @@
 - `forge build` still emits package format 1, and there is no user-facing
   runnable package build workflow.
 - Manifest metadata has no durable application-entrypoint contract.
-- Runtime loading, executable materialization and execution, process lifecycle,
-  and `forge run` are not implemented.
+- Executable materialization and execution, process lifecycle, and `forge run`
+  are not implemented.
 - Runnable packages do not serialize dependency provenance or an SBOM.
 - Executable builds inherit part of the host build environment and are not
   guaranteed reproducible across toolchains.
-- Executable size limits and runtime sandboxing are not implemented.
+- Runtime package ingestion has fixed Alpha byte and entry ceilings. Process
+  memory/CPU controls, materialized-executable lifecycle policy, and runtime
+  sandboxing are not implemented.
+- Binary-header validation and trust snapshot/revocation epoch semantics are not
+  implemented.
 - Remote package registry is not implemented.
 - No-integrity mode provides structural validation without cryptographic tamper
   resistance.
@@ -169,10 +198,13 @@ This project follows **Semantic Versioning**.
 - Compiler package-format production hardening, legacy tooling, and optimization
 - Durable manifest application-entrypoint metadata and a user-facing runnable
   build workflow
-- Build isolation, resource limits, dependency provenance, and reproducibility
-  hardening
-- Verified runtime package loading, host-platform authorization, secure
-  executable materialization, process lifecycle, and `forge run`
+- Build isolation, process resource controls, dependency provenance, and
+  reproducibility hardening
+- Secure executable materialization, controlled filesystem lifecycle,
+  permissions, post-write validation, and cleanup
+- Process runner, cancellation/shutdown, exit propagation, supervision, and
+  `forge run`
+- Binary-header validation and trust snapshot/revocation policy
 - Runtime scheduler
 - AI Runtime
 
