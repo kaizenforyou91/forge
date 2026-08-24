@@ -43,6 +43,45 @@ func testPackagePayloads() map[string][]byte {
 	}
 }
 
+func testRunnablePackageBundle() ArtifactBundle {
+	return ArtifactBundle{
+		ManifestName:    "demo",
+		ManifestVersion: "v1",
+		Runtime: &RuntimeDescriptor{
+			Kind: RuntimeKindApplicationExecutable,
+			Entrypoint: RuntimeEntrypoint{
+				Module:  "demo",
+				Version: "v1",
+			},
+			TargetOS:   "windows",
+			TargetArch: "amd64",
+		},
+		Artifacts: []Artifact{{
+			Module:     "demo",
+			Version:    "v1",
+			ImportPath: "example.com/demo",
+		}},
+	}
+}
+
+func testRunnablePackagePlaceholderPayloads() map[string][]byte {
+	return map[string][]byte{
+		"demo@v1": []byte("placeholder-not-executable"),
+	}
+}
+
+func writeTestPackageV2(t *testing.T, packager *ZIPPackager, path string) {
+	t.Helper()
+	if err := packager.packageForMetadata(
+		testRunnablePackageBundle(),
+		testRunnablePackagePlaceholderPayloads(),
+		path,
+		packageMetadataV2(),
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestNewZIPPackager(t *testing.T) {
 	packager := NewZIPPackager()
 
@@ -82,6 +121,100 @@ func TestZIPPackagerCreatesDeterministicArchive(t *testing.T) {
 
 	if !bytes.Equal(first, second) {
 		t.Fatal("ZIP packaging is not deterministic")
+	}
+}
+
+func TestZIPPackagerPublicWriterRemainsPackageFormatV1(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v1.zip")
+	if err := NewZIPPackager().Package(testPackageBundle(), testPackagePayloads(), path); err != nil {
+		t.Fatal(err)
+	}
+	entries := readZIPEntriesForTest(t, path)
+	want := []byte(`{"package_format_version":1,"bundle_schema_version":1}`)
+	if !bytes.Equal(entries[packageMetadataPath], want) {
+		t.Fatalf("expected %s, got %s", want, entries[packageMetadataPath])
+	}
+	if _, err := UnmarshalArtifactBundle(entries[bundleManifestPath]); err != nil {
+		t.Fatalf("expected canonical v1 bundle: %v", err)
+	}
+}
+
+func TestZIPPackagerPublicWriterDoesNotAutoSelectV2ForRuntimeBundle(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "must-not-write-v2.zip")
+	err := NewZIPPackager().Package(
+		testRunnablePackageBundle(),
+		testRunnablePackagePlaceholderPayloads(),
+		path,
+	)
+	if !errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf("expected ErrInvalidArtifactBundle, got %v", err)
+	}
+}
+
+func TestZIPPackagerInternalV2WritesCanonicalDocumentsAndIntegrity(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v2.zip")
+	writeTestPackageV2(t, NewZIPPackager(), path)
+	entries := readZIPEntriesForTest(t, path)
+	wantPaths := []string{
+		"artifacts/demo/v1/artifact",
+		"bundle.json",
+		"integrity.json",
+		"package.json",
+	}
+	gotPaths := make([]string, 0, len(entries))
+	for path := range entries {
+		gotPaths = append(gotPaths, path)
+	}
+	sort.Strings(gotPaths)
+	if !reflect.DeepEqual(gotPaths, wantPaths) {
+		t.Fatalf("expected v2 paths %#v, got %#v", wantPaths, gotPaths)
+	}
+
+	wantMetadata := []byte(`{"package_format_version":2,"bundle_schema_version":2}`)
+	if !bytes.Equal(entries[packageMetadataPath], wantMetadata) {
+		t.Fatalf("expected %s, got %s", wantMetadata, entries[packageMetadataPath])
+	}
+	wantBundle, err := marshalArtifactBundleForSchema(
+		testRunnablePackageBundle(), artifactBundleSchemaVersionV2,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(entries[bundleManifestPath], wantBundle) {
+		t.Fatalf("expected %s, got %s", wantBundle, entries[bundleManifestPath])
+	}
+	integrity, err := UnmarshalPackageIntegrity(entries[integrityManifestPath])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if integrity.Version != packageIntegrityVersion ||
+		integrity.PackageMetadataSHA256 != sha256Hex(entries[packageMetadataPath]) ||
+		integrity.BundleSHA256 != sha256Hex(entries[bundleManifestPath]) {
+		t.Fatalf("unexpected v2 integrity: %#v", integrity)
+	}
+	if len(integrity.Artifacts) != 1 ||
+		integrity.Artifacts[0].SHA256 != sha256Hex([]byte("placeholder-not-executable")) {
+		t.Fatalf("unexpected placeholder digest: %#v", integrity.Artifacts)
+	}
+}
+
+func TestZIPPackagerInternalV2CreatesDeterministicPlaceholderArchive(t *testing.T) {
+	dir := t.TempDir()
+	firstPath := filepath.Join(dir, "first-v2.zip")
+	secondPath := filepath.Join(dir, "second-v2.zip")
+	packager := NewZIPPackager()
+	writeTestPackageV2(t, packager, firstPath)
+	writeTestPackageV2(t, packager, secondPath)
+	first, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := os.ReadFile(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(first, second) {
+		t.Fatal("v2 placeholder package output is not deterministic")
 	}
 }
 

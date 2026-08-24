@@ -61,6 +61,20 @@ func (p *ZIPPackager) Package(
 	payloads map[string][]byte,
 	outputPath string,
 ) error {
+	return p.packageForMetadata(
+		bundle,
+		payloads,
+		outputPath,
+		packageMetadataV1(),
+	)
+}
+
+func (p *ZIPPackager) packageForMetadata(
+	bundle ArtifactBundle,
+	payloads map[string][]byte,
+	outputPath string,
+	metadata packageMetadataDocument,
+) error {
 	if p == nil {
 		return fmt.Errorf(
 			"%w: packager is nil",
@@ -68,7 +82,11 @@ func (p *ZIPPackager) Package(
 		)
 	}
 
-	if err := bundle.Validate(); err != nil {
+	if err := validateSupportedPackageMetadata(metadata); err != nil {
+		return err
+	}
+
+	if err := bundle.ValidateForSchema(metadata.BundleSchemaVersion); err != nil {
 		return err
 	}
 
@@ -111,19 +129,21 @@ func (p *ZIPPackager) Package(
 		}
 	}
 
-	packageMetadataJSON, err := marshalPackageMetadata(
-		currentPackageMetadata(),
+	packageMetadataJSON, err := marshalPackageMetadata(metadata)
+	if err != nil {
+		return err
+	}
+
+	bundleJSON, err := marshalArtifactBundleForSchema(
+		bundle,
+		metadata.BundleSchemaVersion,
 	)
 	if err != nil {
 		return err
 	}
 
-	bundleJSON, err := MarshalArtifactBundle(bundle)
-	if err != nil {
-		return err
-	}
-
-	integrity, err := BuildPackageIntegrity(
+	integrity, err := buildPackageIntegrityForSchema(
+		metadata.BundleSchemaVersion,
 		packageMetadataJSON,
 		bundle,
 		bundleJSON,

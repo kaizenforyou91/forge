@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"errors"
 	"path/filepath"
@@ -618,5 +619,107 @@ func TestZIPPackageReaderWithoutIntegrityAcceptsSupportedMetadataTamper(t *testi
 	}
 	if _, _, err := reader.Read(changedPath); err != nil {
 		t.Fatalf("expected structurally valid metadata tamper to be accepted, got %v", err)
+	}
+}
+
+func TestZIPPackageReaderWithoutIntegrityAcceptsStructurallyValidV2PlaceholderPackage(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid-v2.zip")
+	inspectionPath := filepath.Join(dir, "inspection-v2.zip")
+	writeTestPackageV2(t, NewZIPPackager(), validPath)
+	entries := readZIPEntriesForTest(t, validPath)
+	delete(entries, integrityManifestPath)
+	writeZIPEntriesForTest(t, inspectionPath, entries)
+
+	reader, err := NewZIPPackageReaderWithPolicy(PackageVerificationPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle, payloads, err := reader.Read(inspectionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(bundle, testRunnablePackageBundle()) ||
+		!reflect.DeepEqual(payloads, testRunnablePackagePlaceholderPayloads()) {
+		t.Fatalf("unexpected v2 inspection result: %#v %#v", bundle, payloads)
+	}
+}
+
+func TestZIPPackageReaderWithoutIntegrityEnforcesV2Structure(t *testing.T) {
+	reader, err := NewZIPPackageReaderWithPolicy(PackageVerificationPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, test := range map[string]struct {
+		mutate func(map[string][]byte)
+		want   error
+	}{
+		"invalid metadata": {
+			mutate: func(entries map[string][]byte) { entries[packageMetadataPath] = []byte(`{"package_format_version":2}`) },
+			want:   ErrInvalidPackageMetadata,
+		},
+		"strict bundle": {
+			mutate: func(entries map[string][]byte) {
+				entries[bundleManifestPath] = bytes.Replace(entries[bundleManifestPath], []byte(`"artifacts":`), []byte(`"future":true,"artifacts":`), 1)
+			},
+			want: ErrInvalidArtifactBundle,
+		},
+		"missing payload": {
+			mutate: func(entries map[string][]byte) { delete(entries, "artifacts/demo/v1/artifact") },
+			want:   ErrMissingArtifactPayload,
+		},
+		"extra payload": {
+			mutate: func(entries map[string][]byte) { entries["artifacts/extra/v1/artifact"] = []byte("extra") },
+			want:   ErrInvalidArtifactPackage,
+		},
+		"unsafe entry": {
+			mutate: func(entries map[string][]byte) { entries["../escape"] = []byte("unsafe") },
+			want:   ErrInvalidArtifactPackage,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			validPath := filepath.Join(dir, "valid-v2.zip")
+			changedPath := filepath.Join(dir, "changed-v2.zip")
+			writeTestPackageV2(t, NewZIPPackager(), validPath)
+			entries := readZIPEntriesForTest(t, validPath)
+			delete(entries, integrityManifestPath)
+			test.mutate(entries)
+			writeZIPEntriesForTest(t, changedPath, entries)
+			_, _, err := reader.Read(changedPath)
+			if !errors.Is(err, test.want) {
+				t.Fatalf("expected %v, got %v", test.want, err)
+			}
+		})
+	}
+}
+
+func TestZIPPackageReaderStrictPolicyAcceptsTrustedSignedV2PlaceholderPackage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "signed-v2.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	writeTestPackageV2(t, NewZIPPackagerWithSigner(signer), path)
+	reader, err := NewZIPPackageReaderWithPolicyAndVerifier(
+		StrictPackageVerificationPolicy(), verifier,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := reader.Read(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestZIPPackageReaderStrictPolicyRejectsUnsignedV2PlaceholderPackage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "unsigned-v2.zip")
+	writeTestPackageV2(t, NewZIPPackager(), path)
+	reader, err := NewZIPPackageReaderWithPolicyAndVerifier(
+		StrictPackageVerificationPolicy(), NewEd25519Verifier(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = reader.Read(path)
+	if !errors.Is(err, ErrMissingPackageSignature) {
+		t.Fatalf("expected ErrMissingPackageSignature, got %v", err)
 	}
 }

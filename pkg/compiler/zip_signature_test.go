@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"archive/zip"
+	"bytes"
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
@@ -379,6 +380,99 @@ func TestSignedZIPPackageRejectsSignatureByteTampering(t *testing.T) {
 	_, _, err = NewZIPPackageReaderWithVerifier(verifier).Read(tamperedPath)
 	if !errors.Is(err, ErrSignatureMismatch) {
 		t.Fatalf("expected ErrSignatureMismatch, got %v", err)
+	}
+}
+
+func TestSignedZIPPackageV2UsesSignatureSchemaV1(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "signed-v2.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	writeTestPackageV2(t, NewZIPPackagerWithSigner(signer), path)
+	entries := readZIPEntriesForTest(t, path)
+	signature, err := UnmarshalPackageSignature(entries[signatureManifestPath])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if signature.Version != 1 {
+		t.Fatalf("expected signature schema version 1, got %d", signature.Version)
+	}
+	reader, err := NewZIPPackageReaderWithPolicyAndVerifier(
+		StrictPackageVerificationPolicy(), verifier,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := reader.Read(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSignedZIPPackageV2RejectsRegeneratedIntegrityWithExistingSignature(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid-v2.zip")
+	tamperedPath := filepath.Join(dir, "tampered-v2.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	writeTestPackageV2(t, NewZIPPackagerWithSigner(signer), validPath)
+	entries := readZIPEntriesForTest(t, validPath)
+	entries[bundleManifestPath] = bytes.Replace(
+		entries[bundleManifestPath],
+		[]byte(`"target_arch":"amd64"`),
+		[]byte(`"target_arch":"arm64"`),
+		1,
+	)
+	bundle, err := unmarshalArtifactBundleForSchema(
+		entries[bundleManifestPath], artifactBundleSchemaVersionV2,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	integrity, err := buildPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2,
+		entries[packageMetadataPath],
+		bundle,
+		entries[bundleManifestPath],
+		testRunnablePackagePlaceholderPayloads(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries[integrityManifestPath], err = MarshalPackageIntegrity(integrity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeZIPEntriesForTest(t, tamperedPath, entries)
+
+	_, _, err = NewZIPPackageReaderWithVerifier(verifier).Read(tamperedPath)
+	if !errors.Is(err, ErrSignatureMismatch) {
+		t.Fatalf("expected ErrSignatureMismatch, got %v", err)
+	}
+}
+
+func TestSignedZIPPackageV2RejectsIntegrityByteTampering(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid-v2.zip")
+	tamperedPath := filepath.Join(dir, "tampered-v2.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	writeTestPackageV2(t, NewZIPPackagerWithSigner(signer), validPath)
+	entries := readZIPEntriesForTest(t, validPath)
+	entries[integrityManifestPath] = append(entries[integrityManifestPath], ' ')
+	writeZIPEntriesForTest(t, tamperedPath, entries)
+
+	_, _, err := NewZIPPackageReaderWithVerifier(verifier).Read(tamperedPath)
+	if !errors.Is(err, ErrSignatureMismatch) {
+		t.Fatalf("expected ErrSignatureMismatch, got %v", err)
+	}
+}
+
+func TestSignedZIPPackageV2RejectsUntrustedSigner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "untrusted-v2.zip")
+	signer, err := GenerateEd25519Signer("untrusted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeTestPackageV2(t, NewZIPPackagerWithSigner(signer), path)
+	_, _, err = NewZIPPackageReaderWithVerifier(NewEd25519Verifier()).Read(path)
+	if !errors.Is(err, ErrUntrustedPackageKey) {
+		t.Fatalf("expected ErrUntrustedPackageKey, got %v", err)
 	}
 }
 

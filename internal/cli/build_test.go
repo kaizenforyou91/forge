@@ -268,6 +268,57 @@ modules:
 	}
 }
 
+func TestBuildCommandOutputRemainsPackageFormatV1IdentityPayload(t *testing.T) {
+	dir := t.TempDir()
+	manifestPath := writeBuildCommandManifest(t, dir, "forge.yaml", `
+version: v1
+name: demo
+modules:
+  - name: forge
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/cmd/forge
+`)
+	outputPath := filepath.Join(dir, "demo-v1.zip")
+	if err := executeBuildCommand(bootstrap.NewApplication(), manifestPath, outputPath); err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := zip.OpenReader(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	entries := make(map[string][]byte, len(reader.File))
+	for _, file := range reader.File {
+		stream, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, readErr := io.ReadAll(stream)
+		closeErr := stream.Close()
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if closeErr != nil {
+			t.Fatal(closeErr)
+		}
+		entries[file.Name] = data
+	}
+
+	wantMetadata := []byte(`{"package_format_version":1,"bundle_schema_version":1}`)
+	if !bytes.Equal(entries["package.json"], wantMetadata) {
+		t.Fatalf("expected %s, got %s", wantMetadata, entries["package.json"])
+	}
+	wantIdentityPayload := []byte("forge@v1")
+	if !bytes.Equal(entries["artifacts/forge/v1/artifact"], wantIdentityPayload) {
+		t.Fatalf(
+			"expected identity payload %q, got %q",
+			wantIdentityPayload,
+			entries["artifacts/forge/v1/artifact"],
+		)
+	}
+}
+
 func TestBuildCommandCreatesDeterministicPackageEntries(
 	t *testing.T,
 ) {

@@ -164,7 +164,8 @@ func (r *ZIPPackageReader) Read(
 	if err != nil {
 		return ArtifactBundle{}, nil, err
 	}
-	if err := ensureSupportedArchiveDispatch(metadata); err != nil {
+	bundleSchemaVersion, err := bundleSchemaVersionForPackageMetadata(metadata)
+	if err != nil {
 		return ArtifactBundle{}, nil, err
 	}
 
@@ -177,7 +178,10 @@ func (r *ZIPPackageReader) Read(
 		)
 	}
 
-	bundle, err := UnmarshalArtifactBundle(bundleData)
+	bundle, err := unmarshalArtifactBundleForSchema(
+		bundleData,
+		bundleSchemaVersion,
+	)
 	if err != nil {
 		return ArtifactBundle{}, nil, err
 	}
@@ -271,7 +275,8 @@ func (r *ZIPPackageReader) Read(
 		}
 	}
 	if r.policy.RequireIntegrity {
-		if err := VerifyPackageIntegrity(
+		if err := verifyPackageIntegrityForSchema(
+			bundleSchemaVersion,
 			packageMetadataData,
 			bundle,
 			bundleData,
@@ -285,17 +290,20 @@ func (r *ZIPPackageReader) Read(
 	return bundle, payloads, nil
 }
 
-func ensureSupportedArchiveDispatch(metadata packageMetadataDocument) error {
-	if metadata == packageMetadataV1() {
-		return nil
+func bundleSchemaVersionForPackageMetadata(metadata packageMetadataDocument) (int, error) {
+	switch metadata {
+	case packageMetadataV1():
+		return artifactBundleSchemaVersionV1, nil
+	case packageMetadataV2():
+		return artifactBundleSchemaVersionV2, nil
+	default:
+		return 0, fmt.Errorf(
+			"%w: package format version %d / bundle schema version %d has no archive dispatch",
+			ErrUnsupportedPackageFormat,
+			metadata.PackageFormatVersion,
+			metadata.BundleSchemaVersion,
+		)
 	}
-
-	return fmt.Errorf(
-		"%w: package format %d / bundle schema %d is recognized but archive dispatch is not implemented",
-		ErrUnsupportedPackageFormat,
-		metadata.PackageFormatVersion,
-		metadata.BundleSchemaVersion,
-	)
 }
 
 func (r *ZIPPackageReader) verifySignaturePolicy(
