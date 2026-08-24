@@ -36,7 +36,23 @@ func BuildPackageIntegrity(
 	bundleJSON []byte,
 	payloads map[string][]byte,
 ) (PackageIntegrity, error) {
-	if err := bundle.Validate(); err != nil {
+	return buildPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV1,
+		packageMetadataJSON,
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+}
+
+func buildPackageIntegrityForSchema(
+	bundleSchemaVersion int,
+	packageMetadataJSON []byte,
+	bundle ArtifactBundle,
+	bundleJSON []byte,
+	payloads map[string][]byte,
+) (PackageIntegrity, error) {
+	if err := bundle.ValidateForSchema(bundleSchemaVersion); err != nil {
 		return PackageIntegrity{}, err
 	}
 
@@ -238,11 +254,29 @@ func VerifyPackageIntegrity(
 	payloads map[string][]byte,
 	integrity PackageIntegrity,
 ) error {
+	return verifyPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV1,
+		packageMetadataJSON,
+		bundle,
+		bundleJSON,
+		payloads,
+		integrity,
+	)
+}
+
+func verifyPackageIntegrityForSchema(
+	bundleSchemaVersion int,
+	packageMetadataJSON []byte,
+	bundle ArtifactBundle,
+	bundleJSON []byte,
+	payloads map[string][]byte,
+	integrity PackageIntegrity,
+) error {
 	if err := integrity.Validate(); err != nil {
 		return err
 	}
 
-	if err := bundle.Validate(); err != nil {
+	if err := bundle.ValidateForSchema(bundleSchemaVersion); err != nil {
 		return err
 	}
 

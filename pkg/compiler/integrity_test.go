@@ -63,6 +63,51 @@ func integrityTestPackageMetadataJSON(t *testing.T) []byte {
 	return data
 }
 
+func integrityTestBundleV2() ArtifactBundle {
+	return ArtifactBundle{
+		ManifestName:    "demo",
+		ManifestVersion: "v1",
+		Runtime: &RuntimeDescriptor{
+			Kind: RuntimeKindApplicationExecutable,
+			Entrypoint: RuntimeEntrypoint{
+				Module:  "demo",
+				Version: "v1",
+			},
+			TargetOS:   "windows",
+			TargetArch: "amd64",
+		},
+		Artifacts: []Artifact{{
+			Module:     "demo",
+			Version:    "v1",
+			ImportPath: "example.com/demo",
+		}},
+	}
+}
+
+func integrityTestBundleV2JSON(t *testing.T, bundle ArtifactBundle) []byte {
+	t.Helper()
+	data, err := marshalArtifactBundleForSchema(bundle, artifactBundleSchemaVersionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func integrityTestPackageMetadataV2JSON(t *testing.T) []byte {
+	t.Helper()
+	data, err := marshalPackageMetadata(packageMetadataV2())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func integrityTestPayloadsV2() map[string][]byte {
+	return map[string][]byte{
+		"demo@v1": []byte("placeholder-not-executable"),
+	}
+}
+
 func buildTestPackageIntegrity(
 	bundle ArtifactBundle,
 	bundleJSON []byte,
@@ -1130,5 +1175,311 @@ func TestVerifyPackageIntegrityDoesNotMutateInputs(t *testing.T) {
 
 	if !reflect.DeepEqual(integrity, originalIntegrity) {
 		t.Fatal("integrity metadata was mutated")
+	}
+}
+
+func TestBuildPackageIntegrityPublicAPIRemainsSchemaV1(t *testing.T) {
+	bundle := integrityTestBundleV2()
+	_, err := BuildPackageIntegrity(
+		integrityTestPackageMetadataV2JSON(t),
+		bundle,
+		integrityTestBundleV2JSON(t, bundle),
+		integrityTestPayloadsV2(),
+	)
+	if !errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf("expected ErrInvalidArtifactBundle, got %v", err)
+	}
+}
+
+func TestBuildPackageIntegrityPublicV1MatchesSchemaAwareV1(t *testing.T) {
+	bundle := integrityTestBundle()
+	metadataJSON := integrityTestPackageMetadataJSON(t)
+	bundleJSON := integrityTestBundleJSON(t)
+	payloads := integrityTestPayloads()
+	publicIntegrity, err := BuildPackageIntegrity(metadataJSON, bundle, bundleJSON, payloads)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateIntegrity, err := buildPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV1, metadataJSON, bundle, bundleJSON, payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicJSON, err := MarshalPackageIntegrity(publicIntegrity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateJSON, err := MarshalPackageIntegrity(privateIntegrity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(publicJSON, privateJSON) {
+		t.Fatalf("public v1 bytes changed: %s != %s", publicJSON, privateJSON)
+	}
+}
+
+func TestBuildPackageIntegrityForSchemaV2(t *testing.T) {
+	bundle := integrityTestBundleV2()
+	metadataJSON := integrityTestPackageMetadataV2JSON(t)
+	bundleJSON := integrityTestBundleV2JSON(t, bundle)
+	payloads := integrityTestPayloadsV2()
+
+	integrity, err := buildPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2,
+		metadataJSON,
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if integrity.Version != packageIntegrityVersion {
+		t.Fatalf("expected integrity version %d, got %d", packageIntegrityVersion, integrity.Version)
+	}
+	if integrity.PackageMetadataSHA256 != sha256Hex(metadataJSON) {
+		t.Fatal("package metadata digest does not cover exact bytes")
+	}
+	if integrity.BundleSHA256 != sha256Hex(bundleJSON) {
+		t.Fatal("bundle digest does not cover exact v2 bytes")
+	}
+	if len(integrity.Artifacts) != 1 || integrity.Artifacts[0] != (ArtifactDigest{
+		Module: "demo", Version: "v1", SHA256: sha256Hex(payloads["demo@v1"]),
+	}) {
+		t.Fatalf("unexpected artifact digests: %#v", integrity.Artifacts)
+	}
+}
+
+func TestVerifyPackageIntegrityPublicAPIRemainsSchemaV1(t *testing.T) {
+	bundle := integrityTestBundleV2()
+	metadataJSON := integrityTestPackageMetadataV2JSON(t)
+	bundleJSON := integrityTestBundleV2JSON(t, bundle)
+	payloads := integrityTestPayloadsV2()
+	integrity, err := buildPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2,
+		metadataJSON,
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = VerifyPackageIntegrity(metadataJSON, bundle, bundleJSON, payloads, integrity)
+	if !errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf("expected ErrInvalidArtifactBundle, got %v", err)
+	}
+}
+
+func TestVerifyPackageIntegrityForSchemaV2(t *testing.T) {
+	bundle := integrityTestBundleV2()
+	metadataJSON := integrityTestPackageMetadataV2JSON(t)
+	bundleJSON := integrityTestBundleV2JSON(t, bundle)
+	payloads := integrityTestPayloadsV2()
+	integrity, err := buildPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2,
+		metadataJSON,
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := verifyPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2,
+		metadataJSON,
+		bundle,
+		bundleJSON,
+		payloads,
+		integrity,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVerifyPackageIntegrityForSchemaV2DetectsTampering(t *testing.T) {
+	bundle := integrityTestBundleV2()
+	metadataJSON := integrityTestPackageMetadataV2JSON(t)
+	bundleJSON := integrityTestBundleV2JSON(t, bundle)
+	payloads := integrityTestPayloadsV2()
+	integrity, err := buildPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2,
+		metadataJSON,
+		bundle,
+		bundleJSON,
+		payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := map[string]struct {
+		metadata   []byte
+		bundleJSON []byte
+		payloads   map[string][]byte
+	}{
+		"package metadata": {
+			metadata:   append(append([]byte(nil), metadataJSON...), ' '),
+			bundleJSON: bundleJSON,
+			payloads:   payloads,
+		},
+		"runtime metadata": {
+			metadata:   metadataJSON,
+			bundleJSON: bytes.Replace(bundleJSON, []byte(`"target_arch":"amd64"`), []byte(`"target_arch":"arm64"`), 1),
+			payloads:   payloads,
+		},
+		"placeholder payload": {
+			metadata:   metadataJSON,
+			bundleJSON: bundleJSON,
+			payloads:   map[string][]byte{"demo@v1": []byte("changed-placeholder")},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := verifyPackageIntegrityForSchema(
+				artifactBundleSchemaVersionV2,
+				test.metadata,
+				bundle,
+				test.bundleJSON,
+				test.payloads,
+				integrity,
+			)
+			if !errors.Is(err, ErrIntegrityMismatch) {
+				t.Fatalf("expected ErrIntegrityMismatch, got %v", err)
+			}
+		})
+	}
+}
+
+func TestVerifyPackageIntegrityForSchemaV2DetectsArtifactCountAndOrderMismatch(t *testing.T) {
+	bundle := integrityTestBundleV2()
+	bundle.Artifacts = append(bundle.Artifacts, Artifact{
+		Module: "dependency", Version: "v1", ImportPath: "example.com/dependency",
+	})
+	metadataJSON := integrityTestPackageMetadataV2JSON(t)
+	bundleJSON := integrityTestBundleV2JSON(t, bundle)
+	payloads := integrityTestPayloadsV2()
+	payloads["dependency@v1"] = []byte("dependency-placeholder")
+	integrity, err := buildPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2, metadataJSON, bundle, bundleJSON, payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	countMismatch := integrity
+	countMismatch.Artifacts = append([]ArtifactDigest(nil), integrity.Artifacts[:1]...)
+	if err := verifyPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2, metadataJSON, bundle, bundleJSON, payloads, countMismatch,
+	); !errors.Is(err, ErrIntegrityMismatch) {
+		t.Fatalf("expected count ErrIntegrityMismatch, got %v", err)
+	}
+
+	orderMismatch := integrity
+	orderMismatch.Artifacts = append([]ArtifactDigest(nil), integrity.Artifacts...)
+	orderMismatch.Artifacts[0], orderMismatch.Artifacts[1] = orderMismatch.Artifacts[1], orderMismatch.Artifacts[0]
+	if err := verifyPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2, metadataJSON, bundle, bundleJSON, payloads, orderMismatch,
+	); !errors.Is(err, ErrIntegrityMismatch) {
+		t.Fatalf("expected order ErrIntegrityMismatch, got %v", err)
+	}
+}
+
+func TestPackageIntegritySchemaMismatchMatrix(t *testing.T) {
+	v1Bundle := integrityTestBundle()
+	v1Metadata := integrityTestPackageMetadataJSON(t)
+	v1BundleJSON := integrityTestBundleJSON(t)
+	v1Payloads := integrityTestPayloads()
+	v2Bundle := integrityTestBundleV2()
+	v2Metadata := integrityTestPackageMetadataV2JSON(t)
+	v2BundleJSON := integrityTestBundleV2JSON(t, v2Bundle)
+	v2Payloads := integrityTestPayloadsV2()
+
+	for _, test := range []struct {
+		name       string
+		schema     int
+		metadata   []byte
+		bundle     ArtifactBundle
+		bundleJSON []byte
+		payloads   map[string][]byte
+		wantErr    bool
+	}{
+		{"v1 with schema 1", artifactBundleSchemaVersionV1, v1Metadata, v1Bundle, v1BundleJSON, v1Payloads, false},
+		{"v2 with schema 2", artifactBundleSchemaVersionV2, v2Metadata, v2Bundle, v2BundleJSON, v2Payloads, false},
+		{"v1 with schema 2", artifactBundleSchemaVersionV2, v1Metadata, v1Bundle, v1BundleJSON, v1Payloads, true},
+		{"v2 with schema 1", artifactBundleSchemaVersionV1, v2Metadata, v2Bundle, v2BundleJSON, v2Payloads, true},
+		{"schema zero", 0, v1Metadata, v1Bundle, v1BundleJSON, v1Payloads, true},
+		{"schema three", 3, v1Metadata, v1Bundle, v1BundleJSON, v1Payloads, true},
+		{"future schema", 99, v1Metadata, v1Bundle, v1BundleJSON, v1Payloads, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			integrity, err := buildPackageIntegrityForSchema(
+				test.schema, test.metadata, test.bundle, test.bundleJSON, test.payloads,
+			)
+			if test.wantErr {
+				if !errors.Is(err, ErrInvalidArtifactBundle) {
+					t.Fatalf("expected build ErrInvalidArtifactBundle, got %v", err)
+				}
+				validIntegrity, buildErr := buildPackageIntegrityForSchema(
+					artifactBundleSchemaVersionV1, v1Metadata, v1Bundle, v1BundleJSON, v1Payloads,
+				)
+				if buildErr != nil {
+					t.Fatal(buildErr)
+				}
+				err = verifyPackageIntegrityForSchema(
+					test.schema, test.metadata, test.bundle, test.bundleJSON, test.payloads, validIntegrity,
+				)
+				if !errors.Is(err, ErrInvalidArtifactBundle) {
+					t.Fatalf("expected verify ErrInvalidArtifactBundle, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := verifyPackageIntegrityForSchema(
+				test.schema, test.metadata, test.bundle, test.bundleJSON, test.payloads, integrity,
+			); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestBuildPackageIntegrityForSchemaV2IsDeterministic(t *testing.T) {
+	bundle := integrityTestBundleV2()
+	metadataJSON := integrityTestPackageMetadataV2JSON(t)
+	bundleJSON := integrityTestBundleV2JSON(t, bundle)
+	payloads := integrityTestPayloadsV2()
+	first, err := buildPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2, metadataJSON, bundle, bundleJSON, payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := buildPackageIntegrityForSchema(
+		artifactBundleSchemaVersionV2, metadataJSON, bundle, bundleJSON, payloads,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("integrity values differ: %#v != %#v", first, second)
+	}
+	firstJSON, err := MarshalPackageIntegrity(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondJSON, err := MarshalPackageIntegrity(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(firstJSON, secondJSON) {
+		t.Fatalf("integrity JSON differs: %s != %s", firstJSON, secondJSON)
 	}
 }
