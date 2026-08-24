@@ -447,3 +447,98 @@ func TestArtifactBundleValidateAllowsEmptyArtifacts(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func testRunnableArtifactBundle() ArtifactBundle {
+	return ArtifactBundle{
+		ManifestName:    "demo",
+		ManifestVersion: "v1",
+		Runtime: &RuntimeDescriptor{
+			Kind: RuntimeKindApplicationExecutable,
+			Entrypoint: RuntimeEntrypoint{
+				Module:  "demo",
+				Version: "v1",
+			},
+			TargetOS:   "windows",
+			TargetArch: "amd64",
+		},
+		Artifacts: []Artifact{{Module: "demo", Version: "v1", ImportPath: "example.com/demo"}},
+	}
+}
+
+func TestArtifactBundleValidateForSchemaV1(t *testing.T) {
+	if err := testArtifactBundle().ValidateForSchema(artifactBundleSchemaVersionV1); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestArtifactBundleV1RejectsRuntimeDescriptorForWriting(t *testing.T) {
+	err := testRunnableArtifactBundle().ValidateForSchema(artifactBundleSchemaVersionV1)
+	if !errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf("expected ErrInvalidArtifactBundle, got %v", err)
+	}
+}
+
+func TestArtifactBundleValidateForSchemaV2(t *testing.T) {
+	if err := testRunnableArtifactBundle().ValidateForSchema(artifactBundleSchemaVersionV2); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestArtifactBundleV2RequiresRuntimeDescriptor(t *testing.T) {
+	bundle := testArtifactBundle()
+	err := bundle.ValidateForSchema(artifactBundleSchemaVersionV2)
+	if !errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf("expected ErrInvalidArtifactBundle, got %v", err)
+	}
+}
+
+func TestArtifactBundleV2RejectsUnknownRuntimeKind(t *testing.T) {
+	bundle := testRunnableArtifactBundle()
+	bundle.Runtime.Kind = "unknown"
+	requireInvalidArtifactBundle(t, bundle)
+}
+
+func TestArtifactBundleV2RejectsMissingTargetOS(t *testing.T) {
+	bundle := testRunnableArtifactBundle()
+	bundle.Runtime.TargetOS = " "
+	requireInvalidArtifactBundle(t, bundle)
+}
+
+func TestArtifactBundleV2RejectsMissingTargetArch(t *testing.T) {
+	bundle := testRunnableArtifactBundle()
+	bundle.Runtime.TargetArch = " "
+	requireInvalidArtifactBundle(t, bundle)
+}
+
+func TestArtifactBundleV2RejectsMissingEntrypointModule(t *testing.T) {
+	bundle := testRunnableArtifactBundle()
+	bundle.Runtime.Entrypoint.Module = " "
+	requireInvalidArtifactBundle(t, bundle)
+}
+
+func TestArtifactBundleV2RejectsMissingEntrypointVersion(t *testing.T) {
+	bundle := testRunnableArtifactBundle()
+	bundle.Runtime.Entrypoint.Version = " "
+	requireInvalidArtifactBundle(t, bundle)
+}
+
+func TestArtifactBundleV2RejectsUnmatchedEntrypoint(t *testing.T) {
+	bundle := testRunnableArtifactBundle()
+	bundle.Runtime.Entrypoint.Module = "missing"
+	requireInvalidArtifactBundle(t, bundle)
+}
+
+func TestArtifactBundleV2AcceptsSingleMatchingEntrypoint(t *testing.T) {
+	bundle := testRunnableArtifactBundle()
+	bundle.Artifacts = append(bundle.Artifacts, Artifact{Module: "dependency", Version: "v1", ImportPath: "example.com/dependency"})
+	if err := bundle.ValidateForSchema(artifactBundleSchemaVersionV2); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func requireInvalidArtifactBundle(t *testing.T, bundle ArtifactBundle) {
+	t.Helper()
+	if err := bundle.ValidateForSchema(artifactBundleSchemaVersionV2); !errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf("expected ErrInvalidArtifactBundle, got %v", err)
+	}
+}

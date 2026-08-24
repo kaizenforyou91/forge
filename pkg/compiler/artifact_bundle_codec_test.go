@@ -352,6 +352,150 @@ func TestUnmarshalArtifactBundleCreatesIndependentSlices(t *testing.T) {
 	}
 }
 
+func TestMarshalArtifactBundleV1CanonicalBytesUnchanged(t *testing.T) {
+	bundle := ArtifactBundle{
+		ManifestName: "demo", ManifestVersion: "v1",
+		Artifacts: []Artifact{{Module: "demo", Version: "v1", ImportPath: "example.com/demo"}},
+	}
+	want := []byte(`{"manifest_name":"demo","manifest_version":"v1","artifacts":[{"module":"demo","version":"v1","import_path":"example.com/demo"}]}`)
+	got, err := MarshalArtifactBundle(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("expected %s, got %s", want, got)
+	}
+}
+
+func TestUnmarshalArtifactBundleV1IgnoresRuntimeField(t *testing.T) {
+	data := []byte(`{"manifest_name":"demo","manifest_version":"v1","runtime":{"kind":"future"},"artifacts":[{"module":"demo","version":"v1","import_path":"example.com/demo"}]}`)
+	bundle, err := UnmarshalArtifactBundle(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bundle.Runtime != nil {
+		t.Fatalf("expected v1 runtime to be ignored, got %#v", bundle.Runtime)
+	}
+}
+
+func TestUnmarshalArtifactBundleV1UnknownFieldRegression(t *testing.T) {
+	data := []byte(`{"manifest_name":"demo","manifest_version":"v1","future":true,"artifacts":[{"module":"demo","version":"v1","import_path":"example.com/demo","future":true}]}`)
+	if _, err := UnmarshalArtifactBundle(data); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMarshalArtifactBundleV2CanonicalBytes(t *testing.T) {
+	want := []byte(`{"manifest_name":"demo","manifest_version":"v1","runtime":{"kind":"application_executable","entrypoint":{"module":"demo","version":"v1"},"target_os":"windows","target_arch":"amd64"},"artifacts":[{"module":"demo","version":"v1","import_path":"example.com/demo"}]}`)
+	got, err := marshalArtifactBundleForSchema(testRunnableArtifactBundle(), artifactBundleSchemaVersionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("expected %s, got %s", want, got)
+	}
+}
+
+func TestArtifactBundleV2SerializationIsDeterministic(t *testing.T) {
+	bundle := testRunnableArtifactBundle()
+	first, err := marshalArtifactBundleForSchema(bundle, artifactBundleSchemaVersionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 10; i++ {
+		got, err := marshalArtifactBundleForSchema(bundle, artifactBundleSchemaVersionV2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, first) {
+			t.Fatalf("serialization %d differs", i)
+		}
+	}
+}
+
+func TestUnmarshalArtifactBundleV2RoundTrip(t *testing.T) {
+	want := testRunnableArtifactBundle()
+	data, err := marshalArtifactBundleForSchema(want, artifactBundleSchemaVersionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := unmarshalArtifactBundleForSchema(data, artifactBundleSchemaVersionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %#v, got %#v", want, got)
+	}
+
+	got.Runtime.TargetOS = "changed"
+	if want.Runtime.TargetOS != "windows" {
+		t.Fatal("decoded runtime descriptor aliases source bundle")
+	}
+}
+
+func TestUnmarshalArtifactBundleV2RejectsUnknownRootField(t *testing.T) {
+	requireInvalidArtifactBundleJSON(t, replaceV2BundleJSON(t, `"artifacts":`, `"future":true,"artifacts":`))
+}
+
+func TestUnmarshalArtifactBundleV2RejectsUnknownRuntimeField(t *testing.T) {
+	requireInvalidArtifactBundleJSON(t, replaceV2BundleJSON(t, `"entrypoint":`, `"future":true,"entrypoint":`))
+}
+
+func TestUnmarshalArtifactBundleV2RejectsUnknownEntrypointField(t *testing.T) {
+	requireInvalidArtifactBundleJSON(t, replaceV2BundleJSON(t, `"module":"demo"`, `"future":true,"module":"demo"`))
+}
+
+func TestUnmarshalArtifactBundleV2RejectsUnknownArtifactField(t *testing.T) {
+	requireInvalidArtifactBundleJSON(t, replaceV2BundleJSON(t, `"import_path":"example.com/demo"`, `"import_path":"example.com/demo","future":true`))
+}
+
+func TestUnmarshalArtifactBundleV2RejectsDuplicateRootKey(t *testing.T) {
+	requireInvalidArtifactBundleJSON(t, replaceV2BundleJSON(t, `"manifest_version":"v1"`, `"manifest_version":"v1","manifest_version":"v2"`))
+}
+
+func TestUnmarshalArtifactBundleV2RejectsDuplicateRuntimeKey(t *testing.T) {
+	requireInvalidArtifactBundleJSON(t, replaceV2BundleJSON(t, `"kind":"application_executable"`, `"kind":"application_executable","kind":"other"`))
+}
+
+func TestUnmarshalArtifactBundleV2RejectsDuplicateEntrypointKey(t *testing.T) {
+	requireInvalidArtifactBundleJSON(t, replaceV2BundleJSON(t, `"module":"demo"`, `"module":"demo","module":"other"`))
+}
+
+func TestUnmarshalArtifactBundleV2RejectsDuplicateArtifactKey(t *testing.T) {
+	requireInvalidArtifactBundleJSON(t, replaceV2BundleJSON(t, `"import_path":"example.com/demo"`, `"import_path":"example.com/demo","import_path":"other"`))
+}
+
+func TestUnmarshalArtifactBundleV2RejectsTrailingJSON(t *testing.T) {
+	requireInvalidArtifactBundleJSON(t, append(canonicalV2BundleJSON(t), []byte(`{}`)...))
+}
+
+func canonicalV2BundleJSON(t *testing.T) []byte {
+	t.Helper()
+	data, err := marshalArtifactBundleForSchema(testRunnableArtifactBundle(), artifactBundleSchemaVersionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func replaceV2BundleJSON(t *testing.T, old, replacement string) []byte {
+	t.Helper()
+	data := canonicalV2BundleJSON(t)
+	result := bytes.Replace(data, []byte(old), []byte(replacement), 1)
+	if bytes.Equal(result, data) {
+		t.Fatalf("fixture pattern %q not found", old)
+	}
+	return result
+}
+
+func requireInvalidArtifactBundleJSON(t *testing.T, data []byte) {
+	t.Helper()
+	_, err := unmarshalArtifactBundleForSchema(data, artifactBundleSchemaVersionV2)
+	if !errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf("expected ErrInvalidArtifactBundle, got %v", err)
+	}
+}
+
 func bytesEqual(a, b []byte) bool {
 	if len(a) != len(b) {
 		return false
