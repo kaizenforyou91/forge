@@ -3,6 +3,8 @@ package compiler
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
@@ -15,6 +17,42 @@ import (
 )
 
 var fakeRunnableExecutableBytes = []byte("real-looking-test-binary-bytes")
+
+type recordingApplicationExecutableBuilder struct {
+	delegate applicationExecutableBuilder
+	request  executableBuildRequest
+	result   ExecutableBuildResult
+	payload  []byte
+}
+
+func (b *recordingApplicationExecutableBuilder) Build(
+	ctx context.Context,
+	request executableBuildRequest,
+) (ExecutableBuildResult, error) {
+	b.request = request
+
+	result, err := b.delegate.Build(ctx, request)
+	if err != nil {
+		return ExecutableBuildResult{}, err
+	}
+
+	payload, err := os.ReadFile(result.Path)
+	if err != nil {
+		return ExecutableBuildResult{}, err
+	}
+
+	b.result = result
+	b.payload = append([]byte(nil), payload...)
+
+	return result, nil
+}
+
+type realRunnablePackageResult struct {
+	request       RunnablePackageRequest
+	recorder      *recordingApplicationExecutableBuilder
+	fixtureBefore map[string][]byte
+	fixturePath   string
+}
 
 type fakeRunnablePackageSourceResolver struct {
 	calls  []RuntimeEntrypoint
@@ -874,4 +912,284 @@ func TestRunnablePackageCompilerDoesNotMutatePlan(t *testing.T) {
 	if !reflect.DeepEqual(request.Plan, want) {
 		t.Fatalf("runnable compiler mutated plan\nwant %#v\ngot  %#v", want, request.Plan)
 	}
+}
+
+func TestRunnablePackageCompilerPackagesRealHostExecutable(t *testing.T) {
+	result := compileRealRunnablePackage(t, NewZIPPackager())
+	payload := result.recorder.payload
+
+	if len(payload) == 0 {
+		t.Fatal("expected non-empty real executable bytes")
+	}
+	if bytes.Equal(payload, []byte("placeholder-not-executable")) {
+		t.Fatal("real executable must not equal the package-v2 placeholder")
+	}
+	if bytes.Equal(payload, []byte("runnable-app@v1")) {
+		t.Fatal("real executable must not equal a v1 identity payload")
+	}
+	if result.recorder.result.TargetOS != runtime.GOOS ||
+		result.recorder.result.TargetArch != runtime.GOARCH {
+		t.Fatalf(
+			"expected host target %s/%s, got %s/%s",
+			runtime.GOOS,
+			runtime.GOARCH,
+			result.recorder.result.TargetOS,
+			result.recorder.result.TargetArch,
+		)
+	}
+
+	if _, err := os.Lstat(result.recorder.result.Path); !os.IsNotExist(err) {
+		t.Fatalf("expected temporary executable to be removed, got %v", err)
+	}
+	if _, err := os.Lstat(filepath.Dir(result.recorder.result.Path)); !os.IsNotExist(err) {
+		t.Fatalf("expected temporary build directory to be removed, got %v", err)
+	}
+	if _, err := os.Stat(result.request.OutputPath); err != nil {
+		t.Fatalf("expected final package to remain: %v", err)
+	}
+
+	entries := readZIPEntriesForTest(t, result.request.OutputPath)
+	wantMetadata := []byte(`{"package_format_version":2,"bundle_schema_version":2}`)
+	if !bytes.Equal(entries[packageMetadataPath], wantMetadata) {
+		t.Fatalf("expected package-v2 metadata %s, got %s", wantMetadata, entries[packageMetadataPath])
+	}
+
+	integrity, err := UnmarshalPackageIntegrity(entries[integrityManifestPath])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if integrity.Version != packageIntegrityVersion {
+		t.Fatalf("expected integrity version %d, got %d", packageIntegrityVersion, integrity.Version)
+	}
+	if len(integrity.Artifacts) != 1 {
+		t.Fatalf("expected one integrity artifact, got %d", len(integrity.Artifacts))
+	}
+	digest := sha256.Sum256(payload)
+	wantDigest := hex.EncodeToString(digest[:])
+	if integrity.Artifacts[0].SHA256 != wantDigest {
+		t.Fatalf("expected executable digest %q, got %q", wantDigest, integrity.Artifacts[0].SHA256)
+	}
+
+	bundle, payloads, err := NewZIPPackageReader().Read(result.request.OutputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRealRunnablePackageReadBack(t, bundle, payloads, result.request, payload)
+
+	payloadPath := "artifacts/runnable-app/v1/artifact"
+	tamperedEntries := readZIPEntriesForTest(t, result.request.OutputPath)
+	tamperedEntries[payloadPath] = mutateRealExecutablePayload(t, tamperedEntries[payloadPath])
+	tamperedPath := filepath.Join(t.TempDir(), "tampered-real-runnable.zip")
+	writeZIPEntriesForTest(t, tamperedPath, tamperedEntries)
+	if _, _, err := NewZIPPackageReader().Read(tamperedPath); !errors.Is(err, ErrIntegrityMismatch) {
+		t.Fatalf("expected ErrIntegrityMismatch for real executable tamper, got %v", err)
+	}
+
+	fixtureAfter := snapshotRunnableApplicationFixture(t, result.fixturePath)
+	if !reflect.DeepEqual(fixtureAfter, result.fixtureBefore) {
+		t.Fatalf("real build mutated source fixture\nbefore %#v\nafter  %#v", result.fixtureBefore, fixtureAfter)
+	}
+}
+
+func TestRunnablePackageCompilerCreatesStrictlyVerifiableSignedRealExecutablePackage(t *testing.T) {
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	result := compileRealRunnablePackage(t, NewZIPPackagerWithSigner(signer))
+
+	reader, err := NewZIPPackageReaderWithPolicyAndVerifier(
+		StrictPackageVerificationPolicy(),
+		verifier,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle, payloads, err := reader.Read(result.request.OutputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRealRunnablePackageReadBack(
+		t,
+		bundle,
+		payloads,
+		result.request,
+		result.recorder.payload,
+	)
+
+	entries := readZIPEntriesForTest(t, result.request.OutputPath)
+	signature, err := UnmarshalPackageSignature(entries[signatureManifestPath])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if signature.Version != packageSignatureVersion {
+		t.Fatalf("expected signature version %d, got %d", packageSignatureVersion, signature.Version)
+	}
+
+	payloadPath := "artifacts/runnable-app/v1/artifact"
+	payloadTamper := readZIPEntriesForTest(t, result.request.OutputPath)
+	payloadTamper[payloadPath] = mutateRealExecutablePayload(t, payloadTamper[payloadPath])
+	payloadTamperPath := filepath.Join(t.TempDir(), "signed-payload-tamper.zip")
+	writeZIPEntriesForTest(t, payloadTamperPath, payloadTamper)
+	if _, _, err := reader.Read(payloadTamperPath); !errors.Is(err, ErrIntegrityMismatch) {
+		t.Fatalf("expected ErrIntegrityMismatch for signed real payload tamper, got %v", err)
+	}
+
+	runtimeTamper := readZIPEntriesForTest(t, result.request.OutputPath)
+	oldTarget := []byte(`"target_arch":"` + runtime.GOARCH + `"`)
+	newTarget := []byte(`"target_arch":"tampered-` + runtime.GOARCH + `"`)
+	if bytes.Count(runtimeTamper[bundleManifestPath], oldTarget) != 1 {
+		t.Fatalf("expected exactly one canonical target_arch field in %s", runtimeTamper[bundleManifestPath])
+	}
+	runtimeTamper[bundleManifestPath] = bytes.Replace(
+		runtimeTamper[bundleManifestPath],
+		oldTarget,
+		newTarget,
+		1,
+	)
+	runtimeTamperPath := filepath.Join(t.TempDir(), "signed-runtime-tamper.zip")
+	writeZIPEntriesForTest(t, runtimeTamperPath, runtimeTamper)
+	if _, _, err := reader.Read(runtimeTamperPath); !errors.Is(err, ErrIntegrityMismatch) {
+		t.Fatalf("expected ErrIntegrityMismatch for signed runtime metadata tamper, got %v", err)
+	}
+}
+
+func compileRealRunnablePackage(
+	t *testing.T,
+	packager *ZIPPackager,
+) realRunnablePackageResult {
+	t.Helper()
+	t.Setenv("GOTELEMETRY", "off")
+
+	workingDirectory, fixturePath := runnablePackageRepositoryPaths(t)
+	fixtureBefore := snapshotRunnableApplicationFixture(t, fixturePath)
+	entrypoint := RuntimeEntrypoint{Module: "runnable-app", Version: "v1"}
+	request := RunnablePackageRequest{
+		Plan: manifest.BuildPlan{
+			ManifestName:    "real-runnable",
+			ManifestVersion: "v1",
+			Steps: []manifest.BuildStep{
+				{Module: "runnable-app@v1"},
+			},
+		},
+		Entrypoint:       entrypoint,
+		WorkingDirectory: workingDirectory,
+		OutputPath:       filepath.Join(t.TempDir(), "real-runnable-v2.zip"),
+	}
+
+	sources := NewPackageSourceRegistry()
+	if err := sources.Register(PackageSource{
+		Name:       entrypoint.Module,
+		Version:    entrypoint.Version,
+		ImportPath: testRunnableApplicationImportPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	realBuilder, err := NewGoApplicationExecutableBuilder(NewOSCommandRunner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := &recordingApplicationExecutableBuilder{delegate: realBuilder}
+	compiler, err := newRunnablePackageCompiler(
+		sources,
+		recorder,
+		&zipRunnablePackagePackager{packager: packager},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := compiler.Compile(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+
+	return realRunnablePackageResult{
+		request:       request,
+		recorder:      recorder,
+		fixtureBefore: fixtureBefore,
+		fixturePath:   fixturePath,
+	}
+}
+
+func runnablePackageRepositoryPaths(t *testing.T) (string, string) {
+	t.Helper()
+
+	_, testFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve runnable package test source path")
+	}
+	compilerDirectory := filepath.Dir(testFile)
+	repositoryRoot := filepath.Clean(filepath.Join(compilerDirectory, "..", ".."))
+	if _, err := os.Stat(filepath.Join(repositoryRoot, "go.mod")); err != nil {
+		t.Fatalf("resolve repository root %q: %v", repositoryRoot, err)
+	}
+
+	return repositoryRoot, filepath.Join(compilerDirectory, "testdata", "runnable_app")
+}
+
+func snapshotRunnableApplicationFixture(
+	t *testing.T,
+	directory string,
+) map[string][]byte {
+	t.Helper()
+
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := make(map[string][]byte, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			snapshot[entry.Name()+string(filepath.Separator)] = nil
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(directory, entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot[entry.Name()] = data
+	}
+
+	return snapshot
+}
+
+func assertRealRunnablePackageReadBack(
+	t *testing.T,
+	bundle ArtifactBundle,
+	payloads map[string][]byte,
+	request RunnablePackageRequest,
+	wantPayload []byte,
+) {
+	t.Helper()
+
+	if bundle.Runtime == nil ||
+		bundle.Runtime.Kind != RuntimeKindApplicationExecutable ||
+		bundle.Runtime.Entrypoint != request.Entrypoint ||
+		bundle.Runtime.TargetOS != runtime.GOOS ||
+		bundle.Runtime.TargetArch != runtime.GOARCH {
+		t.Fatalf("unexpected real runnable descriptor %#v", bundle.Runtime)
+	}
+	if len(bundle.Artifacts) != 1 {
+		t.Fatalf("expected one real executable artifact, got %d", len(bundle.Artifacts))
+	}
+	wantArtifact := Artifact{
+		Module:     "runnable-app",
+		Version:    "v1",
+		ImportPath: testRunnableApplicationImportPath,
+	}
+	if bundle.Artifacts[0] != wantArtifact {
+		t.Fatalf("expected real artifact %#v, got %#v", wantArtifact, bundle.Artifacts[0])
+	}
+	if len(payloads) != 1 || !bytes.Equal(payloads["runnable-app@v1"], wantPayload) {
+		t.Fatal("package payload does not equal exact real builder output")
+	}
+}
+
+func mutateRealExecutablePayload(t *testing.T, payload []byte) []byte {
+	t.Helper()
+	if len(payload) == 0 {
+		t.Fatal("cannot mutate empty executable payload")
+	}
+
+	result := append([]byte(nil), payload...)
+	result[len(result)/2] ^= 0xff
+	return result
 }
