@@ -8,53 +8,77 @@ import (
 	"testing"
 )
 
-func TestCurrentPackageMetadata(t *testing.T) {
-	metadata := currentPackageMetadata()
-
-	if metadata.PackageFormatVersion != 1 {
-		t.Fatalf("expected package format version 1, got %d", metadata.PackageFormatVersion)
-	}
-
-	if metadata.BundleSchemaVersion != 1 {
-		t.Fatalf("expected bundle schema version 1, got %d", metadata.BundleSchemaVersion)
+func TestPackageMetadataV1(t *testing.T) {
+	want := packageMetadataDocument{packageFormatVersionV1, artifactBundleSchemaVersionV1}
+	if got := packageMetadataV1(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %#v, got %#v", want, got)
 	}
 }
 
-func TestMarshalPackageMetadata(t *testing.T) {
-	data, err := marshalPackageMetadata(currentPackageMetadata())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	want := []byte(`{"package_format_version":1,"bundle_schema_version":1}`)
-	if !bytes.Equal(data, want) {
-		t.Fatalf("expected %s, got %s", want, data)
+func TestPackageMetadataV2(t *testing.T) {
+	want := packageMetadataDocument{packageFormatVersionV2, artifactBundleSchemaVersionV2}
+	if got := packageMetadataV2(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %#v, got %#v", want, got)
 	}
 }
 
-func TestMarshalPackageMetadataIsDeterministic(t *testing.T) {
-	metadata := currentPackageMetadata()
-	first, err := marshalPackageMetadata(metadata)
-	if err != nil {
-		t.Fatal(err)
+func TestCurrentPackageMetadataRemainsV1(t *testing.T) {
+	if got, want := currentPackageMetadata(), packageMetadataV1(); got != want {
+		t.Fatalf("expected %#v, got %#v", want, got)
 	}
+}
 
-	for i := 0; i < 10; i++ {
-		got, err := marshalPackageMetadata(metadata)
+func TestMarshalPackageMetadataV1CanonicalBytes(t *testing.T) {
+	assertPackageMetadataBytes(t, packageMetadataV1(), []byte(`{"package_format_version":1,"bundle_schema_version":1}`))
+}
+
+func TestMarshalPackageMetadataV2CanonicalBytes(t *testing.T) {
+	assertPackageMetadataBytes(t, packageMetadataV2(), []byte(`{"package_format_version":2,"bundle_schema_version":2}`))
+}
+
+func TestMarshalPackageMetadataIsDeterministicForSupportedPairs(t *testing.T) {
+	for _, metadata := range []packageMetadataDocument{packageMetadataV1(), packageMetadataV2()} {
+		first, err := marshalPackageMetadata(metadata)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(got, first) {
-			t.Fatalf("serialization %d differs: first %s, got %s", i, first, got)
+		for i := 0; i < 10; i++ {
+			got, err := marshalPackageMetadata(metadata)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !bytes.Equal(got, first) {
+				t.Fatalf("serialization %d differs: first %s, got %s", i, first, got)
+			}
 		}
 	}
 }
 
-func TestMarshalPackageMetadataRejectsUnsupportedPackageFormat(t *testing.T) {
-	for _, version := range []int{0, -1, currentPackageFormatVersion + 1} {
+func TestPackageMetadataRejectsMismatchedVersionPairs(t *testing.T) {
+	for _, metadata := range []packageMetadataDocument{
+		{packageFormatVersionV1, artifactBundleSchemaVersionV2},
+		{packageFormatVersionV2, artifactBundleSchemaVersionV1},
+	} {
+		t.Run(packageMetadataPairTestName(metadata), func(t *testing.T) {
+			_, marshalErr := marshalPackageMetadata(metadata)
+			if !errors.Is(marshalErr, ErrUnsupportedPackageFormat) {
+				t.Fatalf("expected marshal ErrUnsupportedPackageFormat, got %v", marshalErr)
+			}
+
+			_, unmarshalErr := unmarshalPackageMetadata([]byte(packageMetadataJSON(metadata.PackageFormatVersion, metadata.BundleSchemaVersion)))
+			if !errors.Is(unmarshalErr, ErrUnsupportedPackageFormat) {
+				t.Fatalf("expected unmarshal ErrUnsupportedPackageFormat, got %v", unmarshalErr)
+			}
+		})
+	}
+}
+
+func TestPackageMetadataRejectsUnsupportedPackageVersions(t *testing.T) {
+	for _, version := range []int{0, -1, packageFormatVersionV2 + 1} {
 		t.Run(versionTestName(version), func(t *testing.T) {
-			metadata := currentPackageMetadata()
+			metadata := packageMetadataV1()
 			metadata.PackageFormatVersion = version
 
 			_, err := marshalPackageMetadata(metadata)
@@ -65,10 +89,10 @@ func TestMarshalPackageMetadataRejectsUnsupportedPackageFormat(t *testing.T) {
 	}
 }
 
-func TestMarshalPackageMetadataRejectsUnsupportedBundleSchema(t *testing.T) {
-	for _, version := range []int{0, -1, currentArtifactBundleSchemaVersion + 1} {
+func TestPackageMetadataRejectsUnsupportedBundleVersions(t *testing.T) {
+	for _, version := range []int{0, -1, artifactBundleSchemaVersionV2 + 1} {
 		t.Run(versionTestName(version), func(t *testing.T) {
-			metadata := currentPackageMetadata()
+			metadata := packageMetadataV1()
 			metadata.BundleSchemaVersion = version
 
 			_, err := marshalPackageMetadata(metadata)
@@ -79,16 +103,17 @@ func TestMarshalPackageMetadataRejectsUnsupportedBundleSchema(t *testing.T) {
 	}
 }
 
-func TestUnmarshalPackageMetadata(t *testing.T) {
-	data := []byte(`{"package_format_version":1,"bundle_schema_version":1}`)
-
-	got, err := unmarshalPackageMetadata(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if want := currentPackageMetadata(); !reflect.DeepEqual(got, want) {
-		t.Fatalf("expected %#v, got %#v", want, got)
+func TestUnmarshalPackageMetadataAcceptsSupportedVersionPairs(t *testing.T) {
+	for _, want := range []packageMetadataDocument{packageMetadataV1(), packageMetadataV2()} {
+		t.Run(packageMetadataPairTestName(want), func(t *testing.T) {
+			got, err := unmarshalPackageMetadata([]byte(packageMetadataJSON(want.PackageFormatVersion, want.BundleSchemaVersion)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("expected %#v, got %#v", want, got)
+			}
+		})
 	}
 }
 
@@ -180,9 +205,9 @@ func TestUnmarshalPackageMetadataRejectsDuplicateUnknownField(t *testing.T) {
 }
 
 func TestUnmarshalPackageMetadataRejectsUnsupportedPackageFormat(t *testing.T) {
-	for _, version := range []int{-1, 0, currentPackageFormatVersion + 1} {
+	for _, version := range []int{-1, 0, packageFormatVersionV2 + 1} {
 		t.Run(versionTestName(version), func(t *testing.T) {
-			data := []byte(packageMetadataJSON(version, currentArtifactBundleSchemaVersion))
+			data := []byte(packageMetadataJSON(version, artifactBundleSchemaVersionV1))
 
 			_, err := unmarshalPackageMetadata(data)
 			if !errors.Is(err, ErrUnsupportedPackageFormat) {
@@ -193,9 +218,9 @@ func TestUnmarshalPackageMetadataRejectsUnsupportedPackageFormat(t *testing.T) {
 }
 
 func TestUnmarshalPackageMetadataRejectsUnsupportedBundleSchema(t *testing.T) {
-	for _, version := range []int{-1, 0, currentArtifactBundleSchemaVersion + 1} {
+	for _, version := range []int{-1, 0, artifactBundleSchemaVersionV2 + 1} {
 		t.Run(versionTestName(version), func(t *testing.T) {
-			data := []byte(packageMetadataJSON(currentPackageFormatVersion, version))
+			data := []byte(packageMetadataJSON(packageFormatVersionV1, version))
 
 			_, err := unmarshalPackageMetadata(data)
 			if !errors.Is(err, ErrUnsupportedPackageFormat) {
@@ -262,4 +287,21 @@ func versionTestName(version int) string {
 func packageMetadataJSON(packageVersion, bundleVersion int) string {
 	return `{"package_format_version":` + strconv.Itoa(packageVersion) +
 		`,"bundle_schema_version":` + strconv.Itoa(bundleVersion) + `}`
+}
+
+func packageMetadataPairTestName(metadata packageMetadataDocument) string {
+	return "package_" + strconv.Itoa(metadata.PackageFormatVersion) +
+		"_bundle_" + strconv.Itoa(metadata.BundleSchemaVersion)
+}
+
+func assertPackageMetadataBytes(t *testing.T, metadata packageMetadataDocument, want []byte) {
+	t.Helper()
+
+	got, err := marshalPackageMetadata(metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("expected %s, got %s", want, got)
+	}
 }

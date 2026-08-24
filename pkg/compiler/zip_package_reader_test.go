@@ -20,7 +20,7 @@ func TestNewZIPPackageReader(t *testing.T) {
 	}
 }
 
-func TestZIPPackageReaderReadsCurrentPackageFormat(t *testing.T) {
+func TestZIPPackageReaderStillReadsPackageFormatV1(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bundle.zip")
 
@@ -54,6 +54,29 @@ func TestZIPPackageReaderReadsCurrentPackageFormat(t *testing.T) {
 			payloads,
 			gotPayloads,
 		)
+	}
+}
+
+func TestZIPPackageReaderTemporarilyRejectsPackageFormatV2(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v2.zip")
+	metadata, err := marshalPackageMetadata(packageMetadataV2())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A v2-only runtime field and deliberately invalid v1 bundle shape prove
+	// archive dispatch rejects the recognized pair before bundle decoding.
+	writeZIPEntriesForTest(t, path, map[string][]byte{
+		packageMetadataPath: metadata,
+		bundleManifestPath:  []byte(`{"runtime":{"kind":"application_executable"}}`),
+	})
+
+	_, _, err = NewZIPPackageReader().Read(path)
+	if !errors.Is(err, ErrUnsupportedPackageFormat) {
+		t.Fatalf("expected ErrUnsupportedPackageFormat, got %v", err)
+	}
+	if errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf("expected rejection before bundle decoding, got %v", err)
 	}
 }
 

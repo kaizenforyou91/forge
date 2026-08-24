@@ -8,8 +8,11 @@ import (
 )
 
 const (
-	currentPackageFormatVersion        = 1
-	currentArtifactBundleSchemaVersion = 1
+	packageFormatVersionV1 = 1
+	packageFormatVersionV2 = 2
+
+	artifactBundleSchemaVersionV1 = 1
+	artifactBundleSchemaVersionV2 = 2
 )
 
 // packageMetadataDocument is the serialized package.json contract.
@@ -24,16 +27,29 @@ type packageMetadataWire struct {
 }
 
 func currentPackageMetadata() packageMetadataDocument {
+	// The production writer remains on v1 until runnable package writing is
+	// introduced by a coordinated writer/reader migration.
+	return packageMetadataV1()
+}
+
+func packageMetadataV1() packageMetadataDocument {
 	return packageMetadataDocument{
-		PackageFormatVersion: currentPackageFormatVersion,
-		BundleSchemaVersion:  currentArtifactBundleSchemaVersion,
+		PackageFormatVersion: packageFormatVersionV1,
+		BundleSchemaVersion:  artifactBundleSchemaVersionV1,
+	}
+}
+
+func packageMetadataV2() packageMetadataDocument {
+	return packageMetadataDocument{
+		PackageFormatVersion: packageFormatVersionV2,
+		BundleSchemaVersion:  artifactBundleSchemaVersionV2,
 	}
 }
 
 func marshalPackageMetadata(
 	metadata packageMetadataDocument,
 ) ([]byte, error) {
-	if err := validatePackageMetadata(metadata); err != nil {
+	if err := validateSupportedPackageMetadata(metadata); err != nil {
 		return nil, err
 	}
 
@@ -104,7 +120,7 @@ func unmarshalPackageMetadata(
 		BundleSchemaVersion:  *wire.BundleSchemaVersion,
 	}
 
-	if err := validatePackageMetadata(metadata); err != nil {
+	if err := validateSupportedPackageMetadata(metadata); err != nil {
 		return packageMetadataDocument{}, err
 	}
 
@@ -168,24 +184,15 @@ func rejectDuplicatePackageMetadataKeys(data []byte) error {
 	return nil
 }
 
-func validatePackageMetadata(metadata packageMetadataDocument) error {
-	if metadata.PackageFormatVersion != currentPackageFormatVersion {
-		return fmt.Errorf(
-			"%w: package format version %d, supported version %d",
-			ErrUnsupportedPackageFormat,
-			metadata.PackageFormatVersion,
-			currentPackageFormatVersion,
-		)
+func validateSupportedPackageMetadata(metadata packageMetadataDocument) error {
+	if metadata == packageMetadataV1() || metadata == packageMetadataV2() {
+		return nil
 	}
 
-	if metadata.BundleSchemaVersion != currentArtifactBundleSchemaVersion {
-		return fmt.Errorf(
-			"%w: bundle schema version %d, supported version %d",
-			ErrUnsupportedPackageFormat,
-			metadata.BundleSchemaVersion,
-			currentArtifactBundleSchemaVersion,
-		)
-	}
-
-	return nil
+	return fmt.Errorf(
+		"%w: package format version %d / bundle schema version %d; supported pairs are (1,1) and (2,2)",
+		ErrUnsupportedPackageFormat,
+		metadata.PackageFormatVersion,
+		metadata.BundleSchemaVersion,
+	)
 }

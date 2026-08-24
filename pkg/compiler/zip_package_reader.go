@@ -160,7 +160,11 @@ func (r *ZIPPackageReader) Read(
 		)
 	}
 
-	if _, err := unmarshalPackageMetadata(packageMetadataData); err != nil {
+	metadata, err := unmarshalPackageMetadata(packageMetadataData)
+	if err != nil {
+		return ArtifactBundle{}, nil, err
+	}
+	if err := ensureSupportedArchiveDispatch(metadata); err != nil {
 		return ArtifactBundle{}, nil, err
 	}
 
@@ -279,6 +283,19 @@ func (r *ZIPPackageReader) Read(
 	}
 
 	return bundle, payloads, nil
+}
+
+func ensureSupportedArchiveDispatch(metadata packageMetadataDocument) error {
+	if metadata == packageMetadataV1() {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"%w: package format %d / bundle schema %d is recognized but archive dispatch is not implemented",
+		ErrUnsupportedPackageFormat,
+		metadata.PackageFormatVersion,
+		metadata.BundleSchemaVersion,
+	)
 }
 
 func (r *ZIPPackageReader) verifySignaturePolicy(
