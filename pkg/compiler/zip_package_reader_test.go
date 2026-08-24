@@ -60,6 +60,30 @@ func TestZIPPackageReaderStillReadsPackageFormatV1(t *testing.T) {
 	}
 }
 
+func TestZIPPackageReaderReadDetailedReturnsPackageFormatV1Evidence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v1.zip")
+	if err := NewZIPPackager().Package(testPackageBundle(), testPackagePayloads(), path); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := NewZIPPackageReader().ReadDetailed(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.PackageFormatVersion != packageFormatVersionV1 {
+		t.Fatalf("expected package format version 1, got %d", result.PackageFormatVersion)
+	}
+	if result.BundleSchemaVersion != artifactBundleSchemaVersionV1 {
+		t.Fatalf("expected bundle schema version 1, got %d", result.BundleSchemaVersion)
+	}
+	if !reflect.DeepEqual(result.Bundle, testPackageBundle()) {
+		t.Fatalf("unexpected v1 bundle: %#v", result.Bundle)
+	}
+	if !reflect.DeepEqual(result.Payloads, testPackagePayloads()) {
+		t.Fatalf("unexpected v1 payloads: %#v", result.Payloads)
+	}
+}
+
 func TestZIPPackageReaderReadsPackageFormatV2PlaceholderPackage(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "v2.zip")
 	writeTestPackageV2(t, NewZIPPackager(), path)
@@ -73,6 +97,49 @@ func TestZIPPackageReaderReadsPackageFormatV2PlaceholderPackage(t *testing.T) {
 	}
 	if !reflect.DeepEqual(gotPayloads, testRunnablePackagePlaceholderPayloads()) {
 		t.Fatalf("expected placeholder payloads %#v, got %#v", testRunnablePackagePlaceholderPayloads(), gotPayloads)
+	}
+}
+
+func TestZIPPackageReaderReadDetailedReturnsPackageFormatV2Evidence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v2.zip")
+	writeTestPackageV2(t, NewZIPPackager(), path)
+
+	result, err := NewZIPPackageReader().ReadDetailed(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.PackageFormatVersion != packageFormatVersionV2 {
+		t.Fatalf("expected package format version 2, got %d", result.PackageFormatVersion)
+	}
+	if result.BundleSchemaVersion != artifactBundleSchemaVersionV2 {
+		t.Fatalf("expected bundle schema version 2, got %d", result.BundleSchemaVersion)
+	}
+	if !reflect.DeepEqual(result.Bundle, testRunnablePackageBundle()) {
+		t.Fatalf("unexpected v2 bundle: %#v", result.Bundle)
+	}
+	if !reflect.DeepEqual(result.Payloads, testRunnablePackagePlaceholderPayloads()) {
+		t.Fatalf("unexpected v2 payloads: %#v", result.Payloads)
+	}
+}
+
+func TestZIPPackageReaderReadDetailedRejectsUnsupportedVersionPairs(t *testing.T) {
+	for name, metadata := range map[string][]byte{
+		"cross pair 1 2": []byte(`{"package_format_version":1,"bundle_schema_version":2}`),
+		"cross pair 2 1": []byte(`{"package_format_version":2,"bundle_schema_version":1}`),
+		"future package": []byte(`{"package_format_version":3,"bundle_schema_version":2}`),
+		"future bundle":  []byte(`{"package_format_version":2,"bundle_schema_version":3}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "unsupported.zip")
+			writeZIPEntriesForTest(t, path, map[string][]byte{
+				packageMetadataPath: metadata,
+			})
+
+			_, err := NewZIPPackageReader().ReadDetailed(path)
+			if !errors.Is(err, ErrUnsupportedPackageFormat) {
+				t.Fatalf("expected ErrUnsupportedPackageFormat, got %v", err)
+			}
+		})
 	}
 }
 
@@ -701,6 +768,28 @@ func TestZIPPackageReaderPreservesPayloadCopies(t *testing.T) {
 		payloads["http@v1"],
 	) {
 		t.Fatal("reader returned aliased payload data")
+	}
+}
+
+func TestZIPPackageReaderReadDetailedOwnsPayloadCopies(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bundle.zip")
+	if err := NewZIPPackager().Package(testPackageBundle(), testPackagePayloads(), path); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := NewZIPPackageReader().ReadDetailed(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Payloads["http@v1"][0] = 'X'
+	delete(first.Payloads, "logger@v1")
+
+	second, err := NewZIPPackageReader().ReadDetailed(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(second.Payloads, testPackagePayloads()) {
+		t.Fatalf("detailed read payloads aliased prior result: %#v", second.Payloads)
 	}
 }
 

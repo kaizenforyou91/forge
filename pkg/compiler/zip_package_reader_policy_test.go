@@ -234,6 +234,96 @@ func TestZIPPackageReaderStrictPolicyAcceptsSignedPackage(
 	}
 }
 
+func TestZIPPackageReaderReadDetailedReturnsVerifiedSignerKeyID(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "signed.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		path,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := NewZIPPackageReaderWithPolicyAndVerifier(
+		StrictPackageVerificationPolicy(),
+		verifier,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := reader.ReadDetailed(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.VerifiedSignerKeyID != "forge-dev" {
+		t.Fatalf("expected verified signer forge-dev, got %q", result.VerifiedSignerKeyID)
+	}
+}
+
+func TestZIPPackageReaderReadDetailedUnsignedPackageHasNoVerifiedSigner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "unsigned.zip")
+	if err := NewZIPPackager().Package(testPackageBundle(), testPackagePayloads(), path); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := NewZIPPackageReader().ReadDetailed(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.VerifiedSignerKeyID != "" {
+		t.Fatalf("expected no verified signer, got %q", result.VerifiedSignerKeyID)
+	}
+}
+
+func TestZIPPackageReaderReadDetailedDoesNotTrustUnverifiedSignatureKeyID(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "signed-inspection.zip")
+	signer, err := GenerateEd25519Signer("unverified")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		path,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := NewZIPPackageReader().ReadDetailed(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.VerifiedSignerKeyID != "" {
+		t.Fatalf("expected unverified signature key ID to be omitted, got %q", result.VerifiedSignerKeyID)
+	}
+}
+
+func TestZIPPackageReaderReadDetailedVerifierFailureReturnsNoEvidence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "untrusted.zip")
+	signer, err := GenerateEd25519Signer("untrusted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		path,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := NewZIPPackageReaderWithVerifier(
+		NewEd25519Verifier(),
+	).ReadDetailed(path)
+	if !errors.Is(err, ErrUntrustedPackageKey) {
+		t.Fatalf("expected ErrUntrustedPackageKey, got %v", err)
+	}
+	if result.VerifiedSignerKeyID != "" {
+		t.Fatalf("expected no signer evidence on failure, got %q", result.VerifiedSignerKeyID)
+	}
+}
+
 func TestZIPPackageReaderStrictPolicyRejectsUnsignedPackage(
 	t *testing.T,
 ) {

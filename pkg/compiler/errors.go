@@ -33,4 +33,5 @@ var (
 	ErrInvalidApplicationEntrypoint = errors.New("invalid application entrypoint")
 	ErrExecutableBuildFailed        = errors.New("executable build failed")
 	ErrExecutableOutputMissing      = errors.New("executable output missing")
+	ErrPackageReadLimitExceeded     = errors.New("package read limit exceeded")
 )
