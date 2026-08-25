@@ -13,4 +13,5 @@ var (
 	ErrMaterializedExecutableAlreadyUsed = errors.New("materialized executable was already used")
 	ErrProcessStartFailed                = errors.New("process start failed")
 	ErrProcessWaitFailed                 = errors.New("process wait failed")
+	ErrProcessTerminationFailed          = errors.New("process termination failed")
 )

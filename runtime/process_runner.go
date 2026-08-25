@@ -83,6 +83,13 @@ func (r *ProcessRunner) Start(
 	stdout := newBoundedOutputWriter(runtimeProcessOutputLimit)
 	stderr := newBoundedOutputWriter(runtimeProcessOutputLimit)
 	cmd := exec.CommandContext(ctx, lease.path)
+	termination := &processTerminationControl{}
+	termination.kill = func() error {
+		return cmd.Process.Kill()
+	}
+	cmd.Cancel = func() error {
+		return termination.request(processTerminationCauseCancellation)
+	}
 	cmd.Dir = workDirectory
 	cmd.Env = runtimeProcessEnvironment(workDirectory)
 	cmd.Stdin = nil
@@ -101,7 +108,7 @@ func (r *ProcessRunner) Start(
 		)
 	}
 
-	process := newRunningProcess(ctx, cmd, lease, stdout, stderr)
+	process := newRunningProcess(ctx, cmd, lease, termination, stdout, stderr)
 	go process.waitInBackground()
 	return process, nil
 }
@@ -110,6 +117,7 @@ func newRunningProcess(
 	ctx context.Context,
 	cmd *exec.Cmd,
 	lease *executableLease,
+	termination *processTerminationControl,
 	stdout,
 	stderr *boundedOutputWriter,
 ) *RunningProcess {
@@ -120,6 +128,7 @@ func newRunningProcess(
 		cmd:         cmd,
 		ctx:         ctx,
 		lease:       lease,
+		termination: termination,
 		stdout:      stdout,
 		stderr:      stderr,
 		done:        make(chan struct{}),
