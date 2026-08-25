@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"fmt"
+	"strings"
 
 	forgeerrors "github.com/kaizenforyou91/forge/pkg/errors"
 )
@@ -88,6 +89,51 @@ func (m Manifest) Validate() error {
 		}
 
 		seen[module.Name] = struct{}{}
+	}
+
+	if m.Entrypoint == nil {
+		return nil
+	}
+
+	entrypointModule := m.Entrypoint.Module
+	entrypointVersion := m.Entrypoint.Version
+
+	if strings.TrimSpace(entrypointModule) == "" {
+		return invalidManifest("manifest.entrypoint.module is required")
+	}
+
+	if strings.TrimSpace(entrypointVersion) == "" {
+		return invalidManifest("manifest.entrypoint.version is required")
+	}
+
+	if strings.TrimSpace(entrypointModule) != entrypointModule {
+		return invalidManifest(
+			"manifest.entrypoint.module must not contain surrounding whitespace",
+		)
+	}
+
+	if strings.TrimSpace(entrypointVersion) != entrypointVersion {
+		return invalidManifest(
+			"manifest.entrypoint.version must not contain surrounding whitespace",
+		)
+	}
+
+	matches := 0
+	for _, module := range m.Modules {
+		if module.Name == entrypointModule &&
+			module.Version == entrypointVersion {
+			matches++
+		}
+	}
+
+	if matches != 1 {
+		return invalidManifest(
+			fmt.Sprintf(
+				"manifest.entrypoint references unknown module %q@%q",
+				entrypointModule,
+				entrypointVersion,
+			),
+		)
 	}
 
 	return nil

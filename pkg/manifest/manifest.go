@@ -6,9 +6,17 @@ package manifest
 // Loading, structural validation, and module resolution are provided
 // by the Manifest Engine foundation.
 type Manifest struct {
-	Version string   `yaml:"version" json:"version"`
-	Name    string   `yaml:"name" json:"name"`
-	Modules []Module `yaml:"modules" json:"modules"`
+	Version    string                 `yaml:"version" json:"version"`
+	Name       string                 `yaml:"name" json:"name"`
+	Entrypoint *ApplicationEntrypoint `yaml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
+	Modules    []Module               `yaml:"modules" json:"modules"`
+}
+
+// ApplicationEntrypoint identifies the single manifest-declared application
+// module selected by a runnable workflow.
+type ApplicationEntrypoint struct {
+	Module  string `yaml:"module" json:"module"`
+	Version string `yaml:"version" json:"version"`
 }
 
 // Module describes a manifest-declared application module.

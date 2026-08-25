@@ -116,6 +116,48 @@ func TestBuildPlanPreservesManifestIdentity(t *testing.T) {
 	}
 }
 
+func TestBuildPlanIgnoresApplicationEntrypoint(t *testing.T) {
+	withoutEntrypoint := Manifest{
+		Version: "v1",
+		Name:    "demo",
+		Modules: []Module{
+			{
+				Name:    "app",
+				Version: "v1",
+				Dependencies: []Dependency{
+					{Name: "library", Version: "v1"},
+				},
+			},
+			{
+				Name:    "library",
+				Version: "v1",
+			},
+		},
+	}
+	withEntrypoint := withoutEntrypoint
+	withEntrypoint.Entrypoint = &ApplicationEntrypoint{
+		Module:  "app",
+		Version: "v1",
+	}
+
+	withoutPlan, err := BuildPlanForManifest(withoutEntrypoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withPlan, err := BuildPlanForManifest(withEntrypoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(withoutPlan, withPlan) {
+		t.Fatalf(
+			"entrypoint changed build plan:\nwithout: %#v\nwith:    %#v",
+			withoutPlan,
+			withPlan,
+		)
+	}
+}
+
 func TestBuildPlanUsesDependencyFirstOrder(t *testing.T) {
 	m := Manifest{
 		Version: "v1",
