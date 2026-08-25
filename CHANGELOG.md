@@ -42,6 +42,13 @@
   `VerifiedRunnablePackage` executable bytes.
 - Added `MaterializedExecutable` with explicit ownership of whole-directory
   cleanup, concurrency-safe idempotent `Close`, and retry after cleanup failure.
+- Added a package-private atomic single-use executable lease with Close/start
+  lifecycle coordination and no public executable path.
+- Added `ProcessRunner`, `RunningProcess`, and `ProcessResult` for direct-child
+  start, background Wait/reap, and stable exit evidence.
+- Added immediate manual direct-child termination and distinct cancellation and
+  termination result evidence.
+- Added host PE, ELF, and Mach-O executable-family and architecture validation.
 
 ## Changed
 
@@ -87,9 +94,20 @@
   validation before handoff.
 - The materialized result exposes no general executable path, and cleanup owns
   removal of the complete private runtime directory.
-- Secure executable materialization is complete as a technical checkpoint;
-  Process Runner Architecture is the next runtime boundary, while Phase 6
-  remains in progress.
+- Process execution now consumes `MaterializedExecutable` through one
+  irreversible execution claim rather than accepting an arbitrary path; Close
+  cannot delete an actively leased executable.
+- Before direct no-shell start, the runner revalidates target, size, SHA-256,
+  regular/non-symlink file identity, and host executable headers.
+- The initial child policy uses zero arguments, a reduced explicit environment,
+  a controlled private working directory, non-interactive stdin, and separate
+  stdout/stderr capture bounded to 1 MiB per stream.
+- A background waiter keeps the lease until Wait/reap. Cancellation and manual
+  termination remain distinct, and process results survive joined cleanup
+  failures.
+- The Process Runner is complete as a technical checkpoint; Manifest
+  Application Entrypoint Contract Review is next while Phase 6 remains in
+  progress.
 
 ## Tests
 
@@ -131,6 +149,15 @@
   with exact file-byte and independent SHA-256 equality.
 - Added source-package independence, source-fixture immutability, complete
   private-directory cleanup, and no-process-execution coverage.
+- Added Close/acquisition race, single-use lease, pending cleanup, and cleanup
+  retry coverage.
+- Added successful direct-child start, zero/non-zero exit, repeated/concurrent
+  Wait, controlled cwd/environment/stdin, bounded output, and executable-header
+  matrix coverage.
+- Added context cancellation, concurrent/manual termination, winner-race,
+  cleanup-error/result-preservation, and no-auto-cleanup coverage.
+- Added full real trusted package-to-execution proof with signer/entrypoint
+  preservation, source-package independence, and no shell or public path API.
 
 ## Known Limitations
 
@@ -142,8 +169,8 @@
 - `forge build` still emits package format 1, and there is no user-facing
   runnable package build workflow.
 - Manifest metadata has no durable application-entrypoint contract.
-- Process start, a process runner, atomic materialization-to-start leasing,
-  arguments/environment/working-directory policy, process lifecycle, and
+- Process management is direct-child-only. Descendants, process trees, graceful
+  shutdown, arbitrary arguments/environment/working-directory policy, and
   `forge run` are not implemented.
 - Runnable packages do not serialize dependency provenance or an SBOM.
 - Executable builds inherit part of the host build environment and are not
@@ -152,8 +179,11 @@
   memory/CPU controls and runtime sandboxing are not implemented.
 - Advanced Windows ACL/reparse hardening for materialized executables is not
   complete.
-- Binary-header validation and trust snapshot/revocation epoch semantics are not
-  implemented.
+- Host executable family/architecture validation is implemented but is not
+  malware analysis. Trust snapshot/revocation epochs and start-time trust
+  reauthorization are not implemented.
+- Same-user path-to-Start replacement is not fully eliminated, and no process
+  resource isolation or filesystem/network/syscall sandbox exists.
 - Remote package registry is not implemented.
 - No-integrity mode provides structural validation without cryptographic tamper
   resistance.
@@ -227,12 +257,13 @@ This project follows **Semantic Versioning**.
   build workflow
 - Build isolation, process resource controls, dependency provenance, and
   reproducibility hardening
-- Atomic materialized-executable acquisition/lease and materialization-to-start
-  TOCTOU minimization
-- Process runner, start-failure handling, arguments/environment/working-directory
-  policy, cancellation/shutdown, stdout/stderr policy, exit propagation,
-  supervision, and `forge run`
-- Binary-header validation and trust snapshot/revocation policy
+- Stronger materialization-to-start TOCTOU mitigation
+- Process-tree/descendant lifecycle, graceful shutdown, and optional Windows Job
+  Object or Unix process-group policy
+- Richer arguments/environment/working-directory contracts, process resource
+  isolation, and sandboxing
+- Trust snapshot/revocation and start-time authorization policy
+- User-facing runnable execution composition and `forge run`
 - Runtime scheduler
 - AI Runtime
 

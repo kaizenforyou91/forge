@@ -116,9 +116,23 @@ The current tested foundation includes:
 - `MaterializedExecutable.Close` owns removal of the complete private directory;
   cleanup is concurrency-safe, idempotent after success, and retryable after a
   failure. The production API intentionally exposes no general executable path.
-- Real Go executable bytes have been proven end to end through signed package
-  creation, strict loading, detached-byte materialization, exact byte/digest
-  comparison, and cleanup without starting the application.
+- `ProcessRunner` consumes a package-private, atomic, single-use execution lease
+  from `MaterializedExecutable`; the controlled executable path remains private
+  and `Close` cannot remove it while the lease is active.
+- Before direct no-shell start, the runner revalidates the host target, exact
+  size and SHA-256, regular/non-symlink file identity, and the host PE, ELF, or
+  Mach-O executable family and architecture.
+- The initial child contract uses zero arguments, a controlled private working
+  directory, a reduced explicit environment, non-interactive stdin, and separate
+  stdout/stderr capture bounded to 1 MiB per stream while excess output is
+  drained.
+- One background waiter owns process reap and lease release. Normal non-zero
+  exits remain process results; context cancellation and immediate manual
+  direct-child termination retain distinct result evidence, and pending cleanup
+  runs after reap when `Close` was requested.
+- The real production path is proven end to end from a trusted signed package
+  through strict loading, secure materialization, direct child execution,
+  deterministic result capture, and explicit cleanup.
 - Normal-reader rejection of legacy/unversioned packages and unsupported package
   or bundle versions.
 - Artifact source provenance preserved through package read-back.
@@ -148,11 +162,10 @@ foundation, not a production-ready package ecosystem or stable production
 format.
 
 Manifest Admission Hardening, Package Format Stabilization, Runnable Package
-Contract R1A, Real Executable Output R1B, and Verified Runtime Package Loader
-R2A, and Secure Executable Materialization R2B are implemented and validated
-technical checkpoints. Process execution is not implemented. Phase 6 and the
-Compiler remain in progress; Process Runner Architecture is the next runtime
-checkpoint.
+Contract R1A, Real Executable Output R1B, Verified Runtime Package Loader R2A,
+Secure Executable Materialization R2B, and the direct-child Process Runner are
+implemented and validated technical checkpoints. Phase 6 and the Compiler remain
+in progress; the Manifest Application Entrypoint Contract Review is next.
 
 ## Known Limitations
 
@@ -160,17 +173,22 @@ checkpoint.
   user-facing runnable-package build command exists.
 - The manifest has no durable application-entrypoint field; callers of the
   runnable compiler must provide an explicit logical entrypoint.
-- Process execution, a process runner, atomic materialization-to-start leasing,
-  argument/environment/working-directory policy, cancellation and shutdown,
-  exit propagation, supervision, and `forge run` are not implemented.
+- Process execution is limited to one direct child with zero arguments, a fixed
+  reduced environment, and a controlled working directory. Descendants are not
+  managed; graceful shutdown, arbitrary arguments/environment/working-directory
+  policy, process-tree supervision, and `forge run` are not implemented.
 - Runnable package v2 currently contains one entrypoint artifact and does not
   serialize dependency provenance or an SBOM.
 - Runtime package ingestion has fixed Alpha byte and entry ceilings. Process
   memory/CPU controls and runtime sandboxing are not implemented.
 - Advanced Windows ACL/reparse hardening for materialized executables is not
   complete.
-- Binary-header validation and trust snapshot/revocation epoch semantics are not
-  implemented.
+- Host PE/ELF/Mach-O family and architecture validation is implemented, but it
+  is not malware analysis. Trust snapshot/revocation epoch semantics and
+  start-time trust reauthorization are not implemented.
+- The same-user path-to-Start replacement window is not eliminated, and there
+  are no CPU, memory, process-count, filesystem, network, syscall, or privilege-
+  dropping sandbox controls.
 - Executable builds partly inherit the host build environment and are not
   guaranteed to be reproducible across toolchains.
 - Legacy packages are rejected by the normal reader; legacy inspection and

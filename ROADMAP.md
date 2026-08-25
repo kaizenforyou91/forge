@@ -442,6 +442,17 @@ assigning new milestone or task identifiers:
   signed package v2, strict runtime loading, and exact materialization. Coverage
   includes source-ZIP independence, source-fixture immutability, independent
   materializations, cleanup, and no application execution.
+- PR-1 adds a package-private atomic single-use execution lease with irreversible
+  claim semantics, Close/acquire linearization, pending cleanup coordination,
+  retryable cleanup failure, and no public executable path.
+- PR-2 adds direct no-shell child start from `MaterializedExecutable`, start-time
+  host/file/digest/identity and PE/ELF/Mach-O validation, a controlled working
+  directory and reduced environment, zero arguments, null stdin, bounded output,
+  with a 1 MiB ceiling per stdout/stderr stream, and one background Wait/reap
+  owner with context-cancellation support.
+- PR-3 adds concurrency-safe immediate direct-child termination, serialized
+  natural/cancellation/manual-termination outcomes, stable result preservation
+  across cleanup failures, and full trusted package-to-real-execution proof.
 
 ## Current Implemented Foundation
 
@@ -497,6 +508,10 @@ Forge currently provides:
   fresh private directory with controlled filename, exclusive creation,
   complete-write permission transition, `Sync`, exact-byte validation, and
   explicit lifecycle cleanup without public path exposure or execution
+- A completed direct-child Process Runner checkpoint with atomic single-use
+  acquisition, start-time executable/header revalidation, controlled execution
+  inputs, bounded output, background Wait/reap, cancellation and manual
+  termination, stable process results, and Close-coordinated cleanup
 - Artifact source provenance
 - CLI `forge build` for YAML and JSON manifests
 - Multi-module dependency-aware builds
@@ -590,13 +605,13 @@ Remaining work:
 - Cross-toolchain golden archive validation.
 - A durable manifest application-entrypoint contract.
 - A user-facing runnable build workflow.
-- Atomic acquisition/lease between `MaterializedExecutable` and process start,
-  with materialization-to-start TOCTOU minimization.
-- Process runner, start-failure handling, argument/environment/working-directory
-  policy, context cancellation, shutdown/termination semantics, stdout/stderr
-  policy, exit-code propagation, supervision, and `forge run`.
-- Process memory/CPU limits, sandboxing, and other execution resource controls.
-- Binary-header validation and trust snapshot/revocation policy.
+- Stronger same-user path-to-Start TOCTOU mitigation.
+- Process-tree/descendant lifecycle, graceful termination, and platform policy
+  for Windows Job Objects or Unix process groups if selected.
+- Richer argument, environment, and working-directory contracts if selected,
+  plus process memory/CPU limits, sandboxing, and other execution controls.
+- Trust snapshot/revocation and start-time authorization policy.
+- User-facing execution composition and `forge run`.
 - Dependency provenance and SBOM support for runnable packages.
 - Build isolation and cross-toolchain reproducibility hardening.
 - Compiler optimization.
@@ -617,19 +632,19 @@ Pre-Alpha
 → Real Executable Output R1B: Completed
 → Verified Runtime Package Loader R2A: Completed
 → Secure Executable Materialization R2B: Completed
-→ Process Runner Architecture: Next
+→ Process Runner: Completed
+→ Manifest Application Entrypoint Contract Review: Next
 ```
 
 Completed checkpoints: **Manifest Admission Hardening**, **Package Format
 Stabilization**, **Runnable Package Contract R1A**, **Real Executable Output
-R1B**, **Verified Runtime Package Loader R2A**, and **Secure Executable
-Materialization R2B**.
+R1B**, **Verified Runtime Package Loader R2A**, **Secure Executable
+Materialization R2B**, and **Process Runner**.
 
-The next runtime boundary is **Process Runner Architecture**, including an atomic
-acquisition/lease between `MaterializedExecutable` and process start. A durable
-manifest application-entrypoint contract remains required before a user-facing
-runnable build workflow. Application execution and a user-facing `forge run`
-command are not implemented.
+The next checkpoint is the **Manifest Application Entrypoint Contract Review**.
+A durable entrypoint contract remains required before a user-facing runnable
+build and execution workflow. Direct child execution exists through the runtime
+API, but a user-facing `forge run` command is not implemented.
 
 ## Remaining Platform Work
 
@@ -642,12 +657,13 @@ The following capabilities remain future work:
 - Package-format production hardening and legacy tooling
 - Compiler optimization, build isolation, process resource controls, dependency
   provenance, and reproducibility hardening
-- Atomic materialized-executable acquisition/lease and materialization-to-start
-  TOCTOU minimization
-- Process runner, start-failure handling, arguments/environment/working-directory
-  policy, cancellation/shutdown, supervision, stdout/stderr policy, exit
-  propagation, and `forge run`
-- Binary-header validation and trust snapshot/revocation policy
+- Stronger materialization-to-start TOCTOU mitigation
+- Process-tree/descendant lifecycle, graceful shutdown, and optional Windows Job
+  Object or Unix process-group policy
+- Richer arguments/environment/working-directory contracts, process resource
+  controls, and sandboxing
+- Trust snapshot/revocation and start-time authorization policy
+- User-facing runnable execution composition and `forge run`
 - Scheduler
 - Remote package resolution
 - Advanced dependency and version resolution
