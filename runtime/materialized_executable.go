@@ -26,7 +26,11 @@ type MaterializedExecutable struct {
 
 	closed      bool
 	cleanupDone bool
-	removeAll   func(string) error
+
+	executionClaimed bool
+	leaseActive      bool
+
+	removeAll func(string) error
 }
 
 func (e *MaterializedExecutable) Entrypoint() compiler.RuntimeEntrypoint {
@@ -75,6 +79,28 @@ func (e *MaterializedExecutable) Close() error {
 	e.closed = true
 	if e.cleanupDone {
 		return nil
+	}
+	if e.leaseActive {
+		return fmt.Errorf(
+			"%w: execution lease is active",
+			ErrMaterializedExecutableBusy,
+		)
+	}
+
+	return e.cleanupLocked()
+}
+
+// cleanupLocked removes the private materialization directory. The caller
+// must hold e.mu and must not call this while an execution lease is active.
+func (e *MaterializedExecutable) cleanupLocked() error {
+	if e.cleanupDone {
+		return nil
+	}
+	if e.leaseActive {
+		return fmt.Errorf(
+			"%w: execution lease is active",
+			ErrMaterializedExecutableBusy,
+		)
 	}
 
 	removeAll := e.removeAll
