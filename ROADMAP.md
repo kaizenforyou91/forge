@@ -429,6 +429,19 @@ assigning new milestone or task identifiers:
   immutability, and no extraction or execution.
 - The intended R2A-3 security-integration scope was already covered directly by
   R2A-2, so no redundant implementation checkpoint was required.
+- R2B-1 secure executable materialization accepts only
+  `VerifiedRunnablePackage`, rechecks the host target, and owns a private
+  `forge-runtime-*` directory with an internally controlled executable name.
+  It uses exclusive creation, a `0600` initial mode, complete-write-before-`0700`
+  ordering, `Sync`, same-handle SHA-256 verification, and regular-file,
+  non-symlink, size, and file/path identity validation.
+- R2B-1 also adds lifecycle-managed cleanup through concurrency-safe,
+  idempotent, retryable `MaterializedExecutable.Close`, while intentionally
+  exposing no public executable path.
+- R2B-2 proves the production path from a real Go executable through a trusted
+  signed package v2, strict runtime loading, and exact materialization. Coverage
+  includes source-ZIP independence, source-fixture immutability, independent
+  materializations, cleanup, and no application execution.
 
 ## Current Implemented Foundation
 
@@ -480,6 +493,10 @@ Forge currently provides:
 - Strict trusted runtime package loading with v1 non-runnable classification,
   v2 one-artifact validation, exact host authorization, verified signer
   evidence, and detached executable bytes without extraction or execution
+- Secure executable materialization from verified runnable packages into a
+  fresh private directory with controlled filename, exclusive creation,
+  complete-write permission transition, `Sync`, exact-byte validation, and
+  explicit lifecycle cleanup without public path exposure or execution
 - Artifact source provenance
 - CLI `forge build` for YAML and JSON manifests
 - Multi-module dependency-aware builds
@@ -549,6 +566,13 @@ Implemented foundation:
   signatures, v1 non-runnable classification, v2 Alpha one-artifact validation,
   exact host GOOS/GOARCH authorization, detached bytes, source immutability, and
   no extraction or execution.
+- Secure executable materialization with verified-input and host revalidation,
+  private directory ownership, controlled filename, exclusive file creation,
+  complete-write-before-executable-permission ordering, `Sync`, same-handle
+  SHA-256 and file-identity validation, and explicit concurrency-safe cleanup.
+- Real executable materialization integration proving source-to-package-to-load-
+  to-file byte equality, source independence, isolated materializations,
+  cleanup, and no application execution.
 - Artifact source provenance.
 - CLI build vertical slice for YAML, JSON, and multi-module dependency-aware builds.
 - Pure manifest-admission preflight and controlled manifest admission.
@@ -566,12 +590,11 @@ Remaining work:
 - Cross-toolchain golden archive validation.
 - A durable manifest application-entrypoint contract.
 - A user-facing runnable build workflow.
-- R2B secure executable materialization: private temporary-directory lifecycle,
-  controlled filename, safe write/close and fsync decision, executable
-  permissions, post-write validation, cleanup ownership, and the
-  materialization-to-process handoff.
-- Process runner, lifecycle, cancellation/shutdown, exit propagation,
-  supervision, and `forge run`.
+- Atomic acquisition/lease between `MaterializedExecutable` and process start,
+  with materialization-to-start TOCTOU minimization.
+- Process runner, start-failure handling, argument/environment/working-directory
+  policy, context cancellation, shutdown/termination semantics, stdout/stderr
+  policy, exit-code propagation, supervision, and `forge run`.
 - Process memory/CPU limits, sandboxing, and other execution resource controls.
 - Binary-header validation and trust snapshot/revocation policy.
 - Dependency provenance and SBOM support for runnable packages.
@@ -593,17 +616,20 @@ Pre-Alpha
 → Runnable Package Contract R1A: Completed
 → Real Executable Output R1B: Completed
 → Verified Runtime Package Loader R2A: Completed
-→ Secure Executable Materialization R2B: Next
+→ Secure Executable Materialization R2B: Completed
+→ Process Runner Architecture: Next
 ```
 
 Completed checkpoints: **Manifest Admission Hardening**, **Package Format
 Stabilization**, **Runnable Package Contract R1A**, **Real Executable Output
-R1B**, and **Verified Runtime Package Loader R2A**.
+R1B**, **Verified Runtime Package Loader R2A**, and **Secure Executable
+Materialization R2B**.
 
-The next runtime boundary is **R2B Secure Executable Materialization**. A durable
+The next runtime boundary is **Process Runner Architecture**, including an atomic
+acquisition/lease between `MaterializedExecutable` and process start. A durable
 manifest application-entrypoint contract remains required before a user-facing
-runnable build workflow. Executable materialization, application execution, and
-a user-facing `forge run` command are not implemented.
+runnable build workflow. Application execution and a user-facing `forge run`
+command are not implemented.
 
 ## Remaining Platform Work
 
@@ -616,10 +642,11 @@ The following capabilities remain future work:
 - Package-format production hardening and legacy tooling
 - Compiler optimization, build isolation, process resource controls, dependency
   provenance, and reproducibility hardening
-- Secure executable materialization with private filesystem lifecycle,
-  permissions, post-write validation, cleanup, and process handoff
-- Process runner, cancellation/shutdown, supervision, exit propagation, and
-  `forge run`
+- Atomic materialized-executable acquisition/lease and materialization-to-start
+  TOCTOU minimization
+- Process runner, start-failure handling, arguments/environment/working-directory
+  policy, cancellation/shutdown, supervision, stdout/stderr policy, exit
+  propagation, and `forge run`
 - Binary-header validation and trust snapshot/revocation policy
 - Scheduler
 - Remote package resolution

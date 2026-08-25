@@ -38,6 +38,10 @@
   accounting, and Store-only runtime ingestion.
 - Added `VerifiedRunnablePackageLoader` and a detached verified runnable-package
   result with private metadata and copy-returning executable access.
+- Added `SecureExecutableMaterializer` for controlled private materialization of
+  `VerifiedRunnablePackage` executable bytes.
+- Added `MaterializedExecutable` with explicit ownership of whole-directory
+  cleanup, concurrency-safe idempotent `Close`, and retry after cleanup failure.
 
 ## Changed
 
@@ -73,6 +77,19 @@
   requires runnable v2 packages to match the host GOOS/GOARCH exactly.
 - Verified executable bytes are detached from the source archive, and verified
   signer KeyID evidence is retained without extraction or execution.
+- Runtime executables now use fresh private `forge-runtime-*` directories and
+  internally controlled `application.exe` or `application` filenames.
+- Materialized executable creation is exclusive. On platforms where file modes
+  are meaningful, the file starts in owner-only non-executable mode and gains
+  owner execute permission only after the complete write.
+- Materialization now performs `file.Sync`, same-open-handle SHA-256 validation,
+  exact-size and regular/non-symlink checks, and open-handle/path identity
+  validation before handoff.
+- The materialized result exposes no general executable path, and cleanup owns
+  removal of the complete private runtime directory.
+- Secure executable materialization is complete as a technical checkpoint;
+  Process Runner Architecture is the next runtime boundary, while Phase 6
+  remains in progress.
 
 ## Tests
 
@@ -107,6 +124,13 @@
   isolation, source-package immutability, and no-extraction coverage.
 - Added a real executable end-to-end load proof through the public runnable
   compiler and strict verified runtime loader without executing the payload.
+- Added the materializer lifecycle matrix covering input and host validation,
+  partial and zero-progress writes, file type/size/digest/identity failures,
+  cleanup retry, concurrent `Close`, and independent materializations.
+- Added real source-to-signed-package-to-strict-load-to-materialization proof
+  with exact file-byte and independent SHA-256 equality.
+- Added source-package independence, source-fixture immutability, complete
+  private-directory cleanup, and no-process-execution coverage.
 
 ## Known Limitations
 
@@ -118,14 +142,16 @@
 - `forge build` still emits package format 1, and there is no user-facing
   runnable package build workflow.
 - Manifest metadata has no durable application-entrypoint contract.
-- Executable materialization and execution, process lifecycle, and `forge run`
-  are not implemented.
+- Process start, a process runner, atomic materialization-to-start leasing,
+  arguments/environment/working-directory policy, process lifecycle, and
+  `forge run` are not implemented.
 - Runnable packages do not serialize dependency provenance or an SBOM.
 - Executable builds inherit part of the host build environment and are not
   guaranteed reproducible across toolchains.
 - Runtime package ingestion has fixed Alpha byte and entry ceilings. Process
-  memory/CPU controls, materialized-executable lifecycle policy, and runtime
-  sandboxing are not implemented.
+  memory/CPU controls and runtime sandboxing are not implemented.
+- Advanced Windows ACL/reparse hardening for materialized executables is not
+  complete.
 - Binary-header validation and trust snapshot/revocation epoch semantics are not
   implemented.
 - Remote package registry is not implemented.
@@ -137,6 +163,7 @@
 - Process-crash atomicity is not guaranteed.
 - Full concurrent-build isolation is not guaranteed.
 - Same-output-path concurrency remains unresolved.
+- Forge remains Pre-Alpha and is not production-ready.
 
 ## FW-030 — Manifest Engine Foundation
 
@@ -200,10 +227,11 @@ This project follows **Semantic Versioning**.
   build workflow
 - Build isolation, process resource controls, dependency provenance, and
   reproducibility hardening
-- Secure executable materialization, controlled filesystem lifecycle,
-  permissions, post-write validation, and cleanup
-- Process runner, cancellation/shutdown, exit propagation, supervision, and
-  `forge run`
+- Atomic materialized-executable acquisition/lease and materialization-to-start
+  TOCTOU minimization
+- Process runner, start-failure handling, arguments/environment/working-directory
+  policy, cancellation/shutdown, stdout/stderr policy, exit propagation,
+  supervision, and `forge run`
 - Binary-header validation and trust snapshot/revocation policy
 - Runtime scheduler
 - AI Runtime

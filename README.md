@@ -105,6 +105,20 @@ The current tested foundation includes:
   one-artifact contract and exactly match the host OS and architecture.
 - Successful runtime loading returns detached verified executable bytes and
   verified signer identity without extracting files or executing the payload.
+- `SecureExecutableMaterializer` accepts only a `VerifiedRunnablePackage` and
+  writes its detached bytes into a fresh private `forge-runtime-*` directory
+  with the internally controlled name `application.exe` on Windows or
+  `application` elsewhere.
+- Materialized files are created exclusively with an initial owner-only,
+  non-executable write mode where meaningful. Owner execute permission is
+  applied only after the complete write, followed by `file.Sync`, exact-size
+  and same-handle SHA-256 validation, and file/path identity checks.
+- `MaterializedExecutable.Close` owns removal of the complete private directory;
+  cleanup is concurrency-safe, idempotent after success, and retryable after a
+  failure. The production API intentionally exposes no general executable path.
+- Real Go executable bytes have been proven end to end through signed package
+  creation, strict loading, detached-byte materialization, exact byte/digest
+  comparison, and cleanup without starting the application.
 - Normal-reader rejection of legacy/unversioned packages and unsupported package
   or bundle versions.
 - Artifact source provenance preserved through package read-back.
@@ -135,9 +149,10 @@ format.
 
 Manifest Admission Hardening, Package Format Stabilization, Runnable Package
 Contract R1A, Real Executable Output R1B, and Verified Runtime Package Loader
-R2A are implemented and validated technical checkpoints. Executable
-materialization and package execution are not implemented. Phase 6 and the
-Compiler remain in progress.
+R2A, and Secure Executable Materialization R2B are implemented and validated
+technical checkpoints. Process execution is not implemented. Phase 6 and the
+Compiler remain in progress; Process Runner Architecture is the next runtime
+checkpoint.
 
 ## Known Limitations
 
@@ -145,13 +160,15 @@ Compiler remain in progress.
   user-facing runnable-package build command exists.
 - The manifest has no durable application-entrypoint field; callers of the
   runnable compiler must provide an explicit logical entrypoint.
-- Secure executable materialization, package execution, process lifecycle, exit
-  propagation, and `forge run` are not implemented.
+- Process execution, a process runner, atomic materialization-to-start leasing,
+  argument/environment/working-directory policy, cancellation and shutdown,
+  exit propagation, supervision, and `forge run` are not implemented.
 - Runnable package v2 currently contains one entrypoint artifact and does not
   serialize dependency provenance or an SBOM.
 - Runtime package ingestion has fixed Alpha byte and entry ceilings. Process
-  memory/CPU controls, materialized-executable lifecycle policy, and runtime
-  sandboxing are not implemented.
+  memory/CPU controls and runtime sandboxing are not implemented.
+- Advanced Windows ACL/reparse hardening for materialized executables is not
+  complete.
 - Binary-header validation and trust snapshot/revocation epoch semantics are not
   implemented.
 - Executable builds partly inherit the host build environment and are not
