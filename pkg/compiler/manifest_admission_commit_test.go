@@ -122,6 +122,128 @@ func TestAdmitManifest(t *testing.T) {
 	}
 }
 
+func TestAdmitManifestPreservesApplicationEntrypointAndCanonicalSource(
+	t *testing.T,
+) {
+	packages := registry.New()
+	sources := NewPackageSourceRegistry()
+	m := manifest.Manifest{
+		Name:    "demo",
+		Version: "v1",
+		Entrypoint: &manifest.ApplicationEntrypoint{
+			Module:  "app",
+			Version: "v1",
+		},
+		Modules: []manifest.Module{
+			{
+				Name:       "app",
+				Version:    "v1",
+				ImportPath: " example.com/demo/app ",
+			},
+		},
+	}
+
+	admission, err := AdmitManifest(m, packages, sources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantEntrypoint := manifest.ApplicationEntrypoint{
+		Module:  "app",
+		Version: "v1",
+	}
+	gotEntrypoint, ok := admission.ApplicationEntrypoint()
+	if !ok || gotEntrypoint != wantEntrypoint {
+		t.Fatalf(
+			"expected entrypoint %#v, true; got %#v, %t",
+			wantEntrypoint,
+			gotEntrypoint,
+			ok,
+		)
+	}
+
+	wantSource := PackageSource{
+		Name:       "app",
+		Version:    "v1",
+		ImportPath: "example.com/demo/app",
+	}
+	gotSource, err := sources.Resolve(
+		gotEntrypoint.Module,
+		gotEntrypoint.Version,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gotSource != wantSource {
+		t.Fatalf("expected canonical source %#v, got %#v", wantSource, gotSource)
+	}
+
+	if got := admission.Sources(); !reflect.DeepEqual(
+		got,
+		[]PackageSource{wantSource},
+	) {
+		t.Fatalf("expected normalized sources %#v, got %#v", []PackageSource{wantSource}, got)
+	}
+}
+
+func TestAdmitManifestApplicationEntrypointIsIdempotent(t *testing.T) {
+	packages := registry.New()
+	sources := NewPackageSourceRegistry()
+	m := manifestAdmissionTestManifest()
+	m.Entrypoint = &manifest.ApplicationEntrypoint{
+		Module:  "web",
+		Version: "v1",
+	}
+
+	first, err := AdmitManifest(m, packages, sources)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantEntrypoint, wantHasEntrypoint := first.ApplicationEntrypoint()
+	wantPlan := first.BuildPlan()
+	wantPackages := first.Packages()
+	wantSources := first.Sources()
+	wantRegistryPackages := packages.List()
+	wantRegistrySources := sources.List()
+
+	for i := 0; i < 2; i++ {
+		admission, admitErr := AdmitManifest(m, packages, sources)
+		if admitErr != nil {
+			t.Fatal(admitErr)
+		}
+
+		gotEntrypoint, gotHasEntrypoint := admission.ApplicationEntrypoint()
+		if gotEntrypoint != wantEntrypoint ||
+			gotHasEntrypoint != wantHasEntrypoint ||
+			!reflect.DeepEqual(admission.BuildPlan(), wantPlan) ||
+			!reflect.DeepEqual(admission.Packages(), wantPackages) ||
+			!reflect.DeepEqual(admission.Sources(), wantSources) {
+			t.Fatalf("admission %d differs from first admission", i+2)
+		}
+	}
+
+	requireManifestAdmissionRegistryState(
+		t,
+		packages,
+		sources,
+		wantRegistryPackages,
+		wantRegistrySources,
+	)
+
+	if packages.Count() != len(wantRegistryPackages) ||
+		sources.Count() != len(wantRegistrySources) {
+		t.Fatalf(
+			"expected stable counts %d/%d, got %d/%d",
+			len(wantRegistryPackages),
+			len(wantRegistrySources),
+			packages.Count(),
+			sources.Count(),
+		)
+	}
+}
+
 func TestAdmitManifestIsIdempotent(t *testing.T) {
 	packages := registry.New()
 	sources := NewPackageSourceRegistry()
@@ -365,6 +487,58 @@ func TestAdmitManifestRejectsExistingSourceConflictWithoutPackageMutation(
 	if !reflect.DeepEqual(got, canonicalSource) {
 		t.Fatalf("expected canonical source %#v, got %#v", canonicalSource, got)
 	}
+}
+
+func TestAdmitManifestApplicationEntrypointSourceConflictReturnsZeroPlan(
+	t *testing.T,
+) {
+	packages := registry.New()
+	sources := NewPackageSourceRegistry()
+	canonicalPackage := registry.Package{Name: "app", Version: "v1"}
+	canonicalSource := PackageSource{
+		Name:       "app",
+		Version:    "v1",
+		ImportPath: "example.com/demo/canonical-app",
+	}
+
+	if err := packages.EnsureAll([]registry.Package{canonicalPackage}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sources.EnsureAll([]PackageSource{canonicalSource}); err != nil {
+		t.Fatal(err)
+	}
+
+	beforePackages := packages.List()
+	beforeSources := sources.List()
+	m := manifest.Manifest{
+		Name:    "demo",
+		Version: "v1",
+		Entrypoint: &manifest.ApplicationEntrypoint{
+			Module:  "app",
+			Version: "v1",
+		},
+		Modules: []manifest.Module{
+			{
+				Name:       "app",
+				Version:    "v1",
+				ImportPath: "example.com/demo/requested-app",
+			},
+		},
+	}
+
+	admission, err := AdmitManifest(m, packages, sources)
+	if !errors.Is(err, ErrPackageSourceConflict) {
+		t.Fatalf("expected ErrPackageSourceConflict, got %v", err)
+	}
+
+	requireZeroManifestAdmissionPlan(t, admission)
+	requireManifestAdmissionRegistryState(
+		t,
+		packages,
+		sources,
+		beforePackages,
+		beforeSources,
+	)
 }
 
 func TestAdmitManifestRejectsMissingDependencyWithoutMutation(t *testing.T) {

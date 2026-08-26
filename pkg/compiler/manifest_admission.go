@@ -10,12 +10,15 @@ import (
 // ManifestAdmissionPlan contains the result of a successful manifest
 // admission preflight.
 //
-// Its values are kept private so callers cannot mutate the prepared build plan
-// or the package and source candidates intended for a later admission commit.
+// Its values are kept private so callers cannot mutate the prepared build plan,
+// application entrypoint, or package and source candidates intended for a
+// later admission commit.
 type ManifestAdmissionPlan struct {
-	buildPlan manifest.BuildPlan
-	packages  []registry.Package
-	sources   []PackageSource
+	buildPlan                manifest.BuildPlan
+	packages                 []registry.Package
+	sources                  []PackageSource
+	applicationEntrypoint    manifest.ApplicationEntrypoint
+	hasApplicationEntrypoint bool
 }
 
 // BuildPlan returns an independent deep copy of the prepared build plan.
@@ -33,6 +36,15 @@ func (p ManifestAdmissionPlan) Sources() []PackageSource {
 	return cloneManifestAdmissionSources(p.sources)
 }
 
+// ApplicationEntrypoint returns an independent value snapshot of the
+// manifest-declared application entrypoint when one was admitted.
+func (p ManifestAdmissionPlan) ApplicationEntrypoint() (
+	manifest.ApplicationEntrypoint,
+	bool,
+) {
+	return p.applicationEntrypoint, p.hasApplicationEntrypoint
+}
+
 // PrepareManifestAdmission validates and plans a manifest against temporary
 // package and source overlays without mutating live registry state.
 func PrepareManifestAdmission(
@@ -42,6 +54,12 @@ func PrepareManifestAdmission(
 ) (ManifestAdmissionPlan, error) {
 	if err := m.Validate(); err != nil {
 		return ManifestAdmissionPlan{}, err
+	}
+
+	var applicationEntrypoint manifest.ApplicationEntrypoint
+	hasApplicationEntrypoint := m.Entrypoint != nil
+	if hasApplicationEntrypoint {
+		applicationEntrypoint = *m.Entrypoint
 	}
 
 	packages := make([]registry.Package, 0, len(m.Modules))
@@ -100,9 +118,11 @@ func PrepareManifestAdmission(
 	}
 
 	return ManifestAdmissionPlan{
-		buildPlan: buildPlan,
-		packages:  packages,
-		sources:   sources,
+		buildPlan:                buildPlan,
+		packages:                 packages,
+		sources:                  sources,
+		applicationEntrypoint:    applicationEntrypoint,
+		hasApplicationEntrypoint: hasApplicationEntrypoint,
 	}, nil
 }
 

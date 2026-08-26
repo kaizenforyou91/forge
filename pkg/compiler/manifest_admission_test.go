@@ -71,6 +71,11 @@ func cloneManifestAdmissionTestManifest(
 	m manifest.Manifest,
 ) manifest.Manifest {
 	clone := m
+	if m.Entrypoint != nil {
+		entrypoint := *m.Entrypoint
+		clone.Entrypoint = &entrypoint
+	}
+
 	if m.Modules == nil {
 		return clone
 	}
@@ -162,6 +167,189 @@ func TestPrepareManifestAdmission(t *testing.T) {
 			)
 		}
 	}
+}
+
+func TestPrepareManifestAdmissionPreservesOptionalApplicationEntrypoint(
+	t *testing.T,
+) {
+	t.Run("absent", func(t *testing.T) {
+		admission, err := PrepareManifestAdmission(
+			manifestAdmissionTestManifest(),
+			nil,
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		entrypoint, ok := admission.ApplicationEntrypoint()
+		if ok || entrypoint != (manifest.ApplicationEntrypoint{}) {
+			t.Fatalf(
+				"expected absent entrypoint, got %#v, %t",
+				entrypoint,
+				ok,
+			)
+		}
+	})
+
+	t.Run("present", func(t *testing.T) {
+		m := manifestAdmissionTestManifest()
+		want := manifest.ApplicationEntrypoint{
+			Module:  "web",
+			Version: "v1",
+		}
+		m.Entrypoint = &want
+
+		admission, err := PrepareManifestAdmission(m, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		entrypoint, ok := admission.ApplicationEntrypoint()
+		if !ok || entrypoint != want {
+			t.Fatalf(
+				"expected entrypoint %#v, true; got %#v, %t",
+				want,
+				entrypoint,
+				ok,
+			)
+		}
+	})
+}
+
+func TestPrepareManifestAdmissionSnapshotsApplicationEntrypoint(
+	t *testing.T,
+) {
+	m := manifestAdmissionTestManifest()
+	m.Entrypoint = &manifest.ApplicationEntrypoint{
+		Module:  "web",
+		Version: "v1",
+	}
+
+	admission, err := PrepareManifestAdmission(m, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.Entrypoint.Module = "mutated"
+	m.Entrypoint.Version = "v9"
+	m.Entrypoint = &manifest.ApplicationEntrypoint{
+		Module:  "replacement",
+		Version: "v2",
+	}
+
+	want := manifest.ApplicationEntrypoint{Module: "web", Version: "v1"}
+	got, ok := admission.ApplicationEntrypoint()
+	if !ok || got != want {
+		t.Fatalf(
+			"expected entrypoint %#v, true; got %#v, %t",
+			want,
+			got,
+			ok,
+		)
+	}
+}
+
+func TestManifestAdmissionApplicationEntrypointAccessorReturnsCopy(
+	t *testing.T,
+) {
+	m := manifestAdmissionTestManifest()
+	m.Entrypoint = &manifest.ApplicationEntrypoint{
+		Module:  "web",
+		Version: "v1",
+	}
+
+	admission, err := PrepareManifestAdmission(m, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	entrypoint, ok := admission.ApplicationEntrypoint()
+	if !ok {
+		t.Fatal("expected application entrypoint")
+	}
+
+	entrypoint.Module = "mutated"
+	entrypoint.Version = "v9"
+
+	want := manifest.ApplicationEntrypoint{Module: "web", Version: "v1"}
+	got, ok := admission.ApplicationEntrypoint()
+	if !ok || got != want {
+		t.Fatalf(
+			"expected entrypoint %#v, true; got %#v, %t",
+			want,
+			got,
+			ok,
+		)
+	}
+}
+
+func TestPrepareManifestAdmissionEntrypointDoesNotAffectPreparedEvidence(
+	t *testing.T,
+) {
+	withoutEntrypoint := manifestAdmissionTestManifest()
+	withEntrypoint := cloneManifestAdmissionTestManifest(withoutEntrypoint)
+	withEntrypoint.Entrypoint = &manifest.ApplicationEntrypoint{
+		Module:  "web",
+		Version: "v1",
+	}
+
+	without, err := PrepareManifestAdmission(withoutEntrypoint, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	with, err := PrepareManifestAdmission(withEntrypoint, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(with.BuildPlan(), without.BuildPlan()) {
+		t.Fatalf(
+			"entrypoint changed build plan: without %#v, with %#v",
+			without.BuildPlan(),
+			with.BuildPlan(),
+		)
+	}
+
+	if !reflect.DeepEqual(with.Packages(), without.Packages()) {
+		t.Fatalf(
+			"entrypoint changed packages: without %#v, with %#v",
+			without.Packages(),
+			with.Packages(),
+		)
+	}
+
+	if !reflect.DeepEqual(with.Sources(), without.Sources()) {
+		t.Fatalf(
+			"entrypoint changed sources: without %#v, with %#v",
+			without.Sources(),
+			with.Sources(),
+		)
+	}
+}
+
+func TestPrepareManifestAdmissionEntrypointFailureReturnsZeroPlan(
+	t *testing.T,
+) {
+	m := manifest.Manifest{
+		Name:    "demo",
+		Version: "v1",
+		Entrypoint: &manifest.ApplicationEntrypoint{
+			Module:  "app",
+			Version: "v1",
+		},
+		Modules: []manifest.Module{
+			{Name: "app", Version: "v1", ImportPath: "   "},
+		},
+	}
+
+	admission, err := PrepareManifestAdmission(m, nil, nil)
+	if !errors.Is(err, ErrInvalidPackageSource) {
+		t.Fatalf("expected ErrInvalidPackageSource, got %v", err)
+	}
+
+	requireZeroManifestAdmissionPlan(t, admission)
 }
 
 func TestPrepareManifestAdmissionPreservesDependencyMetadata(
@@ -623,6 +811,15 @@ func TestPrepareManifestAdmissionSupportsEmptyModules(t *testing.T) {
 	if len(plan.Steps) != 0 {
 		t.Fatalf("expected no build steps, got %#v", plan.Steps)
 	}
+
+	entrypoint, ok := admission.ApplicationEntrypoint()
+	if ok || entrypoint != (manifest.ApplicationEntrypoint{}) {
+		t.Fatalf(
+			"expected absent entrypoint, got %#v, %t",
+			entrypoint,
+			ok,
+		)
+	}
 }
 
 func TestPrepareManifestAdmissionDoesNotMutateInputs(t *testing.T) {
@@ -794,6 +991,13 @@ func TestManifestAdmissionPlanZeroValueAccessors(t *testing.T) {
 		ImportPath: "example.com/mutated",
 	})
 
+	entrypoint, hasEntrypoint := admission.ApplicationEntrypoint()
+	entrypoint.Module = "mutated"
+	entrypoint.Version = "v9"
+	if hasEntrypoint {
+		t.Fatal("expected zero-value plan to have no application entrypoint")
+	}
+
 	if got := admission.BuildPlan(); !reflect.DeepEqual(
 		got,
 		manifest.BuildPlan{},
@@ -807,5 +1011,14 @@ func TestManifestAdmissionPlanZeroValueAccessors(t *testing.T) {
 
 	if got := admission.Sources(); len(got) != 0 {
 		t.Fatalf("expected no sources, got %#v", got)
+	}
+
+	gotEntrypoint, ok := admission.ApplicationEntrypoint()
+	if ok || gotEntrypoint != (manifest.ApplicationEntrypoint{}) {
+		t.Fatalf(
+			"expected absent entrypoint, got %#v, %t",
+			gotEntrypoint,
+			ok,
+		)
 	}
 }
