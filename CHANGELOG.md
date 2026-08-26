@@ -49,6 +49,14 @@
 - Added immediate manual direct-child termination and distinct cancellation and
   termination result evidence.
 - Added host PE, ELF, and Mach-O executable-family and architecture validation.
+- Added the optional `ApplicationEntrypoint` manifest contract with exact
+  declared module/version identity and no duplicated source path.
+- Added immutable application-entrypoint and normalized `PackageSource`
+  evidence to `ManifestAdmissionPlan` with copy-returning accessors.
+- Added `RunnableManifestCompiler` and `RunnableManifestRequest` for
+  programmatic admitted-manifest composition into runnable package v2.
+- Added a private immutable one-source resolver that binds manifest-driven
+  compilation to the selected source in the admission snapshot.
 
 ## Changed
 
@@ -105,8 +113,23 @@
 - A background waiter keeps the lease until Wait/reap. Cancellation and manual
   termination remain distinct, and process results survive joined cleanup
   failures.
-- The Process Runner is complete as a technical checkpoint; Manifest
-  Application Entrypoint Contract Review is next while Phase 6 remains in
+- The optional manifest entrypoint is explicit build intent; `BuildPlan` order
+  is not entrypoint authority, and generic/library manifests remain valid
+  without an entrypoint.
+- Manifest-driven runnable source authority now derives exclusively from the
+  normalized admission snapshot. The coordinator no longer permits a
+  caller-selected source resolver or raw source path.
+- Missing, duplicate, or noncanonical selected-source evidence is rejected
+  before executable construction or packaging. The admitted canonical
+  `ImportPath` is passed to the builder and recorded as artifact provenance.
+- A successful `PrepareManifestAdmission` result is immutable build authority;
+  `AdmitManifest` additionally publishes candidates to shared registries and
+  performs live source-conflict checks.
+- Manifest entrypoint metadata remains build intent rather than runtime trust
+  authorization; runtime authority still begins at strict signed-package
+  verification.
+- Manifest Application Entrypoint is complete as a technical checkpoint;
+  User-Facing Runnable Workflow Architecture is next while Phase 6 remains in
   progress.
 
 ## Tests
@@ -158,6 +181,17 @@
   cleanup-error/result-preservation, and no-auto-cleanup coverage.
 - Added full real trusted package-to-execution proof with signer/entrypoint
   preservation, source-package independence, and no shell or public path API.
+- Added YAML/JSON application-entrypoint decoding, optional/null behavior,
+  exact-membership, whitespace, validation-precedence, and parity coverage.
+- Added `BuildPlan` entrypoint-independence, immutable admission identity,
+  normalized source, admission idempotence/conflict, and accessor-copy coverage.
+- Added divergent-resolver elimination plus missing, duplicate, and
+  noncanonical admitted-source rejection coverage.
+- Added prepared- and committed-plan runnable composition coverage with exact
+  builder/artifact `ImportPath`, non-main rejection, and source mutation
+  isolation.
+- Added real signed package-v2 read-back proving exact runtime entrypoint, host
+  target, sole artifact provenance, non-empty payload, and signer evidence.
 
 ## Known Limitations
 
@@ -168,11 +202,14 @@
   permissive toward unknown and duplicate fields.
 - `forge build` still emits package format 1, and there is no user-facing
   runnable package build workflow.
-- Manifest metadata has no durable application-entrypoint contract.
+- Manifest decoding has no strict unknown-field guarantee, JSON duplicate keys
+  are not rejected, and no separate manifest `schema_version` exists.
 - Process management is direct-child-only. Descendants, process trees, graceful
   shutdown, arbitrary arguments/environment/working-directory policy, and
   `forge run` are not implemented.
 - Runnable packages do not serialize dependency provenance or an SBOM.
+- Admission freezes a canonical source `ImportPath`, not repository contents,
+  commit/digest provenance, or reproducible toolchain output.
 - Executable builds inherit part of the host build environment and are not
   guaranteed reproducible across toolchains.
 - Runtime package ingestion has fixed Alpha byte and entry ceilings. Process
@@ -253,8 +290,8 @@ This project follows **Semantic Versioning**.
 - Remote package registry, acquisition, and resolution
 - Advanced dependency and version constraints
 - Compiler package-format production hardening, legacy tooling, and optimization
-- Durable manifest application-entrypoint metadata and a user-facing runnable
-  build workflow
+- User-facing runnable-build architecture and implementation, including signing
+  configuration, output policy, integration closure, and later `forge run`
 - Build isolation, process resource controls, dependency provenance, and
   reproducibility hardening
 - Stronger materialization-to-start TOCTOU mitigation

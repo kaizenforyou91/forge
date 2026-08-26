@@ -453,6 +453,24 @@ assigning new milestone or task identifiers:
 - PR-3 adds concurrency-safe immediate direct-child termination, serialized
   natural/cancellation/manual-termination outcomes, stable result preservation
   across cleanup failures, and full trusted package-to-real-execution proof.
+- Manifest Entrypoint Slice 1 adds an optional top-level application entrypoint
+  with exact module/version structural validation, library-manifest
+  compatibility, no duplicated `ImportPath`, and explicit `BuildPlan`
+  non-authority while preserving v1 `forge build` behavior.
+- Manifest Entrypoint Slice 2 carries the entrypoint and normalized
+  `PackageSource` candidates as immutable admission evidence with copy-isolated
+  accessors. Successful preparation is immutable build authority, while
+  `AdmitManifest` additionally publishes shared-registry candidates and applies
+  existing live-conflict behavior.
+- Manifest Entrypoint Slice 3 adds the thin `RunnableManifestCompiler`, which
+  mechanically converts admitted identity to `RuntimeEntrypoint` and delegates
+  real executable construction and signed package-v2 assembly to the existing
+  runnable compiler.
+- Admission-bound source hardening makes the normalized admission snapshot the
+  manifest-driven build authority. A private one-source resolver prevents
+  external resolver injection, rejects missing, duplicate, or noncanonical
+  selected-source evidence, and preserves the invariant that admitted,
+  builder, and artifact import paths are identical.
 
 ## Current Implemented Foundation
 
@@ -471,6 +489,7 @@ Forge currently provides:
 - YAML manifest loading
 - JSON manifest loading
 - Manifest validation
+- Optional exact application-entrypoint declaration and structural validation
 - Exact module resolution
 - Dependency-aware deterministic build planning
 - Concurrency-safe in-memory package identity registry
@@ -518,6 +537,9 @@ Forge currently provides:
 - Prebuilt `BuildPlan` compilation and packaging
 - Pure manifest-admission preflight and controlled admission
 - Snapshot-based dependency/source analysis and commit-time source revalidation
+- Immutable admitted application identity and normalized source authority
+- Admission-bound runnable manifest composition into signed package v2 without
+  entrypoint or source inference
 - Declaration-order admission with dependency-first execution
 - Predictable admission failures without persistent candidate mutation
 - Accepted admission state retained after downstream failures
@@ -592,6 +614,14 @@ Implemented foundation:
 - CLI build vertical slice for YAML, JSON, and multi-module dependency-aware builds.
 - Pure manifest-admission preflight and controlled manifest admission.
 - CLI admission and prepared-plan execution.
+- Optional exact manifest application-entrypoint contract with `BuildPlan`
+  non-authority and library-manifest compatibility.
+- Immutable admitted entrypoint and normalized source evidence with
+  copy-isolated accessors.
+- Admission-bound `RunnableManifestCompiler` composition through the existing
+  executable builder and runnable package compiler.
+- Real signed package-v2 integration with exact runtime/artifact identity and
+  the invariant that admitted, builder, and artifact import paths match.
 - No persistent candidate mutation for predictable admission failures.
 - Accepted registration remains committed after downstream execution or package
   failure.
@@ -603,8 +633,11 @@ Remaining work:
 - Compatibility beyond the explicitly supported `(1,1)` and `(2,2)` pairs if
   required.
 - Cross-toolchain golden archive validation.
-- A durable manifest application-entrypoint contract.
-- A user-facing runnable build workflow.
+- User-Facing Runnable Workflow Architecture and implementation, including an
+  explicit runnable-build CLI contract, signing configuration and UX, output
+  naming/path policy, error and exit behavior, application composition,
+  user-facing package-v2 production, and runnable-build integration closure.
+- `forge run` Architecture Review after the runnable-build workflow closes.
 - Stronger same-user path-to-Start TOCTOU mitigation.
 - Process-tree/descendant lifecycle, graceful termination, and platform policy
   for Windows Job Objects or Unix process groups if selected.
@@ -633,26 +666,33 @@ Pre-Alpha
 → Verified Runtime Package Loader R2A: Completed
 → Secure Executable Materialization R2B: Completed
 → Process Runner: Completed
-→ Manifest Application Entrypoint Contract Review: Next
+→ Manifest Application Entrypoint: Completed
+→ User-Facing Runnable Workflow Architecture: Next
 ```
 
 Completed checkpoints: **Manifest Admission Hardening**, **Package Format
 Stabilization**, **Runnable Package Contract R1A**, **Real Executable Output
 R1B**, **Verified Runtime Package Loader R2A**, **Secure Executable
-Materialization R2B**, and **Process Runner**.
+Materialization R2B**, **Process Runner**, and **Manifest Application
+Entrypoint**.
 
-The next checkpoint is the **Manifest Application Entrypoint Contract Review**.
-A durable entrypoint contract remains required before a user-facing runnable
-build and execution workflow. Direct child execution exists through the runtime
-API, but a user-facing `forge run` command is not implemented.
+The next checkpoint is **User-Facing Runnable Workflow Architecture**. The
+durable entrypoint and admission-bound programmatic package-v2 composition are
+complete, while explicit runnable-build CLI, signing/output UX, and integration
+closure remain future work. Direct child execution exists through the runtime
+API, but a user-facing `forge run` command is not implemented and its
+architecture follows runnable-build closure.
 
 ## Remaining Platform Work
 
 The following capabilities remain future work:
 
 - Dedicated Validation Engine
-- Durable manifest application-entrypoint metadata
-- User-facing runnable package build workflow
+- Manifest decoder strictness, JSON duplicate-key handling, and explicit
+  manifest schema versioning
+- User-facing runnable package build workflow, including signing configuration,
+  output policy, error behavior, application composition, package-v2 production,
+  and integration closure
 - Remote package registry and package acquisition
 - Package-format production hardening and legacy tooling
 - Compiler optimization, build isolation, process resource controls, dependency

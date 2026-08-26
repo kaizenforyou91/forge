@@ -75,6 +75,8 @@ The current tested foundation includes:
 - Dependency-aware deterministic build planning.
 - Multi-module, dependency-first builds.
 - Import-path-aware compilation.
+- An optional manifest application entrypoint selects exactly one declared
+  module and version without making `BuildPlan` ordering authoritative.
 - CLI builds through `forge build <manifest>`.
 - Explicit reader dispatch for package format/bundle schema pairs `(1,1)` and
   `(2,2)`.
@@ -163,16 +165,60 @@ format.
 
 Manifest Admission Hardening, Package Format Stabilization, Runnable Package
 Contract R1A, Real Executable Output R1B, Verified Runtime Package Loader R2A,
-Secure Executable Materialization R2B, and the direct-child Process Runner are
-implemented and validated technical checkpoints. Phase 6 and the Compiler remain
-in progress; the Manifest Application Entrypoint Contract Review is next.
+Secure Executable Materialization R2B, the direct-child Process Runner, and the
+Manifest Application Entrypoint are implemented and validated technical
+checkpoints. Phase 6 and the Compiler remain in progress; User-Facing Runnable
+Workflow Architecture is next.
+
+## Manifest Runnable Contract
+
+Manifests may optionally declare one application entrypoint:
+
+```yaml
+entrypoint:
+  module: app
+  version: v1
+```
+
+Generic and library manifests do not require this field. When present, it must
+identify one exact declared module and version. The selected module and its
+admitted package-source evidence continue to own the canonical `ImportPath`;
+the entrypoint itself contains no source path, and `BuildPlan` order never
+infers it.
+
+The programmatic runnable-manifest path is:
+
+```text
+manifest entrypoint
+→ immutable admission identity and normalized source snapshot
+→ admission-bound RuntimeEntrypoint and source resolver
+→ signed runnable package v2
+```
+
+`PrepareManifestAdmission` success provides immutable build evidence.
+`AdmitManifest` additionally publishes package/source candidates into shared
+registries and performs live conflict checks. `RunnableManifestCompiler`
+derives its selected source only from the admission snapshot; callers cannot
+inject a resolver or raw source path. Consequently, the admitted canonical
+`ImportPath` is the one passed to the executable builder and recorded in the
+artifact.
+
+The manifest declaration is build intent, not runtime trust authorization.
+Runtime authority still begins with a signed package and proceeds through
+strict trusted verification, host authorization, secure materialization,
+executable-header validation, and `ProcessRunner` controls.
+
+This is currently a programmatic compiler capability. `forge build` remains the
+package-format-v1 identity/provenance workflow even when an entrypoint is
+present. No user-facing runnable-build command or `forge run` exists.
 
 ## Known Limitations
 
 - `forge build` still emits package format v1 identity/provenance packages; no
   user-facing runnable-package build command exists.
-- The manifest has no durable application-entrypoint field; callers of the
-  runnable compiler must provide an explicit logical entrypoint.
+- Manifest loading does not provide a strict unknown-field contract, JSON
+  duplicate keys are not rejected, and there is no separate manifest
+  `schema_version` field.
 - Process execution is limited to one direct child with zero arguments, a fixed
   reduced environment, and a controlled working directory. Descendants are not
   managed; graceful shutdown, arbitrary arguments/environment/working-directory
@@ -191,6 +237,8 @@ in progress; the Manifest Application Entrypoint Contract Review is next.
   dropping sandbox controls.
 - Executable builds partly inherit the host build environment and are not
   guaranteed to be reproducible across toolchains.
+- Admission freezes the canonical source `ImportPath`, not source repository
+  contents, commit/digest provenance, or an SBOM.
 - Legacy packages are rejected by the normal reader; legacy inspection and
   migration tooling are not implemented.
 - The reader supports only the explicit `(1,1)` and `(2,2)` package/bundle
