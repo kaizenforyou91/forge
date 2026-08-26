@@ -13,21 +13,6 @@ import (
 	"github.com/kaizenforyou91/forge/pkg/registry"
 )
 
-type recordingRunnableManifestPackageCompiler struct {
-	contexts []context.Context
-	requests []RunnablePackageRequest
-	err      error
-}
-
-func (c *recordingRunnableManifestPackageCompiler) Compile(
-	ctx context.Context,
-	request RunnablePackageRequest,
-) error {
-	c.contexts = append(c.contexts, ctx)
-	c.requests = append(c.requests, request)
-	return c.err
-}
-
 func admitRunnableManifestForTest(
 	t *testing.T,
 	m manifest.Manifest,
@@ -41,6 +26,35 @@ func admitRunnableManifestForTest(
 	}
 
 	return admission, sources
+}
+
+func prepareRunnableManifestForTest(
+	t *testing.T,
+	m manifest.Manifest,
+) ManifestAdmissionPlan {
+	t.Helper()
+
+	admission, err := PrepareManifestAdmission(m, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return admission
+}
+
+func newFakeRunnableManifestCompiler(
+	t *testing.T,
+) (*RunnableManifestCompiler, *fakeRunnableExecutableBuilder, *fakeRunnablePackagePackager) {
+	t.Helper()
+
+	builder := &fakeRunnableExecutableBuilder{}
+	packager := &fakeRunnablePackagePackager{}
+	compiler, err := newRunnableManifestCompiler(builder, packager)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return compiler, builder, packager
 }
 
 func runnableManifestApplication(
@@ -63,6 +77,40 @@ func runnableManifestApplication(
 	}
 }
 
+func malformedRunnableManifestAdmission(
+	sources []PackageSource,
+) ManifestAdmissionPlan {
+	return ManifestAdmissionPlan{
+		buildPlan: manifest.BuildPlan{
+			ManifestName:    "runnable-manifest",
+			ManifestVersion: "v1",
+			Steps: []manifest.BuildStep{
+				{Module: "app@v1"},
+			},
+		},
+		sources: sources,
+		applicationEntrypoint: manifest.ApplicationEntrypoint{
+			Module:  "app",
+			Version: "v1",
+		},
+		hasApplicationEntrypoint: true,
+	}
+}
+
+func compileFakeRunnableManifest(
+	t *testing.T,
+	compiler *RunnableManifestCompiler,
+	admission ManifestAdmissionPlan,
+) error {
+	t.Helper()
+
+	return compiler.Compile(context.Background(), RunnableManifestRequest{
+		Admission:        admission,
+		WorkingDirectory: t.TempDir(),
+		OutputPath:       filepath.Join(t.TempDir(), "runnable-v2.zip"),
+	})
+}
+
 func TestRunnableManifestCompilerRequiresAdmittedEntrypoint(t *testing.T) {
 	m := manifest.Manifest{
 		Name:    "library",
@@ -76,8 +124,7 @@ func TestRunnableManifestCompilerRequiresAdmittedEntrypoint(t *testing.T) {
 		},
 	}
 	admission, _ := admitRunnableManifestForTest(t, m)
-	recorder := &recordingRunnableManifestPackageCompiler{}
-	coordinator := &RunnableManifestCompiler{compiler: recorder}
+	coordinator, builder, packager := newFakeRunnableManifestCompiler(t)
 
 	for _, test := range []struct {
 		name      string
@@ -102,8 +149,214 @@ func TestRunnableManifestCompilerRequiresAdmittedEntrypoint(t *testing.T) {
 		})
 	}
 
-	if len(recorder.requests) != 0 {
-		t.Fatalf("missing entrypoint must not delegate, got %#v", recorder.requests)
+	if len(builder.requests) != 0 || len(packager.bundles) != 0 {
+		t.Fatal("missing entrypoint must fail before build and package")
+	}
+}
+
+func TestRunnableManifestCompilerRejectsMissingAdmittedSource(t *testing.T) {
+	coordinator, builder, packager := newFakeRunnableManifestCompiler(t)
+	err := compileFakeRunnableManifest(
+		t,
+		coordinator,
+		malformedRunnableManifestAdmission(nil),
+	)
+	if !errors.Is(err, ErrInvalidApplicationEntrypoint) ||
+		!errors.Is(err, ErrPackageSourceNotFound) {
+		t.Fatalf("expected missing admitted source classifications, got %v", err)
+	}
+	if len(builder.requests) != 0 || len(packager.bundles) != 0 {
+		t.Fatal("missing source must fail before build and package")
+	}
+}
+
+func TestRunnableManifestCompilerRejectsDuplicateAdmittedSource(t *testing.T) {
+	coordinator, builder, packager := newFakeRunnableManifestCompiler(t)
+	source := PackageSource{
+		Name:       "app",
+		Version:    "v1",
+		ImportPath: "example.com/source-a",
+	}
+	err := compileFakeRunnableManifest(
+		t,
+		coordinator,
+		malformedRunnableManifestAdmission([]PackageSource{source, source}),
+	)
+	if !errors.Is(err, ErrInvalidApplicationEntrypoint) ||
+		!errors.Is(err, ErrInvalidPackageSource) {
+		t.Fatalf("expected duplicate admitted source classifications, got %v", err)
+	}
+	if len(builder.requests) != 0 || len(packager.bundles) != 0 {
+		t.Fatal("duplicate source must fail before build and package")
+	}
+}
+
+func TestRunnableManifestCompilerRejectsNoncanonicalAdmittedSource(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		source PackageSource
+	}{
+		{
+			name: "surrounding import path whitespace",
+			source: PackageSource{
+				Name:       "app",
+				Version:    "v1",
+				ImportPath: " example.com/app ",
+			},
+		},
+		{
+			name: "blank import path",
+			source: PackageSource{
+				Name:       "app",
+				Version:    "v1",
+				ImportPath: " ",
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			coordinator, builder, packager := newFakeRunnableManifestCompiler(t)
+			err := compileFakeRunnableManifest(
+				t,
+				coordinator,
+				malformedRunnableManifestAdmission([]PackageSource{test.source}),
+			)
+			if !errors.Is(err, ErrInvalidApplicationEntrypoint) ||
+				!errors.Is(err, ErrInvalidPackageSource) {
+				t.Fatalf("expected noncanonical admitted source classifications, got %v", err)
+			}
+			if len(builder.requests) != 0 || len(packager.bundles) != 0 {
+				t.Fatal("noncanonical source must fail before build and package")
+			}
+		})
+	}
+}
+
+func TestRunnableManifestCompilerBindsAdmittedSourceAgainstDivergentResolver(
+	t *testing.T,
+) {
+	const (
+		sourceA = "example.com/source-a"
+		sourceB = "example.com/source-b"
+	)
+	admission := prepareRunnableManifestForTest(
+		t,
+		runnableManifestApplication(" "+sourceA+" "),
+	)
+
+	divergentRegistry := NewPackageSourceRegistry()
+	if err := divergentRegistry.Ensure(PackageSource{
+		Name:       "app",
+		Version:    "v1",
+		ImportPath: sourceB,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	divergent, err := divergentRegistry.Resolve("app", "v1")
+	if err != nil || divergent.ImportPath != sourceB {
+		t.Fatalf("divergent resolver fixture is invalid: %#v, %v", divergent, err)
+	}
+
+	coordinator, builder, packager := newFakeRunnableManifestCompiler(t)
+	if err := compileFakeRunnableManifest(t, coordinator, admission); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(builder.requests) != 1 {
+		t.Fatalf("expected one executable build, got %d", len(builder.requests))
+	}
+	if got := builder.requests[0].ImportPath; got != sourceA {
+		t.Fatalf("expected admitted builder import path %q, got %q", sourceA, got)
+	}
+	if got := builder.requests[0].Entrypoint; got != (RuntimeEntrypoint{Module: "app", Version: "v1"}) {
+		t.Fatalf("unexpected builder entrypoint %#v", got)
+	}
+	if len(packager.bundles) != 1 || len(packager.bundles[0].Artifacts) != 1 {
+		t.Fatalf("unexpected packaged bundles %#v", packager.bundles)
+	}
+	bundle := packager.bundles[0]
+	if got := bundle.Artifacts[0].ImportPath; got != sourceA {
+		t.Fatalf("expected admitted artifact import path %q, got %q", sourceA, got)
+	}
+	if bundle.Runtime == nil ||
+		bundle.Runtime.Entrypoint != (RuntimeEntrypoint{Module: "app", Version: "v1"}) {
+		t.Fatalf("unexpected runtime entrypoint %#v", bundle.Runtime)
+	}
+	if bundle.Artifacts[0].ImportPath == sourceB {
+		t.Fatal("divergent resolver source affected manifest-driven output")
+	}
+}
+
+func TestRunnableManifestCompilerUsesPreparedAdmissionAsSourceAuthority(t *testing.T) {
+	const sourceA = "example.com/prepared-app"
+	admission := prepareRunnableManifestForTest(
+		t,
+		runnableManifestApplication(" "+sourceA+" "),
+	)
+	coordinator, builder, packager := newFakeRunnableManifestCompiler(t)
+
+	if err := compileFakeRunnableManifest(t, coordinator, admission); err != nil {
+		t.Fatal(err)
+	}
+	if len(builder.requests) != 1 || builder.requests[0].ImportPath != sourceA {
+		t.Fatalf("prepared plan did not supply source authority: %#v", builder.requests)
+	}
+	if len(packager.bundles) != 1 ||
+		packager.bundles[0].Artifacts[0].ImportPath != sourceA {
+		t.Fatalf("prepared source not preserved in artifact: %#v", packager.bundles)
+	}
+}
+
+func TestRunnableManifestCompilerUsesImmutableCommittedAdmissionEvidence(
+	t *testing.T,
+) {
+	const (
+		sourceA = "example.com/source-a"
+		sourceB = "example.com/source-b"
+	)
+	m := runnableManifestApplication(" " + sourceA + " ")
+	admission, liveRegistry := admitRunnableManifestForTest(t, m)
+
+	conflictErr := liveRegistry.Ensure(PackageSource{
+		Name:       "app",
+		Version:    "v1",
+		ImportPath: sourceB,
+	})
+	if !errors.Is(conflictErr, ErrPackageSourceConflict) {
+		t.Fatalf("expected live registry conflict, got %v", conflictErr)
+	}
+	if err := liveRegistry.Ensure(PackageSource{
+		Name:       "unrelated",
+		Version:    "v1",
+		ImportPath: "example.com/unrelated",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	m.Entrypoint.Module = "mutated-manifest"
+	m.Entrypoint.Version = "v9"
+	m.Modules[0].ImportPath = sourceB
+	entrypointCopy, ok := admission.ApplicationEntrypoint()
+	if !ok {
+		t.Fatal("expected admitted entrypoint")
+	}
+	entrypointCopy.Module = "mutated-copy"
+	entrypointCopy.Version = "v8"
+	sourcesCopy := admission.Sources()
+	sourcesCopy[0].ImportPath = sourceB
+
+	coordinator, builder, packager := newFakeRunnableManifestCompiler(t)
+	if err := compileFakeRunnableManifest(t, coordinator, admission); err != nil {
+		t.Fatal(err)
+	}
+	if len(builder.requests) != 1 || builder.requests[0].ImportPath != sourceA {
+		t.Fatalf("mutated caller state changed builder authority: %#v", builder.requests)
+	}
+	if builder.requests[0].Entrypoint != (RuntimeEntrypoint{Module: "app", Version: "v1"}) {
+		t.Fatalf("mutated caller state changed entrypoint: %#v", builder.requests[0])
+	}
+	if len(packager.bundles) != 1 ||
+		packager.bundles[0].Artifacts[0].ImportPath != sourceA {
+		t.Fatalf("mutated caller state changed artifact authority: %#v", packager.bundles)
 	}
 }
 
@@ -149,8 +402,7 @@ func TestRunnableManifestCompilerConvertsExactAdmittedEntrypointWithoutInference
 		t.Fatalf("fixture must place entrypoint between plan boundaries: %#v", plan.Steps)
 	}
 
-	recorder := &recordingRunnableManifestPackageCompiler{}
-	coordinator := &RunnableManifestCompiler{compiler: recorder}
+	coordinator, builder, packager := newFakeRunnableManifestCompiler(t)
 	ctx := context.WithValue(context.Background(), struct{}{}, "preserved")
 	request := RunnableManifestRequest{
 		Admission:        admission,
@@ -161,114 +413,32 @@ func TestRunnableManifestCompilerConvertsExactAdmittedEntrypointWithoutInference
 		t.Fatal(err)
 	}
 
-	if len(recorder.requests) != 1 || len(recorder.contexts) != 1 {
-		t.Fatalf("expected one delegation, got %d", len(recorder.requests))
+	if len(builder.requests) != 1 || len(builder.contexts) != 1 {
+		t.Fatalf("expected one build delegation, got %d", len(builder.requests))
 	}
 	wantEntrypoint := RuntimeEntrypoint{Module: "middle", Version: "v2"}
-	got := recorder.requests[0]
-	if got.Entrypoint != wantEntrypoint {
-		t.Fatalf("expected entrypoint %#v, got %#v", wantEntrypoint, got.Entrypoint)
+	got := builder.requests[0]
+	if got.Entrypoint != wantEntrypoint || got.ImportPath != "example.com/middle" {
+		t.Fatalf("unexpected builder request %#v", got)
 	}
-	if !reflect.DeepEqual(got.Plan, admission.BuildPlan()) ||
-		got.WorkingDirectory != request.WorkingDirectory ||
-		got.OutputPath != request.OutputPath ||
-		recorder.contexts[0] != ctx {
-		t.Fatalf("unexpected delegated request %#v", got)
+	if builder.contexts[0] != ctx {
+		t.Fatal("context was not delegated")
 	}
-}
-
-func TestRunnableManifestCompilerUsesImmutableAdmissionEntrypoint(t *testing.T) {
-	m := runnableManifestApplication("example.com/app")
-	admission, _ := admitRunnableManifestForTest(t, m)
-
-	m.Entrypoint.Module = "mutated-manifest"
-	m.Entrypoint.Version = "v9"
-	entrypointCopy, ok := admission.ApplicationEntrypoint()
-	if !ok {
-		t.Fatal("expected admitted entrypoint")
-	}
-	entrypointCopy.Module = "mutated-copy"
-	entrypointCopy.Version = "v8"
-
-	recorder := &recordingRunnableManifestPackageCompiler{}
-	coordinator := &RunnableManifestCompiler{compiler: recorder}
-	if err := coordinator.Compile(context.Background(), RunnableManifestRequest{
-		Admission:        admission,
-		WorkingDirectory: t.TempDir(),
-		OutputPath:       filepath.Join(t.TempDir(), "immutable-v2.zip"),
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	want := RuntimeEntrypoint{Module: "app", Version: "v1"}
-	if got := recorder.requests[0].Entrypoint; got != want {
-		t.Fatalf("expected admitted entrypoint %#v, got %#v", want, got)
-	}
-}
-
-func TestRunnableManifestCompilerDelegatesFilesystemValidation(t *testing.T) {
-	admission, _ := admitRunnableManifestForTest(
-		t,
-		runnableManifestApplication("example.com/app"),
-	)
-	wantErr := errors.New("delegated runnable package validation")
-
-	for _, test := range []struct {
-		name             string
-		workingDirectory string
-		outputPath       string
-	}{
-		{
-			name:             "working directory",
-			workingDirectory: " ",
-			outputPath:       filepath.Join(t.TempDir(), "output.zip"),
-		},
-		{
-			name:             "output path",
-			workingDirectory: t.TempDir(),
-			outputPath:       " ",
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			recorder := &recordingRunnableManifestPackageCompiler{err: wantErr}
-			coordinator := &RunnableManifestCompiler{compiler: recorder}
-			err := coordinator.Compile(context.Background(), RunnableManifestRequest{
-				Admission:        admission,
-				WorkingDirectory: test.workingDirectory,
-				OutputPath:       test.outputPath,
-			})
-			if !errors.Is(err, wantErr) {
-				t.Fatalf("expected delegated error, got %v", err)
-			}
-			if len(recorder.requests) != 1 ||
-				recorder.requests[0].WorkingDirectory != test.workingDirectory ||
-				recorder.requests[0].OutputPath != test.outputPath {
-				t.Fatalf("filesystem values were not delegated exactly: %#v", recorder.requests)
-			}
-		})
+	if len(packager.bundles) != 1 ||
+		packager.bundles[0].Runtime == nil ||
+		packager.bundles[0].Runtime.Entrypoint != wantEntrypoint {
+		t.Fatalf("unexpected packaged runtime %#v", packager.bundles)
 	}
 }
 
 func TestRunnableManifestCompilerPreservesRunnablePackageFilesystemErrors(
 	t *testing.T,
 ) {
-	admission, sources := admitRunnableManifestForTest(
+	admission, _ := admitRunnableManifestForTest(
 		t,
 		runnableManifestApplication("example.com/app"),
 	)
-	builder := &fakeRunnableExecutableBuilder{}
-	runnableCompiler, err := newRunnablePackageCompiler(
-		sources,
-		builder,
-		&fakeRunnablePackagePackager{},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	coordinator, err := NewRunnableManifestCompiler(runnableCompiler)
-	if err != nil {
-		t.Fatal(err)
-	}
+	coordinator, builder, _ := newFakeRunnableManifestCompiler(t)
 
 	t.Run("working directory", func(t *testing.T) {
 		err := coordinator.Compile(context.Background(), RunnableManifestRequest{
@@ -297,44 +467,10 @@ func TestRunnableManifestCompilerPreservesRunnablePackageFilesystemErrors(
 	}
 }
 
-func TestRunnableManifestCompilerPreservesSourceResolutionFailure(t *testing.T) {
-	m := runnableManifestApplication("example.com/app")
-	admission, err := PrepareManifestAdmission(m, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	builder := &fakeRunnableExecutableBuilder{}
-	runnableCompiler, err := newRunnablePackageCompiler(
-		NewPackageSourceRegistry(),
-		builder,
-		&fakeRunnablePackagePackager{},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	coordinator, err := NewRunnableManifestCompiler(runnableCompiler)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = coordinator.Compile(context.Background(), RunnableManifestRequest{
-		Admission:        admission,
-		WorkingDirectory: t.TempDir(),
-		OutputPath:       filepath.Join(t.TempDir(), "missing-source-v2.zip"),
-	})
-	if !errors.Is(err, ErrInvalidApplicationEntrypoint) ||
-		!errors.Is(err, ErrPackageSourceNotFound) {
-		t.Fatalf("expected preserved entrypoint source failure, got %v", err)
-	}
-	if len(builder.requests) != 0 {
-		t.Fatal("source resolution failure must occur before executable build")
-	}
-}
-
 func TestRunnableManifestCompilerPreservesNonMainSourceFailure(t *testing.T) {
 	t.Setenv("GOTELEMETRY", "off")
 	workingDirectory, _ := runnablePackageRepositoryPaths(t)
-	admission, sources := admitRunnableManifestForTest(
+	admission, _ := admitRunnableManifestForTest(
 		t,
 		runnableManifestApplication(testNonMainImportPath),
 	)
@@ -342,15 +478,7 @@ func TestRunnableManifestCompilerPreservesNonMainSourceFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runnableCompiler, err := NewRunnablePackageCompiler(
-		sources,
-		builder,
-		NewZIPPackager(),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	coordinator, err := NewRunnableManifestCompiler(runnableCompiler)
+	coordinator, err := NewRunnableManifestCompiler(builder, NewZIPPackager())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,9 +498,18 @@ func TestRunnableManifestCompilerPreservesNonMainSourceFailure(t *testing.T) {
 }
 
 func TestNewRunnableManifestCompilerRejectsIncompleteCoordinator(t *testing.T) {
-	coordinator, err := NewRunnableManifestCompiler(nil)
+	builder, err := NewGoApplicationExecutableBuilder(&fakeCommandRunner{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	coordinator, err := NewRunnableManifestCompiler(nil, NewZIPPackager())
 	if !errors.Is(err, ErrExecutableBuildFailed) || coordinator != nil {
-		t.Fatalf("expected nil compiler failure, got %#v, %v", coordinator, err)
+		t.Fatalf("expected nil builder failure, got %#v, %v", coordinator, err)
+	}
+	coordinator, err = NewRunnableManifestCompiler(builder, nil)
+	if !errors.Is(err, ErrInvalidArtifactPackage) || coordinator != nil {
+		t.Fatalf("expected nil packager failure, got %#v, %v", coordinator, err)
 	}
 
 	var nilCoordinator *RunnableManifestCompiler
@@ -385,6 +522,11 @@ func TestNewRunnableManifestCompilerRejectsIncompleteCoordinator(t *testing.T) {
 	err = incomplete.Compile(context.Background(), RunnableManifestRequest{})
 	if !errors.Is(err, ErrExecutableBuildFailed) {
 		t.Fatalf("expected incomplete coordinator failure, got %v", err)
+	}
+	incomplete = &RunnableManifestCompiler{builder: &fakeRunnableExecutableBuilder{}}
+	err = incomplete.Compile(context.Background(), RunnableManifestRequest{})
+	if !errors.Is(err, ErrInvalidArtifactPackage) {
+		t.Fatalf("expected incomplete packager failure, got %v", err)
 	}
 }
 
@@ -400,12 +542,15 @@ func TestRunnableManifestCompilerCreatesStrictlyVerifiedSignedPackageV2(
 
 	m.Entrypoint.Module = "mutated-after-admission"
 	m.Entrypoint.Version = "v9"
+	m.Modules[0].ImportPath = "example.com/source-b"
 	accessorCopy, ok := admission.ApplicationEntrypoint()
 	if !ok {
 		t.Fatal("expected admitted entrypoint")
 	}
 	accessorCopy.Module = "mutated-accessor-copy"
 	accessorCopy.Version = "v8"
+	sourceCopies := admission.Sources()
+	sourceCopies[0].ImportPath = "example.com/source-b"
 
 	canonicalSource, err := sources.Resolve(
 		admittedEntrypoint.Module,
@@ -417,21 +562,24 @@ func TestRunnableManifestCompilerCreatesStrictlyVerifiedSignedPackageV2(
 	if canonicalSource.ImportPath != testRunnableApplicationImportPath {
 		t.Fatalf("expected canonical import path %q, got %q", testRunnableApplicationImportPath, canonicalSource.ImportPath)
 	}
+	divergentRegistry := NewPackageSourceRegistry()
+	if err := divergentRegistry.Ensure(PackageSource{
+		Name:       admittedEntrypoint.Module,
+		Version:    admittedEntrypoint.Version,
+		ImportPath: "example.com/source-b",
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	signer, verifier := trustedTestSignerAndVerifier(t)
 	builder, err := NewGoApplicationExecutableBuilder(NewOSCommandRunner())
 	if err != nil {
 		t.Fatal(err)
 	}
-	runnableCompiler, err := NewRunnablePackageCompiler(
-		sources,
+	coordinator, err := NewRunnableManifestCompiler(
 		builder,
 		NewZIPPackagerWithSigner(signer),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	coordinator, err := NewRunnableManifestCompiler(runnableCompiler)
 	if err != nil {
 		t.Fatal(err)
 	}
