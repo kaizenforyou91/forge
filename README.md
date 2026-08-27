@@ -77,7 +77,9 @@ The current tested foundation includes:
 - Import-path-aware compilation.
 - An optional manifest application entrypoint selects exactly one declared
   module and version without making `BuildPlan` ordering authoritative.
-- CLI builds through `forge build <manifest>`.
+- CLI builds identity/provenance packages through `forge build <manifest>` and
+  signed runnable packages through the explicit `forge build-runnable`
+  workflow.
 - Explicit reader dispatch for package format/bundle schema pairs `(1,1)` and
   `(2,2)`.
 - `forge build` remains on package format v1 and bundle schema v1, with
@@ -157,7 +159,7 @@ The current tested foundation includes:
   HTTP, middleware, and plugin foundations.
 
 The implemented top-level CLI commands are `forge version`, `forge doctor`,
-`forge config`, and `forge build`.
+`forge config`, `forge build`, and `forge build-runnable`.
 
 Forge remains **Pre-Alpha**. The compiler and package pipeline are a tested
 foundation, not a production-ready package ecosystem or stable production
@@ -166,9 +168,9 @@ format.
 Manifest Admission Hardening, Package Format Stabilization, Runnable Package
 Contract R1A, Real Executable Output R1B, Verified Runtime Package Loader R2A,
 Secure Executable Materialization R2B, the direct-child Process Runner, and the
-Manifest Application Entrypoint are implemented and validated technical
-checkpoints. Phase 6 and the Compiler remain in progress; User-Facing Runnable
-Workflow Architecture is next.
+Manifest Application Entrypoint and User-Facing Runnable Workflow are
+implemented and validated technical checkpoints. Phase 6 and the Compiler
+remain in progress; `forge run` Architecture Review is next.
 
 ## Manifest Runnable Contract
 
@@ -208,14 +210,53 @@ Runtime authority still begins with a signed package and proceeds through
 strict trusted verification, host authorization, secure materialization,
 executable-header validation, and `ProcessRunner` controls.
 
-This is currently a programmatic compiler capability. `forge build` remains the
-package-format-v1 identity/provenance workflow even when an entrypoint is
-present. No user-facing runnable-build command or `forge run` exists.
+`forge build` remains the package-format-v1 identity/provenance workflow even
+when an entrypoint is present. Runnable package creation is an explicit,
+separate CLI operation; manifest metadata never switches `forge build` to v2.
+
+## Signed Runnable Build
+
+Create a signed host-target runnable package with:
+
+```text
+forge build-runnable <manifest> \
+  --signing-key <private-key.pem> \
+  --key-id <key-id> \
+  [--output <package.zip>]
+```
+
+The manifest must declare an application entrypoint. Signing is mandatory: the
+key file must be an unencrypted PKCS#8 PEM Ed25519 private key with PEM type
+`PRIVATE KEY`, no larger than 16 KiB, and the explicit KeyID must be nonblank
+without surrounding whitespace. The key path must name a regular, non-symlink
+file; owner-only permissions are enforced on Unix. Windows ACL validation is
+not currently claimed.
+
+The command uses the process current working directory as its Go build working
+directory and targets the host `GOOS/GOARCH`; it has no working-directory or
+cross-compilation flags. `PrepareManifestAdmission` supplies immutable
+entrypoint and normalized source evidence without committing shared registries.
+
+The default output is
+`build/<name>-<version>-runnable-<goos>-<goarch>.zip`. A custom `--output`
+must end in exactly `.zip`; relative paths are resolved from the process current
+working directory. Existing targets are never overwritten and there is no
+`--force` mode. Forge stages the package in the final parent directory,
+strictly verifies its signature and v2 runtime/artifact metadata under the
+fixed Alpha read limits, then publishes it atomically with no-replace hard-link
+semantics. Filesystems without required hard-link support fail safely.
+
+`build-runnable` creates a package only. It does not load, materialize, or
+execute that package, and `forge run` is not implemented. Signing authenticates
+the produced package bytes and metadata; it does not prove reproducible source
+contents, a repository commit/digest, or an SBOM. Runtime trust configuration
+will belong to the separate future package-execution workflow.
 
 ## Known Limitations
 
-- `forge build` still emits package format v1 identity/provenance packages; no
-  user-facing runnable-package build command exists.
+- `forge build` still emits package format v1 identity/provenance packages;
+  `forge build-runnable` is the separate signed package-v2 workflow. No
+  user-facing package-execution command or runtime trust CLI exists.
 - Manifest loading does not provide a strict unknown-field contract, JSON
   duplicate keys are not rejected, and there is no separate manifest
   `schema_version` field.
@@ -250,7 +291,9 @@ present. No user-facing runnable-build command or `forge run` exists.
   not guaranteed.
 - Process-crash atomicity between source and package commits is not guaranteed.
 - Full concurrent-build isolation is not implemented.
-- Concurrent builds targeting the same output path are not coordinated.
+- `forge build-runnable` rejects existing or racing output targets rather than
+  overwriting them; broader same-output-path coordination for other workflows
+  is not implemented.
 - No-integrity mode provides structural validation only and no cryptographic
   tamper resistance.
 - Unsigned integrity proves consistency, not publisher authenticity.

@@ -57,6 +57,14 @@
   programmatic admitted-manifest composition into runnable package v2.
 - Added a private immutable one-source resolver that binds manifest-driven
   compilation to the selected source in the admission snapshot.
+- Added the explicit `forge build-runnable <manifest>` command with required
+  `--signing-key` and `--key-id` flags plus optional `--output`.
+- Added strict unencrypted PKCS#8 PEM Ed25519 private-key loading with a 16 KiB
+  ceiling, regular/non-symlink identity checks, and owner-only Unix permissions.
+- Added private same-filesystem runnable-package staging and atomic no-replace
+  hard-link publication.
+- Added strict bounded staged-package verification using the Alpha package-read
+  limits before final publication.
 
 ## Changed
 
@@ -129,8 +137,33 @@
   authorization; runtime authority still begins at strict signed-package
   verification.
 - Manifest Application Entrypoint is complete as a technical checkpoint;
-  User-Facing Runnable Workflow Architecture is next while Phase 6 remains in
-  progress.
+  User-Facing Runnable Workflow is also complete while Phase 6 remains in
+  progress and `forge run` Architecture Review is next.
+- `forge build-runnable` uses immutable `PrepareManifestAdmission` evidence and
+  requires its admitted application entrypoint without publishing package or
+  source candidates into shared registries.
+- Runnable CLI source authority remains bound to the normalized admission
+  snapshot; no entrypoint, `ImportPath`, or resolver override is accepted.
+- Runnable builds are host-target-only and use the process current working
+  directory as the build working directory.
+- Runnable output defaults to
+  `build/<name>-<version>-runnable-<goos>-<goarch>.zip`; custom output requires
+  an exact `.zip` path, and no force/overwrite mode exists.
+- `forge build` remains package format 1 / bundle schema 1 even when the
+  manifest contains an application entrypoint.
+
+## Security
+
+- Runnable CLI signing is mandatory and uses an explicit KeyID; there is no
+  unsigned mode or private-key input through command arguments or environment.
+- Staged runnable packages are signature-checked and semantically verified as
+  package format 2 / bundle schema 2 under fixed Alpha read limits before
+  publication.
+- Existing or concurrently appearing output targets are preserved. Publication
+  is atomic and no-replace, with no unsafe fallback when hard links are
+  unavailable.
+- `build-runnable` does not load, materialize, or execute the produced package;
+  `forge run` and runtime trust configuration remain separate future work.
 
 ## Tests
 
@@ -192,6 +225,13 @@
   isolation.
 - Added real signed package-v2 read-back proving exact runtime entrypoint, host
   target, sole artifact provenance, non-empty payload, and signer evidence.
+- Added real root/Cobra-to-signed-package-v2 command integration with default,
+  relative custom, and absolute custom output coverage.
+- Added runnable CLI coverage for signing-key and KeyID failures, missing
+  entrypoint precedence, non-main rejection, pre-cancellation, shared-registry
+  non-mutation, staging cleanup, and existing-target preservation.
+- Added an entrypoint-present regression proving `forge build` remains package
+  format 1 / bundle schema 1.
 
 ## Known Limitations
 
@@ -200,8 +240,8 @@
   supported; broader compatibility and migration tooling do not exist.
 - The v1 bundle codec and integrity/signature document decoders remain
   permissive toward unknown and duplicate fields.
-- `forge build` still emits package format 1, and there is no user-facing
-  runnable package build workflow.
+- `forge build` still emits package format 1; signed runnable package-v2
+  creation is the separate explicit `forge build-runnable` workflow.
 - Manifest decoding has no strict unknown-field guarantee, JSON duplicate keys
   are not rejected, and no separate manifest `schema_version` exists.
 - Process management is direct-child-only. Descendants, process trees, graceful
@@ -216,6 +256,9 @@
   memory/CPU controls and runtime sandboxing are not implemented.
 - Advanced Windows ACL/reparse hardening for materialized executables is not
   complete.
+- Runnable signing-key files are permission-checked on Unix, but Windows ACL
+  validation is not implemented; filesystems without hard-link support cannot
+  publish runnable output and fail safely.
 - Host executable family/architecture validation is implemented but is not
   malware analysis. Trust snapshot/revocation epochs and start-time trust
   reauthorization are not implemented.
@@ -290,8 +333,8 @@ This project follows **Semantic Versioning**.
 - Remote package registry, acquisition, and resolution
 - Advanced dependency and version constraints
 - Compiler package-format production hardening, legacy tooling, and optimization
-- User-facing runnable-build architecture and implementation, including signing
-  configuration, output policy, integration closure, and later `forge run`
+- `forge run` architecture, runtime trust configuration, and explicit
+  package-execution UX
 - Build isolation, process resource controls, dependency provenance, and
   reproducibility hardening
 - Stronger materialization-to-start TOCTOU mitigation

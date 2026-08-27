@@ -105,7 +105,7 @@ Commands:
 
 These are long-term Phase 2 command targets. The currently implemented
 top-level commands are `forge version`, `forge doctor`, `forge config`, and
-`forge build`.
+`forge build`, plus the explicit signed `forge build-runnable` workflow.
 
 Status:
 
@@ -471,6 +471,18 @@ assigning new milestone or task identifiers:
   external resolver injection, rejects missing, duplicate, or noncanonical
   selected-source evidence, and preserves the invariant that admitted,
   builder, and artifact import paths are identical.
+- User-Facing Runnable Workflow Architecture freezes an explicit signed
+  `forge build-runnable` operation while preserving `forge build` as the v1
+  identity/provenance workflow.
+- Runnable signing and safe-publication primitives add strict PKCS#8 PEM
+  Ed25519 key loading, explicit KeyID validation, private same-filesystem
+  staging, bounded package verification, and atomic no-replace publication.
+- The explicit signed `build-runnable` CLI uses prepared immutable admission,
+  the process working directory, host GOOS/GOARCH, admission-bound source
+  authority, and mandatory signing to produce package format v2.
+- Runnable Workflow Formal Closure proves real command-to-signed-package
+  integration, registry non-mutation, default/custom output behavior, target
+  preservation, strict read-back, and no package execution.
 
 ## Current Implemented Foundation
 
@@ -540,6 +552,8 @@ Forge currently provides:
 - Immutable admitted application identity and normalized source authority
 - Admission-bound runnable manifest composition into signed package v2 without
   entrypoint or source inference
+- CLI `forge build-runnable` for mandatory-signed, host-target package-v2
+  creation with strict staged verification and no-replace publication
 - Declaration-order admission with dependency-first execution
 - Predictable admission failures without persistent candidate mutation
 - Accepted admission state retained after downstream failures
@@ -622,6 +636,14 @@ Implemented foundation:
   executable builder and runnable package compiler.
 - Real signed package-v2 integration with exact runtime/artifact identity and
   the invariant that admitted, builder, and artifact import paths match.
+- An explicit `forge build-runnable` CLI that requires an admitted entrypoint,
+  an unencrypted PKCS#8 PEM Ed25519 signing key, and an explicit KeyID.
+- Immutable prepared-admission authority, process-cwd build policy, host-only
+  targeting, strict bounded staged read-back, and atomic no-replace output
+  publication without shared-registry mutation or package execution.
+- Default runnable output uses
+  `build/<name>-<version>-runnable-<goos>-<goarch>.zip`; custom output requires
+  an exact `.zip` path, and no force/overwrite mode exists.
 - No persistent candidate mutation for predictable admission failures.
 - Accepted registration remains committed after downstream execution or package
   failure.
@@ -633,11 +655,8 @@ Remaining work:
 - Compatibility beyond the explicitly supported `(1,1)` and `(2,2)` pairs if
   required.
 - Cross-toolchain golden archive validation.
-- User-Facing Runnable Workflow Architecture and implementation, including an
-  explicit runnable-build CLI contract, signing configuration and UX, output
-  naming/path policy, error and exit behavior, application composition,
-  user-facing package-v2 production, and runnable-build integration closure.
-- `forge run` Architecture Review after the runnable-build workflow closes.
+- `forge run` Architecture Review, including runtime trust-key configuration,
+  package-input policy, result/exit behavior, and execution lifecycle UX.
 - Stronger same-user path-to-Start TOCTOU mitigation.
 - Process-tree/descendant lifecycle, graceful termination, and platform policy
   for Windows Job Objects or Unix process groups if selected.
@@ -667,21 +686,21 @@ Pre-Alpha
 → Secure Executable Materialization R2B: Completed
 → Process Runner: Completed
 → Manifest Application Entrypoint: Completed
-→ User-Facing Runnable Workflow Architecture: Next
+→ User-Facing Runnable Workflow: Completed
+→ forge run Architecture Review: Next
 ```
 
 Completed checkpoints: **Manifest Admission Hardening**, **Package Format
 Stabilization**, **Runnable Package Contract R1A**, **Real Executable Output
 R1B**, **Verified Runtime Package Loader R2A**, **Secure Executable
 Materialization R2B**, **Process Runner**, and **Manifest Application
-Entrypoint**.
+Entrypoint**, and **User-Facing Runnable Workflow**.
 
-The next checkpoint is **User-Facing Runnable Workflow Architecture**. The
-durable entrypoint and admission-bound programmatic package-v2 composition are
-complete, while explicit runnable-build CLI, signing/output UX, and integration
-closure remain future work. Direct child execution exists through the runtime
-API, but a user-facing `forge run` command is not implemented and its
-architecture follows runnable-build closure.
+The next checkpoint is **`forge run` Architecture Review**. The durable
+entrypoint, admission-bound package-v2 composition, mandatory signing workflow,
+strict staged verification, and safe `build-runnable` publication are complete.
+Direct child execution exists through the runtime API, but a user-facing
+`forge run` command and runtime trust CLI are not implemented.
 
 ## Remaining Platform Work
 
@@ -690,9 +709,8 @@ The following capabilities remain future work:
 - Dedicated Validation Engine
 - Manifest decoder strictness, JSON duplicate-key handling, and explicit
   manifest schema versioning
-- User-facing runnable package build workflow, including signing configuration,
-  output policy, error behavior, application composition, package-v2 production,
-  and integration closure
+- `forge run` architecture, runtime trust configuration, and explicit
+  package-execution UX
 - Remote package registry and package acquisition
 - Package-format production hardening and legacy tooling
 - Compiler optimization, build isolation, process resource controls, dependency
