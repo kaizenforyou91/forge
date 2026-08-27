@@ -17,6 +17,7 @@ func TestNewRootCommand(t *testing.T) {
 
 	expected := []string{
 		"build",
+		"build-runnable",
 		"config",
 		"doctor",
 		"version",
@@ -45,6 +46,9 @@ func TestNewRootCommandHelp(t *testing.T) {
 
 	if !strings.Contains(out.String(), "Forge Workspace") {
 		t.Fatalf("expected help output, got %q", out.String())
+	}
+	if !strings.Contains(out.String(), "build-runnable") {
+		t.Fatalf("expected build-runnable in root help, got %q", out.String())
 	}
 }
 
