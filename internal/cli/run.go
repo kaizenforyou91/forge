@@ -38,9 +38,6 @@ func newRunCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := preflightRunPackageFile(packagePath); err != nil {
-				return err
-			}
 
 			keyID, err := validateRunTrustKeyID(keyIDValue)
 			if err != nil {

@@ -102,6 +102,57 @@ func TestRunCommandRejectsMalformedKeyAndNonPackageInput(t *testing.T) {
 	}
 }
 
+func TestRunCommandDelegatesPackageFilesystemValidationToReader(t *testing.T) {
+	fixture := newRunCommandFixture(t, "process_success", true)
+
+	t.Run("missing", func(t *testing.T) {
+		missing := fixture
+		missing.packagePath = filepath.Join(t.TempDir(), "missing.zip")
+		_, _, err := executeRunCommand(t, context.Background(), missing, runTestKeyID)
+		if !errors.Is(err, compiler.ErrInvalidArtifactPackage) {
+			t.Fatalf("expected reader package rejection, got %v", err)
+		}
+	})
+
+	t.Run("directory", func(t *testing.T) {
+		directory := fixture
+		directory.packagePath = filepath.Join(t.TempDir(), "directory.zip")
+		if err := os.Mkdir(directory.packagePath, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		_, _, err := executeRunCommand(t, context.Background(), directory, runTestKeyID)
+		if !errors.Is(err, compiler.ErrInvalidArtifactPackage) {
+			t.Fatalf("expected reader package rejection, got %v", err)
+		}
+	})
+
+	t.Run("symlink", func(t *testing.T) {
+		link := fixture
+		link.packagePath = filepath.Join(t.TempDir(), "package-link.zip")
+		if err := os.Symlink(fixture.packagePath, link.packagePath); err != nil {
+			if runtime.GOOS == "windows" {
+				t.Skipf("Windows symlink creation is unavailable: %v", err)
+			}
+			t.Fatal(err)
+		}
+		_, _, err := executeRunCommand(t, context.Background(), link, runTestKeyID)
+		if !errors.Is(err, compiler.ErrInvalidArtifactPackage) {
+			t.Fatalf("expected reader symlink rejection, got %v", err)
+		}
+	})
+}
+
+func TestRunCommandValidatesTrustBeforeLoadingMissingPackage(t *testing.T) {
+	fixture := newRunCommandFixture(t, "process_success", true)
+	fixture.packagePath = filepath.Join(t.TempDir(), "missing.zip")
+	fixture.keyPath = writeRunTrustedKeyFile(t, "bad.pem", []byte("not pem"))
+
+	_, _, err := executeRunCommand(t, context.Background(), fixture, runTestKeyID)
+	if !errors.Is(err, compiler.ErrInvalidTrustKey) {
+		t.Fatalf("expected trust validation to precede package loading, got %v", err)
+	}
+}
+
 func TestRunCommandRejectsTamperedPackage(t *testing.T) {
 	fixture := newRunCommandFixture(t, "process_success", true)
 	data := mustReadRunFile(t, fixture.packagePath)
