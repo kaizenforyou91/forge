@@ -65,6 +65,15 @@
   hard-link publication.
 - Added strict bounded staged-package verification using the Alpha package-read
   limits before final publication.
+- Added `forge run <package.zip> --trusted-key <public-key.pem> --key-id
+  <key-id>` for explicit execution of existing local signed runnable packages
+  v2; both trust flags are required.
+- Added strict local package-path preflight and X.509 PKIX `PUBLIC KEY` PEM
+  Ed25519 trust input with a 16 KiB ceiling and exact explicit KeyID.
+- Added signal-aware CLI execution, typed child exit propagation, and trusted
+  runtime composition through strict loading, host authorization, secure
+  materialization, direct-child execution, Wait/reap, bounded output, and
+  cleanup.
 
 ## Changed
 
@@ -138,7 +147,8 @@
   verification.
 - Manifest Application Entrypoint is complete as a technical checkpoint;
   User-Facing Runnable Workflow is also complete while Phase 6 remains in
-  progress and `forge run` Architecture Review is next.
+  progress. The `forge run` Architecture Review, support primitives, explicit
+  trusted command, and formal closure are completed checkpoints.
 - `forge build-runnable` uses immutable `PrepareManifestAdmission` evidence and
   requires its admitted application entrypoint without publishing package or
   source candidates into shared registries.
@@ -151,6 +161,12 @@
   an exact `.zip` path, and no force/overwrite mode exists.
 - `forge build` remains package format 1 / bundle schema 1 even when the
   manifest contains an application entrypoint.
+- Main dispatch now preserves exact natural child exit codes from 1 through
+  255; clean context cancellation maps to 130, while infrastructure failures
+  remain exit 1.
+- `forge run` buffers stdout and stderr to 1 MiB per stream, presents retained
+  output after child completion, warns on truncation, and emits no success
+  banner.
 
 ## Security
 
@@ -162,8 +178,13 @@
 - Existing or concurrently appearing output targets are preserved. Publication
   is atomic and no-replace, with no unsafe fallback when hard links are
   unavailable.
-- `build-runnable` does not load, materialize, or execute the produced package;
-  `forge run` and runtime trust configuration remain separate future work.
+- `build-runnable` still does not execute its output. `forge run` keeps the
+  strict runtime loader as verification authority, authorizes the exact host,
+  materializes privately without exposing a raw executable path, runs one
+  direct child, waits/reaps, and owns cleanup.
+- `forge run` executes trusted native code directly. Trust does not imply safe
+  code; there is no sandbox, filesystem/network isolation, privilege drop,
+  process-tree containment, resource control, or production-safety guarantee.
 
 ## Tests
 
@@ -232,6 +253,11 @@
   non-mutation, staging cleanup, and existing-target preservation.
 - Added an entrypoint-present regression proving `forge build` remains package
   format 1 / bundle schema 1.
+- Added real `forge run` exit-0 and exit-23 execution, OS-observed exit-23
+  propagation, deterministic cancellation-to-130, and dual-stream truncation
+  coverage.
+- Added command-level malformed/wrong key, wrong KeyID, unsigned v2, signed v1,
+  tampered package, and non-package input rejection coverage.
 
 ## Known Limitations
 
@@ -244,9 +270,9 @@
   creation is the separate explicit `forge build-runnable` workflow.
 - Manifest decoding has no strict unknown-field guarantee, JSON duplicate keys
   are not rejected, and no separate manifest `schema_version` exists.
-- Process management is direct-child-only. Descendants, process trees, graceful
-  shutdown, arbitrary arguments/environment/working-directory policy, and
-  `forge run` are not implemented.
+- Process management is host-only and direct-child-only. Descendants, process
+  trees, graceful shutdown, arbitrary arguments/environment/working-directory
+  policy, live streaming, and resource controls are not implemented.
 - Runnable packages do not serialize dependency provenance or an SBOM.
 - Admission freezes a canonical source `ImportPath`, not repository contents,
   commit/digest provenance, or reproducible toolchain output.
@@ -264,6 +290,11 @@
   reauthorization are not implemented.
 - Same-user path-to-Start replacement is not fully eliminated, and no process
   resource isolation or filesystem/network/syscall sandbox exists.
+- Runtime trust is command-local and limited to one explicit key per invocation;
+  persistent trust configuration and remote package acquisition are absent.
+- Producer/run KeyID control-character policy, cross-platform signal acceptance,
+  and command-level Start/Wait/Close/output fault injection remain technical
+  debt.
 - Remote package registry is not implemented.
 - No-integrity mode provides structural validation without cryptographic tamper
   resistance.
@@ -333,17 +364,15 @@ This project follows **Semantic Versioning**.
 - Remote package registry, acquisition, and resolution
 - Advanced dependency and version constraints
 - Compiler package-format production hardening, legacy tooling, and optimization
-- `forge run` architecture, runtime trust configuration, and explicit
-  package-execution UX
 - Build isolation, process resource controls, dependency provenance, and
   reproducibility hardening
-- Stronger materialization-to-start TOCTOU mitigation
+- Stronger same-user package/materialization path-to-Start TOCTOU hardening
+  review
 - Process-tree/descendant lifecycle, graceful shutdown, and optional Windows Job
   Object or Unix process-group policy
 - Richer arguments/environment/working-directory contracts, process resource
   isolation, and sandboxing
 - Trust snapshot/revocation and start-time authorization policy
-- User-facing runnable execution composition and `forge run`
 - Runtime scheduler
 - AI Runtime
 

@@ -137,6 +137,10 @@ The current tested foundation includes:
 - The real production path is proven end to end from a trusted signed package
   through strict loading, secure materialization, direct child execution,
   deterministic result capture, and explicit cleanup.
+- `forge run` executes an existing local signed runnable package v2 only after
+  explicit command-local Ed25519 trust, strict runtime verification, exact host
+  authorization, private materialization, direct-child execution, Wait/reap,
+  bounded output presentation, and cleanup.
 - Normal-reader rejection of legacy/unversioned packages and unsupported package
   or bundle versions.
 - Artifact source provenance preserved through package read-back.
@@ -159,7 +163,7 @@ The current tested foundation includes:
   HTTP, middleware, and plugin foundations.
 
 The implemented top-level CLI commands are `forge version`, `forge doctor`,
-`forge config`, `forge build`, and `forge build-runnable`.
+`forge config`, `forge build`, `forge build-runnable`, and `forge run`.
 
 Forge remains **Pre-Alpha**. The compiler and package pipeline are a tested
 foundation, not a production-ready package ecosystem or stable production
@@ -170,7 +174,8 @@ Contract R1A, Real Executable Output R1B, Verified Runtime Package Loader R2A,
 Secure Executable Materialization R2B, the direct-child Process Runner, and the
 Manifest Application Entrypoint and User-Facing Runnable Workflow are
 implemented and validated technical checkpoints. Phase 6 and the Compiler
-remain in progress; `forge run` Architecture Review is next.
+remain in progress. The `forge run` Architecture Review, trusted-run
+primitives, explicit command, and formal closure are completed checkpoints.
 
 ## Manifest Runnable Contract
 
@@ -246,24 +251,97 @@ strictly verifies its signature and v2 runtime/artifact metadata under the
 fixed Alpha read limits, then publishes it atomically with no-replace hard-link
 semantics. Filesystems without required hard-link support fail safely.
 
-`build-runnable` creates a package only. It does not load, materialize, or
-execute that package, and `forge run` is not implemented. Signing authenticates
-the produced package bytes and metadata; it does not prove reproducible source
-contents, a repository commit/digest, or an SBOM. Runtime trust configuration
-will belong to the separate future package-execution workflow.
+`build-runnable` creates a package only; it never executes its output. Signing
+authenticates the produced package bytes and metadata, but does not prove
+reproducible source contents, a repository commit/digest, an SBOM, or that the
+signed code is safe.
+
+## Trusted Package Execution
+
+Run an existing local signed runnable package v2 with exactly one explicitly
+trusted public key:
+
+```text
+forge run <package.zip> \
+  --trusted-key <public-key.pem> \
+  --key-id <key-id>
+```
+
+The package must be a local regular, non-symlink file with the exact lowercase
+`.zip` extension. Relative paths resolve from the process current working
+directory and become absolute, clean paths internally. Remote URLs, manifests,
+source resolution, and implicit builds are not accepted. `forge build` remains
+the package-v1 identity/provenance command; `forge build-runnable` remains the
+explicit signed package-v2 producer.
+
+Both trust flags are required. The key must be an X.509 PKIX
+SubjectPublicKeyInfo encoded as one `PUBLIC KEY` PEM block containing an
+Ed25519 public key. The regular, non-symlink file is limited to 16 KiB; because
+it is public material, owner-only permissions are not required. Certificates,
+private keys, alternate PEM types, and trailing data are rejected. KeyID is
+explicit rather than derived from the key or filename; it must be nonblank,
+contain no surrounding whitespace, and contain no ASCII control characters.
+Each invocation creates a command-local TrustStore holding exactly this one
+KeyID/key pair; no trust is persisted globally or in config.
+
+```text
+local signed package v2
+â†’ explicit trusted Ed25519 key and KeyID
+â†’ strict VerifiedRunnablePackageLoader
+â†’ exact host GOOS/GOARCH authorization
+â†’ detached verified executable bytes
+â†’ private forge-runtime-* materialization
+â†’ direct no-shell child
+â†’ Wait/reap
+â†’ bounded output presentation
+â†’ cleanup
+```
+
+The strict runtime loader remains the sole authority for signature and
+integrity verification, Alpha bounded package reads, runnable-v2 structure,
+and host authorization. The CLI creates no second verifier, ZIP reader,
+verification policy, or build/source path.
+
+Child output is buffered until completion, with a 1 MiB limit independently
+for stdout and stderr. Retained stdout bytes go only to Forge stdout; retained
+child stderr and Forge diagnostics go to Forge stderr. There is no success
+banner or added child-output newline. Truncation produces:
+
+```text
+forge: child stdout truncated after 1048576 bytes
+forge: child stderr truncated after 1048576 bytes
+```
+
+Natural child exit 0 maps to Forge exit 0, and natural child exit 1 through 255
+is preserved exactly. Clean context cancellation maps to 130. Input, trust,
+runtime, output, wait, or cleanup infrastructure failures map to 1 and override
+child/cancellation status. The CLI wires `os.Interrupt` through context
+cancellation to direct-child termination and reap, but does not claim complete
+terminal signal behavior across all platforms.
+
+> **Security warning:** `forge run` executes trusted native code directly.
+> Trust authenticates the signer and package integrity; it does not make code
+> safe. Forge provides no sandbox, filesystem or network isolation, privilege
+> drop, process-tree containment, CPU/memory limits, or production-safety
+> guarantee.
+
+The First Alpha runner has zero user arguments, no environment injection, nil
+stdin, a private runtime working directory, a reduced environment, one direct
+child, no live streaming, and no remote package acquisition.
 
 ## Known Limitations
 
 - `forge build` still emits package format v1 identity/provenance packages;
-  `forge build-runnable` is the separate signed package-v2 workflow. No
-  user-facing package-execution command or runtime trust CLI exists.
+  `forge build-runnable` is the separate signed package-v2 workflow, and
+  `forge run` accepts only an existing local trusted package v2.
 - Manifest loading does not provide a strict unknown-field contract, JSON
   duplicate keys are not rejected, and there is no separate manifest
   `schema_version` field.
-- Process execution is limited to one direct child with zero arguments, a fixed
-  reduced environment, and a controlled working directory. Descendants are not
-  managed; graceful shutdown, arbitrary arguments/environment/working-directory
-  policy, process-tree supervision, and `forge run` are not implemented.
+- Process execution is limited to one host-target direct child with zero user
+  arguments, no environment injection, nil stdin, a reduced environment, and a
+  private working directory. Descendants are not managed; graceful shutdown,
+  process-tree supervision, resource controls, and generalized runtime input
+  policy are not implemented.
 - Runnable package v2 currently contains one entrypoint artifact and does not
   serialize dependency provenance or an SBOM.
 - Runtime package ingestion has fixed Alpha byte and entry ceilings. Process
@@ -276,6 +354,11 @@ will belong to the separate future package-execution workflow.
 - The same-user path-to-Start replacement window is not eliminated, and there
   are no CPU, memory, process-count, filesystem, network, syscall, or privilege-
   dropping sandbox controls.
+- Runtime trust is invocation-local with one key; persistent trust configuration
+  and revocation policy are not implemented. Producer and run-side KeyID
+  validation are not fully aligned on ASCII control characters.
+- Exact cross-platform terminal signal acceptance and command-level fault
+  injection for Start, Wait, Close, and output-write failures remain test debt.
 - Executable builds partly inherit the host build environment and are not
   guaranteed to be reproducible across toolchains.
 - Admission freezes the canonical source `ImportPath`, not source repository

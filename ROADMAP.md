@@ -105,7 +105,8 @@ Commands:
 
 These are long-term Phase 2 command targets. The currently implemented
 top-level commands are `forge version`, `forge doctor`, `forge config`, and
-`forge build`, plus the explicit signed `forge build-runnable` workflow.
+`forge build`, plus the explicit signed `forge build-runnable` producer and
+explicit trusted `forge run` execution workflow.
 
 Status:
 
@@ -483,6 +484,17 @@ assigning new milestone or task identifiers:
 - Runnable Workflow Formal Closure proves real command-to-signed-package
   integration, registry non-mutation, default/custom output behavior, target
   preservation, strict read-back, and no package execution.
+- `forge run` Architecture Review freezes explicit local package input, one
+  command-local trusted Ed25519 public key and KeyID, strict runtime authority,
+  direct-child execution, bounded output, cleanup, and exit semantics.
+- Trusted Run Support Primitives add strict local package/public-key input,
+  signal-aware command context, and pure child/cancellation exit mapping.
+- Explicit Trusted `forge run` composes strict package-v2 loading, exact host
+  authorization, private materialization, direct-child Start and Wait/reap,
+  bounded output presentation, cleanup, and exact child/cancellation status.
+- `forge run` Formal Closure confirms the narrow Pre-Alpha workflow without
+  sandbox, process-tree, resource-isolation, remote-acquisition, or generalized
+  application-execution claims.
 
 ## Current Implemented Foundation
 
@@ -554,6 +566,8 @@ Forge currently provides:
   entrypoint or source inference
 - CLI `forge build-runnable` for mandatory-signed, host-target package-v2
   creation with strict staged verification and no-replace publication
+- CLI `forge run` for an existing local signed runnable package v2 with one
+  explicit command-local Ed25519 public key and exact KeyID
 - Declaration-order admission with dependency-first execution
 - Predictable admission failures without persistent candidate mutation
 - Accepted admission state retained after downstream failures
@@ -655,15 +669,12 @@ Remaining work:
 - Compatibility beyond the explicitly supported `(1,1)` and `(2,2)` pairs if
   required.
 - Cross-toolchain golden archive validation.
-- `forge run` Architecture Review, including runtime trust-key configuration,
-  package-input policy, result/exit behavior, and execution lifecycle UX.
 - Stronger same-user path-to-Start TOCTOU mitigation.
 - Process-tree/descendant lifecycle, graceful termination, and platform policy
   for Windows Job Objects or Unix process groups if selected.
 - Richer argument, environment, and working-directory contracts if selected,
   plus process memory/CPU limits, sandboxing, and other execution controls.
 - Trust snapshot/revocation and start-time authorization policy.
-- User-facing execution composition and `forge run`.
 - Dependency provenance and SBOM support for runnable packages.
 - Build isolation and cross-toolchain reproducibility hardening.
 - Compiler optimization.
@@ -687,20 +698,46 @@ Pre-Alpha
 → Process Runner: Completed
 → Manifest Application Entrypoint: Completed
 → User-Facing Runnable Workflow: Completed
-→ forge run Architecture Review: Next
+→ forge run Architecture Review: Completed
+→ Trusted Run Support Primitives: Completed
+→ Explicit Trusted forge run Command: Completed
+→ forge run Formal Closure: Completed
+→ Same-User Package/Materialization Path-to-Start TOCTOU Hardening Review: Next
 ```
 
 Completed checkpoints: **Manifest Admission Hardening**, **Package Format
 Stabilization**, **Runnable Package Contract R1A**, **Real Executable Output
 R1B**, **Verified Runtime Package Loader R2A**, **Secure Executable
 Materialization R2B**, **Process Runner**, and **Manifest Application
-Entrypoint**, and **User-Facing Runnable Workflow**.
+Entrypoint**, **User-Facing Runnable Workflow**, **forge run Architecture
+Review**, **Trusted Run Support Primitives**, **Explicit Trusted forge run
+Command**, and **forge run Formal Closure**.
 
-The next checkpoint is **`forge run` Architecture Review**. The durable
-entrypoint, admission-bound package-v2 composition, mandatory signing workflow,
-strict staged verification, and safe `build-runnable` publication are complete.
-Direct child execution exists through the runtime API, but a user-facing
-`forge run` command and runtime trust CLI are not implemented.
+`forge run` is completed for its narrow Pre-Alpha boundary: existing local
+signed runnable package v2, one explicit command-local trusted Ed25519 public
+key and KeyID, strict runtime verification, host-only authorization, secure
+materialization, one direct child, Wait/reap, bounded output, cleanup, and exact
+child/cancellation exit mapping. Phase 6 remains in progress.
+
+The frozen grammar is `forge run <package.zip> --trusted-key
+<public-key.pem> --key-id <key-id>`. It accepts one local regular, non-symlink
+lowercase `.zip` package, performs no manifest/source/build or remote acquisition,
+and creates one invocation-local TrustStore. The key is an explicit X.509 PKIX
+`PUBLIC KEY` PEM Ed25519 key and KeyID. The strict runtime loader remains the
+signature, integrity, bounded-read, runnable-v2, and host authorization
+authority; verified bytes alone reach private materialization and the direct
+no-shell child.
+
+The First Alpha command accepts no user args, environment injection, or stdin.
+It buffers at most 1 MiB per stream until completion, preserves natural child
+exit codes, maps clean cancellation to 130, and maps infrastructure failures to
+1. Trusted native code can execute arbitrary code: Forge provides no sandbox,
+filesystem/network or resource isolation, privilege drop, process-tree
+containment, graceful shutdown guarantee, or production-safety claim.
+
+The next architecture focus is **stronger same-user package/materialization
+path-to-Start TOCTOU hardening review**. This is a review target, not an
+approved implementation or an expansion to arguments, environment, or stdin.
 
 ## Remaining Platform Work
 
@@ -709,8 +746,6 @@ The following capabilities remain future work:
 - Dedicated Validation Engine
 - Manifest decoder strictness, JSON duplicate-key handling, and explicit
   manifest schema versioning
-- `forge run` architecture, runtime trust configuration, and explicit
-  package-execution UX
 - Remote package registry and package acquisition
 - Package-format production hardening and legacy tooling
 - Compiler optimization, build isolation, process resource controls, dependency
@@ -721,7 +756,6 @@ The following capabilities remain future work:
 - Richer arguments/environment/working-directory contracts, process resource
   controls, and sandboxing
 - Trust snapshot/revocation and start-time authorization policy
-- User-facing runnable execution composition and `forge run`
 - Scheduler
 - Remote package resolution
 - Advanced dependency and version resolution
