@@ -20,6 +20,7 @@ func TestNewRootCommand(t *testing.T) {
 		"build-runnable",
 		"config",
 		"doctor",
+		"run",
 		"version",
 	}
 
@@ -49,6 +50,31 @@ func TestNewRootCommandHelp(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "build-runnable") {
 		t.Fatalf("expected build-runnable in root help, got %q", out.String())
+	}
+	if !strings.Contains(out.String(), "run") {
+		t.Fatalf("expected run in root help, got %q", out.String())
+	}
+}
+
+func TestRunCommandHelpExposesOnlySupportedFlags(t *testing.T) {
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"run", "--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	help := out.String()
+	for _, required := range []string{"run <package.zip>", "--trusted-key", "--key-id", "no sandbox"} {
+		if !strings.Contains(help, required) {
+			t.Fatalf("run help lacks %q: %q", required, help)
+		}
+	}
+	for _, unsupported := range []string{"--output", "--args", "--env", "--cwd", "--target", "--force", "--unsigned", "--manifest"} {
+		if strings.Contains(help, unsupported) {
+			t.Fatalf("run help exposes unsupported flag %q: %q", unsupported, help)
+		}
 	}
 }
 
