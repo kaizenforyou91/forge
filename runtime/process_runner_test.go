@@ -283,8 +283,17 @@ func TestProcessRunnerCancellationCoordinatesPendingCleanup(t *testing.T) {
 		repeated.Canceled != result.Canceled || repeated.Terminated != result.Terminated {
 		t.Fatalf("repeated canceled Wait = (%#v, %v)", repeated, repeatedErr)
 	}
-	if process.cmd.ProcessState == nil || !process.cmd.ProcessState.Exited() {
-		t.Fatal("canceled direct child was not reaped")
+	// Exited is false on Unix for signal-terminated children even after
+	// cmd.Wait has completed and reaped them.
+	if process.cmd.ProcessState == nil {
+		t.Fatal("cmd.Wait did not publish process state for canceled child")
+	}
+	if process.cmd.ProcessState.Pid() != process.PID() {
+		t.Fatalf(
+			"process state PID = %d, want direct child PID %d",
+			process.cmd.ProcessState.Pid(),
+			process.PID(),
+		)
 	}
 	if materialized.leaseActive || !materialized.cleanupDone {
 		t.Fatalf(
@@ -357,8 +366,17 @@ func TestRunningProcessTerminationLifecycle(t *testing.T) {
 		if killCalls.Load() != 1 {
 			t.Fatalf("direct-child kill calls = %d, want 1", killCalls.Load())
 		}
-		if process.cmd.ProcessState == nil || !process.cmd.ProcessState.Exited() {
-			t.Fatal("manually terminated child was not reaped")
+		// Exited is false on Unix for signal-terminated children even after
+		// cmd.Wait has completed and reaped them.
+		if process.cmd.ProcessState == nil {
+			t.Fatal("cmd.Wait did not publish process state for manually terminated child")
+		}
+		if process.cmd.ProcessState.Pid() != process.PID() {
+			t.Fatalf(
+				"process state PID = %d, want direct child PID %d",
+				process.cmd.ProcessState.Pid(),
+				process.PID(),
+			)
 		}
 		if materialized.leaseActive || materialized.cleanupDone {
 			t.Fatalf(
