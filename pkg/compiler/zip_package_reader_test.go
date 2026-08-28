@@ -5,9 +5,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"testing"
 )
@@ -17,6 +19,164 @@ func TestNewZIPPackageReader(t *testing.T) {
 
 	if reader == nil {
 		t.Fatal("expected non-nil ZIP package reader")
+	}
+}
+
+func TestZIPPackageReaderRejectsSymlinkAndNonRegularPackagePaths(t *testing.T) {
+	t.Run("symlink", func(t *testing.T) {
+		directory := t.TempDir()
+		target := filepath.Join(directory, "target.zip")
+		if err := NewZIPPackager().Package(testPackageBundle(), testPackagePayloads(), target); err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(directory, "link.zip")
+		if err := os.Symlink(target, link); err != nil {
+			if runtime.GOOS == "windows" {
+				t.Skipf("Windows symlink creation is unavailable: %v", err)
+			}
+			t.Fatal(err)
+		}
+		if _, err := NewZIPPackageReader().ReadDetailed(link); !errors.Is(err, ErrInvalidArtifactPackage) {
+			t.Fatalf("expected ErrInvalidArtifactPackage, got %v", err)
+		}
+	})
+
+	t.Run("directory", func(t *testing.T) {
+		if _, err := NewZIPPackageReader().ReadDetailed(t.TempDir()); !errors.Is(err, ErrInvalidArtifactPackage) {
+			t.Fatalf("expected ErrInvalidArtifactPackage, got %v", err)
+		}
+	})
+
+	t.Run("socket", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix-domain filesystem sockets are unavailable on Windows")
+		}
+		path := filepath.Join(t.TempDir(), "package.zip")
+		listener, err := net.Listen("unix", path)
+		if err != nil {
+			t.Skipf("Unix-domain socket creation is unavailable: %v", err)
+		}
+		defer listener.Close()
+		if _, err := NewZIPPackageReader().ReadDetailed(path); !errors.Is(err, ErrInvalidArtifactPackage) {
+			t.Fatalf("expected ErrInvalidArtifactPackage, got %v", err)
+		}
+	})
+}
+
+func TestZIPPackageReaderRejectsReplacementBetweenLstatAndOpen(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "selected.zip")
+	replacement := filepath.Join(directory, "replacement.zip")
+	displaced := filepath.Join(directory, "displaced.zip")
+	if err := NewZIPPackager().Package(testPackageBundle(), testPackagePayloads(), path); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewZIPPackager().Package(ArtifactBundle{
+		ManifestName: "replacement", ManifestVersion: "v1",
+	}, nil, replacement); err != nil {
+		t.Fatal(err)
+	}
+
+	reader := NewZIPPackageReader()
+	reader.open = func(requested string) (*os.File, error) {
+		if err := os.Rename(requested, displaced); err != nil {
+			return nil, err
+		}
+		if err := os.Rename(replacement, requested); err != nil {
+			return nil, err
+		}
+		return os.Open(requested)
+	}
+
+	if _, err := reader.ReadDetailed(path); !errors.Is(err, ErrInvalidArtifactPackage) {
+		t.Fatalf("expected identity-bound ErrInvalidArtifactPackage, got %v", err)
+	}
+}
+
+func TestZIPPackageReaderRejectsPackageTruncatedAfterOpen(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "selected.zip")
+	if err := NewZIPPackager().Package(testPackageBundle(), testPackagePayloads(), path); err != nil {
+		t.Fatal(err)
+	}
+
+	reader := NewZIPPackageReader()
+	reader.open = func(requested string) (*os.File, error) {
+		file, err := os.Open(requested)
+		if err != nil {
+			return nil, err
+		}
+		info, err := file.Stat()
+		if err != nil {
+			_ = file.Close()
+			return nil, err
+		}
+		if err := os.Truncate(requested, info.Size()/2); err != nil {
+			_ = file.Close()
+			return nil, err
+		}
+		return file, nil
+	}
+
+	if _, err := reader.ReadDetailed(path); !errors.Is(err, ErrInvalidArtifactPackage) {
+		t.Fatalf("expected truncated opened package to fail safely, got %v", err)
+	}
+}
+
+func TestZIPPackageReaderPostOpenReplacementCannotRedirectSameKeyRead(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ordinary Windows read handles prevent deterministic rename replacement in this fixture")
+	}
+
+	directory := t.TempDir()
+	path := filepath.Join(directory, "selected.zip")
+	replacement := filepath.Join(directory, "replacement.zip")
+	displaced := filepath.Join(directory, "displaced.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	writeSignedIdentityPackageForOpenTest(t, signer, path, "selected")
+	writeSignedIdentityPackageForOpenTest(t, signer, replacement, "replacement")
+
+	reader, err := NewZIPPackageReaderWithPolicyAndVerifier(
+		StrictPackageVerificationPolicy(), verifier,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader.open = func(requested string) (*os.File, error) {
+		file, err := os.Open(requested)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.Rename(requested, displaced); err != nil {
+			_ = file.Close()
+			return nil, err
+		}
+		if err := os.Rename(replacement, requested); err != nil {
+			_ = file.Close()
+			return nil, err
+		}
+		return file, nil
+	}
+
+	result, err := reader.ReadDetailed(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Bundle.ManifestName != "selected" {
+		t.Fatalf("read pathname replacement %q instead of opened object", result.Bundle.ManifestName)
+	}
+}
+
+func writeSignedIdentityPackageForOpenTest(
+	t *testing.T,
+	signer *Ed25519Signer,
+	path string,
+	name string,
+) {
+	t.Helper()
+	bundle := ArtifactBundle{ManifestName: name, ManifestVersion: "v1"}
+	if err := NewZIPPackagerWithSigner(signer).Package(bundle, nil, path); err != nil {
+		t.Fatal(err)
 	}
 }
 

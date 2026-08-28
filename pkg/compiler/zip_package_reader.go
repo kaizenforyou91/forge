@@ -3,6 +3,7 @@ package compiler
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,8 @@ type ZIPPackageReader struct {
 	verifier PackageVerifier
 	policy   PackageVerificationPolicy
 	limits   *PackageReadLimits
+	lstat    func(string) (os.FileInfo, error)
+	open     func(string) (*os.File, error)
 }
 
 // NewZIPPackageReader creates a ZIP package reader.
@@ -117,7 +120,7 @@ func (r *ZIPPackageReader) Read(
 // bundle, payload, and verified-signer evidence.
 func (r *ZIPPackageReader) ReadDetailed(
 	path string,
-) (PackageReadResult, error) {
+) (result PackageReadResult, resultErr error) {
 	if r == nil {
 		return PackageReadResult{}, fmt.Errorf(
 			"%w: reader is nil",
@@ -136,7 +139,21 @@ func (r *ZIPPackageReader) ReadDetailed(
 	if err != nil {
 		return PackageReadResult{}, err
 	}
-	defer packageFile.Close()
+	defer func() {
+		if closeErr := packageFile.Close(); closeErr != nil {
+			wrapped := fmt.Errorf(
+				"%w: close package: %w",
+				ErrInvalidArtifactPackage,
+				closeErr,
+			)
+			if resultErr == nil {
+				result = PackageReadResult{}
+				resultErr = wrapped
+				return
+			}
+			resultErr = errors.Join(resultErr, wrapped)
+		}
+	}()
 
 	if len(reader.File) == 0 {
 		return PackageReadResult{}, fmt.Errorf(
@@ -409,7 +426,46 @@ func (r *ZIPPackageReader) ReadDetailed(
 func (r *ZIPPackageReader) openPackage(
 	path string,
 ) (*os.File, *zip.Reader, error) {
-	packageFile, err := os.Open(path)
+	lstat := r.lstat
+	if lstat == nil {
+		lstat = os.Lstat
+	}
+	open := r.open
+	if open == nil {
+		open = os.Open
+	}
+
+	pathInfo, err := lstat(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf(
+			"%w: inspect package path: %v",
+			ErrInvalidArtifactPackage,
+			err,
+		)
+	}
+	if pathInfo.Mode()&os.ModeSymlink != 0 {
+		return nil, nil, fmt.Errorf(
+			"%w: package path is a symbolic link",
+			ErrInvalidArtifactPackage,
+		)
+	}
+	if !pathInfo.Mode().IsRegular() {
+		return nil, nil, fmt.Errorf(
+			"%w: package path is not a regular file",
+			ErrInvalidArtifactPackage,
+		)
+	}
+	// On Windows, FileInfo obtained from a path may resolve its stable file ID
+	// lazily when SameFile is first called. Resolve it while the inspected path
+	// still names the selected object, before the package open can be raced.
+	if !os.SameFile(pathInfo, pathInfo) {
+		return nil, nil, fmt.Errorf(
+			"%w: package path identity is unavailable",
+			ErrInvalidArtifactPackage,
+		)
+	}
+
+	packageFile, err := open(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf(
 			"%w: open package: %v",
@@ -418,36 +474,55 @@ func (r *ZIPPackageReader) openPackage(
 		)
 	}
 
-	info, err := packageFile.Stat()
+	openInfo, err := packageFile.Stat()
 	if err != nil {
-		_ = packageFile.Close()
-		return nil, nil, fmt.Errorf(
+		return nil, nil, closePackageAfterOpenFailure(packageFile, fmt.Errorf(
 			"%w: stat open package: %v",
 			ErrInvalidArtifactPackage,
 			err,
-		)
+		))
 	}
-	if r.limits != nil && info.Size() > r.limits.MaxArchiveBytes {
-		_ = packageFile.Close()
-		return nil, nil, fmt.Errorf(
+	if !openInfo.Mode().IsRegular() {
+		return nil, nil, closePackageAfterOpenFailure(packageFile, fmt.Errorf(
+			"%w: open package is not a regular file",
+			ErrInvalidArtifactPackage,
+		))
+	}
+	if !os.SameFile(pathInfo, openInfo) {
+		return nil, nil, closePackageAfterOpenFailure(packageFile, fmt.Errorf(
+			"%w: package path identity changed while opening",
+			ErrInvalidArtifactPackage,
+		))
+	}
+	if r.limits != nil && openInfo.Size() > r.limits.MaxArchiveBytes {
+		return nil, nil, closePackageAfterOpenFailure(packageFile, fmt.Errorf(
 			"%w: archive size %d exceeds limit %d",
 			ErrPackageReadLimitExceeded,
-			info.Size(),
+			openInfo.Size(),
 			r.limits.MaxArchiveBytes,
-		)
+		))
 	}
 
-	reader, err := zip.NewReader(packageFile, info.Size())
+	reader, err := zip.NewReader(packageFile, openInfo.Size())
 	if err != nil {
-		_ = packageFile.Close()
-		return nil, nil, fmt.Errorf(
+		return nil, nil, closePackageAfterOpenFailure(packageFile, fmt.Errorf(
 			"%w: open package: %v",
 			ErrInvalidArtifactPackage,
 			err,
-		)
+		))
 	}
 
 	return packageFile, reader, nil
+}
+
+func closePackageAfterOpenFailure(packageFile *os.File, primary error) error {
+	if closeErr := packageFile.Close(); closeErr != nil {
+		return errors.Join(
+			primary,
+			fmt.Errorf("%w: close package after failure: %w", ErrInvalidArtifactPackage, closeErr),
+		)
+	}
+	return primary
 }
 
 func (r *ZIPPackageReader) entryReadLimit(path string) int64 {
