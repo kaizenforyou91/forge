@@ -68,8 +68,8 @@
 - Added `forge run <package.zip> --trusted-key <public-key.pem> --key-id
   <key-id>` for explicit execution of existing local signed runnable packages
   v2; both trust flags are required.
-- Added strict local package-path preflight and X.509 PKIX `PUBLIC KEY` PEM
-  Ed25519 trust input with a 16 KiB ceiling and exact explicit KeyID.
+- Added X.509 PKIX `PUBLIC KEY` PEM Ed25519 trust input with a 16 KiB ceiling
+  and exact explicit KeyID.
 - Added signal-aware CLI execution, typed child exit propagation, and trusted
   runtime composition through strict loading, host authorization, secure
   materialization, direct-child execution, Wait/reap, bounded output, and
@@ -167,6 +167,13 @@
 - `forge run` buffers stdout and stderr to 1 MiB per stream, presents retained
   output after child completion, warns on truncation, and emits no success
   banner.
+- The ZIP package reader now rejects symlink and nonregular package paths,
+  resolves pre-open identity, binds it to the accepted open handle with
+  `SameFile`, and uses that handle for archive size and all ZIP reads while
+  preserving the public path-based reader APIs.
+- `forge run` package input now owns lexical/local path policy only; filesystem
+  existence and object identity are delegated to the compiler reader. Trust
+  validation can therefore precede package filesystem loading.
 
 ## Security
 
@@ -185,6 +192,11 @@
 - `forge run` executes trusted native code directly. Trust does not imply safe
   code; there is no sandbox, filesystem/network isolation, privilege drop,
   process-tree containment, resource control, or production-safety guarantee.
+- Package-selection TOCTOU hardening is closed for the current Alpha boundary:
+  directory-entry replacement cannot redirect verification after handle
+  acceptance. This is not an immutable snapshot; same-user in-place mutation
+  and the materialized validation-handle-close-to-OS-exec race remain separate
+  hardening debt.
 
 ## Tests
 
@@ -258,6 +270,13 @@
   coverage.
 - Added command-level malformed/wrong key, wrong KeyID, unsigned v2, signed v1,
   tampered package, and non-package input rejection coverage.
+- Added deterministic package-open identity-race, post-open replacement,
+  symlink/nonregular, and truncation coverage plus command-level missing and
+  directory package delegation coverage.
+- Corrected Linux runtime reaping tests to use portable `cmd.Wait` completion,
+  non-nil `ProcessState`, and direct-child PID evidence instead of treating
+  `ProcessState.Exited()` as reap proof for signal-terminated children. No
+  production ProcessRunner behavior changed; Ubuntu GitHub Actions is green.
 
 ## Known Limitations
 
@@ -288,8 +307,11 @@
 - Host executable family/architecture validation is implemented but is not
   malware analysis. Trust snapshot/revocation epochs and start-time trust
   reauthorization are not implemented.
-- Same-user path-to-Start replacement is not fully eliminated, and no process
-  resource isolation or filesystem/network/syscall sandbox exists.
+- Open-once package selection does not provide immutable-snapshot protection
+  against same-user in-place modification of the accepted file.
+- ProcessRunner closes its validation handle before OS pathname execution;
+  stronger materialized validation-to-exec binding remains future work.
+- No process resource isolation or filesystem/network/syscall sandbox exists.
 - Runtime trust is command-local and limited to one explicit key per invocation;
   persistent trust configuration and remote package acquisition are absent.
 - Producer/run KeyID control-character policy, cross-platform signal acceptance,
@@ -366,8 +388,7 @@ This project follows **Semantic Versioning**.
 - Compiler package-format production hardening, legacy tooling, and optimization
 - Build isolation, process resource controls, dependency provenance, and
   reproducibility hardening
-- Stronger same-user package/materialization path-to-Start TOCTOU hardening
-  review
+- Materialized executable validation-to-exec race hardening review
 - Process-tree/descendant lifecycle, graceful shutdown, and optional Windows Job
   Object or Unix process-group policy
 - Richer arguments/environment/working-directory contracts, process resource

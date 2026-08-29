@@ -418,7 +418,7 @@ assigning new milestone or task identifiers:
   temporary output, exact executable-byte capture, one-artifact package v2
   assembly, cleanup, and optional signing.
 - Real host executable integration proof covering exact read-back, independent
-  SHA-256 verification, tamper rejection, cleanup, source immutability, and no
+  SHA-256 verification, tamper rejection, cleanup, source non-mutation, and no
   application execution.
 - R2A-1 bounded versioned reads with detailed validated package/bundle version
   evidence, verified signer evidence, same-handle archive-size checks, bounded
@@ -495,6 +495,22 @@ assigning new milestone or task identifiers:
 - `forge run` Formal Closure confirms the narrow Pre-Alpha workflow without
   sandbox, process-tree, resource-isolation, remote-acquisition, or generalized
   application-execution claims.
+- Package / Materialization TOCTOU Hardening Architecture Review defines the
+  package-selection identity boundary and separates it from later
+  materialization-to-exec hardening.
+- Atomic Package-Open Identity Binding moves symlink/nonregular rejection and
+  Lstat/Open/Stat/SameFile authority into `ZIPPackageReader`, which consumes
+  archive size and ZIP bytes through the accepted handle without reopening the
+  path.
+- CLI Package Preflight Simplification leaves `forge run` with lexical/local
+  path policy only and delegates filesystem existence and identity to the
+  compiler reader.
+- TOCTOU Hardening Formal Closure completes the package-selection boundary
+  while retaining same-user in-place mutation and materialized
+  validation-to-exec races as separate debt.
+- Linux runtime reaping tests now use portable `cmd.Wait`/`ProcessState`
+  evidence for signal-terminated children; no production ProcessRunner
+  lifecycle change was required, and Ubuntu GitHub Actions is green.
 
 ## Current Implemented Foundation
 
@@ -623,14 +639,17 @@ Implemented foundation:
   executable-byte capture, one-artifact package v2 assembly, cleanup, and
   optional signing.
 - Real executable package v2 integration with exact read-back, digest, tamper,
-  cleanup, and source-immutability proof.
+  cleanup, and source non-mutation proof.
 - Bounded version-aware package reads with validated version and signer evidence,
   same-handle archive-size validation, bounded actual reads, overflow-safe total
   accounting, fixed Alpha limits, and Store-only runtime policy.
+- Atomic package acquisition with reader-owned Lstat/Open/Stat/SameFile
+  identity binding, symlink/nonregular rejection, same-handle ZIP consumption,
+  and unchanged public path-based reader APIs.
 - Strict verified runtime package loading with mandatory integrity and trusted
   signatures, v1 non-runnable classification, v2 Alpha one-artifact validation,
-  exact host GOOS/GOARCH authorization, detached bytes, source immutability, and
-  no extraction or execution.
+  exact host GOOS/GOARCH authorization, detached bytes, source-package
+  non-mutation, and no extraction or execution.
 - Secure executable materialization with verified-input and host revalidation,
   private directory ownership, controlled filename, exclusive file creation,
   complete-write-before-executable-permission ordering, `Sync`, same-handle
@@ -669,7 +688,14 @@ Remaining work:
 - Compatibility beyond the explicitly supported `(1,1)` and `(2,2)` pairs if
   required.
 - Cross-toolchain golden archive validation.
-- Stronger same-user path-to-Start TOCTOU mitigation.
+- Same-user in-place mutation of an already-open package remains outside
+  immutable-snapshot guarantees; package parsing, integrity, and signatures
+  remain authoritative.
+- Stronger materialized executable validation-to-exec object binding.
+- Windows package-symlink fixtures require symlink privilege, and direct
+  package-handle close-failure injection remains test debt.
+- Producer/run KeyID validation alignment and command-level Start/Wait/Close/
+  output-write fault injection.
 - Process-tree/descendant lifecycle, graceful termination, and platform policy
   for Windows Job Objects or Unix process groups if selected.
 - Richer argument, environment, and working-directory contracts if selected,
@@ -702,7 +728,12 @@ Pre-Alpha
 → Trusted Run Support Primitives: Completed
 → Explicit Trusted forge run Command: Completed
 → forge run Formal Closure: Completed
-→ Same-User Package/Materialization Path-to-Start TOCTOU Hardening Review: Next
+→ Package / Materialization TOCTOU Hardening Architecture Review: Completed
+→ Atomic Package-Open Identity Binding: Completed
+→ CLI Package Preflight Simplification: Completed
+→ TOCTOU Hardening Formal Closure: Completed
+→ Runtime Reaping CI Portability Defect: Resolved
+→ Materialized Executable Validation-to-Exec Race Hardening Review: Next
 ```
 
 Completed checkpoints: **Manifest Admission Hardening**, **Package Format
@@ -711,7 +742,10 @@ R1B**, **Verified Runtime Package Loader R2A**, **Secure Executable
 Materialization R2B**, **Process Runner**, and **Manifest Application
 Entrypoint**, **User-Facing Runnable Workflow**, **forge run Architecture
 Review**, **Trusted Run Support Primitives**, **Explicit Trusted forge run
-Command**, and **forge run Formal Closure**.
+Command**, **forge run Formal Closure**, **Package / Materialization TOCTOU
+Hardening Architecture Review**, **Atomic Package-Open Identity Binding**,
+**CLI Package Preflight Simplification**, and **TOCTOU Hardening Formal
+Closure**.
 
 `forge run` is completed for its narrow Pre-Alpha boundary: existing local
 signed runnable package v2, one explicit command-local trusted Ed25519 public
@@ -722,7 +756,10 @@ child/cancellation exit mapping. Phase 6 remains in progress.
 The frozen grammar is `forge run <package.zip> --trusted-key
 <public-key.pem> --key-id <key-id>`. It accepts one local regular, non-symlink
 lowercase `.zip` package, performs no manifest/source/build or remote acquisition,
-and creates one invocation-local TrustStore. The key is an explicit X.509 PKIX
+and creates one invocation-local TrustStore. CLI input handling is lexical;
+the compiler reader owns filesystem existence, symlink/nonregular rejection,
+atomic open identity binding, same-handle ZIP reads, and Close. The key is an
+explicit X.509 PKIX
 `PUBLIC KEY` PEM Ed25519 key and KeyID. The strict runtime loader remains the
 signature, integrity, bounded-read, runnable-v2, and host authorization
 authority; verified bytes alone reach private materialization and the direct
@@ -735,9 +772,13 @@ exit codes, maps clean cancellation to 130, and maps infrastructure failures to
 filesystem/network or resource isolation, privilege drop, process-tree
 containment, graceful shutdown guarantee, or production-safety claim.
 
-The next architecture focus is **stronger same-user package/materialization
-path-to-Start TOCTOU hardening review**. This is a review target, not an
-approved implementation or an expansion to arguments, environment, or stdin.
+Package-selection TOCTOU hardening is complete for the current Alpha boundary.
+It does not claim an immutable package snapshot: same-user in-place mutation of
+the accepted file remains bounded by ZIP, integrity, and signature validation.
+The next architecture focus is **Materialized Executable Validation-to-Exec
+Race Hardening Architecture Review**. This is a review target, not an approved
+implementation or an expansion to arguments, environment, stdin, sandboxing,
+process-tree containment, or resource controls.
 
 ## Remaining Platform Work
 
@@ -750,7 +791,7 @@ The following capabilities remain future work:
 - Package-format production hardening and legacy tooling
 - Compiler optimization, build isolation, process resource controls, dependency
   provenance, and reproducibility hardening
-- Stronger materialization-to-start TOCTOU mitigation
+- Materialized executable validation-to-exec race hardening review
 - Process-tree/descendant lifecycle, graceful shutdown, and optional Windows Job
   Object or Unix process-group policy
 - Richer arguments/environment/working-directory contracts, process resource

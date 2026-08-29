@@ -100,6 +100,10 @@ The current tested foundation includes:
 - Bounded, version-aware package reads expose validated package and bundle
   versions, copied payloads, and a signer KeyID only after successful trusted
   verification.
+- Package selection is bound inside `ZIPPackageReader`: it rejects symlink and
+  non-regular paths, resolves the pre-open identity, opens once, requires the
+  handle `Stat` to identify the same file, and uses that handle for archive
+  sizing and every ZIP read.
 - The strict runtime loader always requires integrity, a trusted signature,
   Store-only ZIP entries, and the fixed Alpha read limits: 80 MiB per archive,
   16 entries, 1 MiB per document, 64 MiB per artifact, and 72 MiB total
@@ -134,6 +138,10 @@ The current tested foundation includes:
   exits remain process results; context cancellation and immediate manual
   direct-child termination retain distinct result evidence, and pending cleanup
   runs after reap when `Close` was requested.
+- Linux CI tests for signal-terminated children use portable `cmd.Wait` and
+  matching `ProcessState` PID evidence rather than treating
+  `ProcessState.Exited()` as reap proof; this was a test portability correction,
+  not a production ProcessRunner lifecycle change.
 - The real production path is proven end to end from a trusted signed package
   through strict loading, secure materialization, direct child execution,
   deterministic result capture, and explicit cleanup.
@@ -176,6 +184,8 @@ Manifest Application Entrypoint and User-Facing Runnable Workflow are
 implemented and validated technical checkpoints. Phase 6 and the Compiler
 remain in progress. The `forge run` Architecture Review, trusted-run
 primitives, explicit command, and formal closure are completed checkpoints.
+The package-selection TOCTOU review, atomic package-open identity binding, CLI
+preflight simplification, and formal hardening closure are also complete.
 
 ## Manifest Runnable Contract
 
@@ -267,11 +277,12 @@ forge run <package.zip> \
   --key-id <key-id>
 ```
 
-The package must be a local regular, non-symlink file with the exact lowercase
-`.zip` extension. Relative paths resolve from the process current working
-directory and become absolute, clean paths internally. Remote URLs, manifests,
-source resolution, and implicit builds are not accepted. `forge build` remains
-the package-v1 identity/provenance command; `forge build-runnable` remains the
+The CLI accepts one nonblank local path with no surrounding whitespace and the
+exact lowercase `.zip` extension. Relative paths resolve from the process
+current working directory and become absolute, clean paths internally. Remote
+URLs, manifests, source resolution, and implicit builds are not accepted. The
+CLI does not inspect package filesystem identity. `forge build` remains the
+package-v1 identity/provenance command; `forge build-runnable` remains the
 explicit signed package-v2 producer.
 
 Both trust flags are required. The key must be an X.509 PKIX
@@ -297,10 +308,23 @@ local signed package v2
 â†’ cleanup
 ```
 
+The compiler ZIP reader owns filesystem existence/open failures, `Lstat`,
+symlink and non-regular rejection, stable identity resolution, open-handle
+`Stat`, `SameFile` binding, archive size, same-handle ZIP consumption, and
+handle closure. For one read, the regular non-symlink object selected
+immediately before open is the object represented by the handle used for
+`zip.NewReader`, bounded entry reads, signature and integrity verification,
+and detached package construction. The package pathname is not re-resolved
+after that handle is accepted.
+
 The strict runtime loader remains the sole authority for signature and
 integrity verification, Alpha bounded package reads, runnable-v2 structure,
 and host authorization. The CLI creates no second verifier, ZIP reader,
-verification policy, or build/source path.
+verification policy, or build/source path. After strict verification produces
+the detached result, the source ZIP path no longer participates in execution
+authority: materialization consumes copied executable bytes only, with no
+source path, inode, file index, or complete-ZIP digest retained as runtime
+authority.
 
 Child output is buffered until completion, with a 1 MiB limit independently
 for stdout and stderr. Retained stdout bytes go only to Forge stdout; retained
@@ -351,9 +375,17 @@ child, no live streaming, and no remote package acquisition.
 - Host PE/ELF/Mach-O family and architecture validation is implemented, but it
   is not malware analysis. Trust snapshot/revocation epoch semantics and
   start-time trust reauthorization are not implemented.
-- The same-user path-to-Start replacement window is not eliminated, and there
-  are no CPU, memory, process-count, filesystem, network, syscall, or privilege-
-  dropping sandbox controls.
+- Open-once package acquisition prevents directory-entry replacement from
+  redirecting verification after handle acceptance, but it is not an immutable
+  snapshot. A same-user process may still attempt in-place modification of the
+  already-open file; ZIP parsing, integrity, and signature checks remain the
+  content authority.
+- `ProcessRunner` revalidates the materialized executable's type, size, digest,
+  identity, target, and binary header before Start, but closes its validation
+  handle before OS pathname execution. Stronger validation-to-exec object
+  binding remains future architecture work.
+- There are no CPU, memory, process-count, filesystem, network, syscall, or
+  privilege-dropping sandbox controls.
 - Runtime trust is invocation-local with one key; persistent trust configuration
   and revocation policy are not implemented. Producer and run-side KeyID
   validation are not fully aligned on ASCII control characters.
