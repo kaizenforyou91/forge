@@ -225,6 +225,9 @@ func TestRunnableSigningKeyIDValidation(t *testing.T) {
 		"whitespace only":     " \t\r\n ",
 		"leading whitespace":  " forge-dev",
 		"trailing whitespace": "forge-dev ",
+		"control":             "forge\x1bdev",
+		"DEL":                 "forge\x7fdev",
+		"invalid UTF-8":       string([]byte{'f', 0xff}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			got, err := validateRunnableSigningKeyID(keyID)
@@ -232,6 +235,9 @@ func TestRunnableSigningKeyIDValidation(t *testing.T) {
 				t.Fatalf("expected empty rejected key ID, got %q", got)
 			}
 			requireRunnableSigningKeyError(t, err)
+			if !errors.Is(err, compiler.ErrInvalidKeyID) {
+				t.Fatalf("expected ErrInvalidKeyID, got %v", err)
+			}
 		})
 	}
 
@@ -242,6 +248,12 @@ func TestRunnableSigningKeyIDValidation(t *testing.T) {
 	}
 	if got != keyID {
 		t.Fatalf("expected exact key ID %q, got %q", keyID, got)
+	}
+
+	unicodeKeyID := "kunci-é-e\u0301"
+	got, err = validateRunnableSigningKeyID(unicodeKeyID)
+	if err != nil || got != unicodeKeyID {
+		t.Fatalf("Unicode key ID was not preserved exactly: got %q, err %v", got, err)
 	}
 }
 

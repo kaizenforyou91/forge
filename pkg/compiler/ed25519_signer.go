@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"strings"
 )
 
 // Ed25519Signer signs Forge package integrity metadata.
@@ -20,8 +19,12 @@ func NewEd25519Signer(
 	keyID string,
 	privateKey ed25519.PrivateKey,
 ) (*Ed25519Signer, error) {
-	if strings.TrimSpace(keyID) == "" {
-		return nil, ErrInvalidPackageSignature
+	if err := ValidateKeyID(keyID); err != nil {
+		return nil, fmt.Errorf(
+			"%w: invalid signing key ID: %w",
+			ErrInvalidPackageSignature,
+			err,
+		)
 	}
 
 	if len(privateKey) != ed25519.PrivateKeySize {
@@ -49,6 +52,14 @@ func NewEd25519Signer(
 func GenerateEd25519Signer(
 	keyID string,
 ) (*Ed25519Signer, error) {
+	if err := ValidateKeyID(keyID); err != nil {
+		return nil, fmt.Errorf(
+			"%w: invalid signing key ID: %w",
+			ErrInvalidPackageSignature,
+			err,
+		)
+	}
+
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf(

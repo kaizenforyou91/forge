@@ -82,6 +82,39 @@ func TestZIPPackagerWithSignerIncludesSignature(t *testing.T) {
 	}
 }
 
+func TestSignedZIPPackagePreservesExactUnicodeSignerKeyID(t *testing.T) {
+	const keyID = "kunci-\u00e9-e\u0301"
+	dir := t.TempDir()
+	path := filepath.Join(dir, "unicode-signer.zip")
+	signer, err := GenerateEd25519Signer(keyID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := NewTrustStore()
+	if err := store.Register(keyID, signer.public); err != nil {
+		t.Fatal(err)
+	}
+	verifier, err := NewEd25519VerifierWithTrustStore(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		path,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := NewZIPPackageReaderWithVerifier(verifier).ReadDetailed(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.VerifiedSignerKeyID != keyID {
+		t.Fatalf("verified signer KeyID = %q, want exact %q", result.VerifiedSignerKeyID, keyID)
+	}
+}
+
 func TestZIPPackageReaderWithVerifierAcceptsValidSignature(
 	t *testing.T,
 ) {
@@ -380,6 +413,42 @@ func TestSignedZIPPackageRejectsSignatureByteTampering(t *testing.T) {
 	_, _, err = NewZIPPackageReaderWithVerifier(verifier).Read(tamperedPath)
 	if !errors.Is(err, ErrSignatureMismatch) {
 		t.Fatalf("expected ErrSignatureMismatch, got %v", err)
+	}
+}
+
+func TestSignedZIPPackageRejectsInvalidSignatureKeyIDBeforeTrustRouting(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	tamperedPath := filepath.Join(dir, "invalid-key-id.zip")
+	signer, verifier := trustedTestSignerAndVerifier(t)
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readZIPEntriesForTest(t, validPath)
+	original := entries[signatureManifestPath]
+	changed := bytes.Replace(
+		original,
+		[]byte(`"key_id":"forge-dev"`),
+		[]byte(`"key_id":"forge\u001bdev"`),
+		1,
+	)
+	if bytes.Equal(changed, original) {
+		t.Fatal("signature fixture did not contain expected key ID")
+	}
+	entries[signatureManifestPath] = changed
+	writeZIPEntriesForTest(t, tamperedPath, entries)
+
+	_, _, err := NewZIPPackageReaderWithVerifier(verifier).Read(tamperedPath)
+	if !errors.Is(err, ErrInvalidPackageSignature) || !errors.Is(err, ErrInvalidKeyID) {
+		t.Fatalf("expected signature and KeyID errors, got %v", err)
+	}
+	if errors.Is(err, ErrUntrustedPackageKey) {
+		t.Fatalf("invalid signature KeyID reached trust routing: %v", err)
 	}
 }
 

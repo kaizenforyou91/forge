@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"unicode/utf8"
 )
 
 // MarshalPackageSignature serializes a package signature deterministically.
@@ -30,6 +31,13 @@ func MarshalPackageSignature(
 func UnmarshalPackageSignature(
 	data []byte,
 ) (PackageSignature, error) {
+	if !utf8.Valid(data) {
+		return PackageSignature{}, fmt.Errorf(
+			"%w: signature document is not valid UTF-8",
+			ErrInvalidPackageSignature,
+		)
+	}
+
 	if len(bytes.TrimSpace(data)) == 0 {
 		return PackageSignature{}, fmt.Errorf(
 			"%w: empty signature document",

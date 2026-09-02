@@ -149,6 +149,66 @@ func TestTrustStoreRejectsEmptyKeyID(t *testing.T) {
 			err,
 		)
 	}
+	if !errors.Is(err, ErrInvalidKeyID) {
+		t.Fatalf("expected ErrInvalidKeyID, got %v", err)
+	}
+}
+
+func TestTrustStoreNeverTrimsKeyIDs(t *testing.T) {
+	store := NewTrustStore()
+	publicKey := generateTestPublicKey(t)
+	if err := store.Register("team", publicKey); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, operation := range map[string]func() error{
+		"register": func() error { return store.Register(" team ", generateTestPublicKey(t)) },
+		"get":      func() error { _, err := store.Get(" team "); return err },
+		"remove":   func() error { return store.Remove(" team ") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := operation()
+			if !errors.Is(err, ErrInvalidTrustKey) || !errors.Is(err, ErrInvalidKeyID) {
+				t.Fatalf("expected trust and KeyID errors, got %v", err)
+			}
+		})
+	}
+	if store.Has(" team ") {
+		t.Fatal("Has silently trimmed an invalid key ID")
+	}
+	if _, err := store.Get("team"); err != nil {
+		t.Fatalf("invalid operations affected exact key: %v", err)
+	}
+}
+
+func TestTrustStorePreservesDistinctUnicodeKeyIDs(t *testing.T) {
+	store := NewTrustStore()
+	composed := "é"
+	decomposed := "e\u0301"
+	composedKey := generateTestPublicKey(t)
+	decomposedKey := generateTestPublicKey(t)
+
+	if err := store.Register(composed, composedKey); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Register(decomposed, decomposedKey); err != nil {
+		t.Fatal(err)
+	}
+	if composed == decomposed {
+		t.Fatal("test identifiers unexpectedly compare equal")
+	}
+
+	gotComposed, err := store.Get(composed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotDecomposed, err := store.Get(decomposed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotComposed.PublicKey, composedKey) || !reflect.DeepEqual(gotDecomposed.PublicKey, decomposedKey) {
+		t.Fatal("Unicode key IDs were normalized or mapped to the wrong key")
+	}
 }
 
 func TestTrustStoreRejectsInvalidPublicKey(t *testing.T) {

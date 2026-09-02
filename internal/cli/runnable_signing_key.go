@@ -94,12 +94,8 @@ func loadRunnableSigningPrivateKey(path string) (ed25519.PrivateKey, error) {
 }
 
 func validateRunnableSigningKeyID(keyID string) (string, error) {
-	trimmed := strings.TrimSpace(keyID)
-	if trimmed == "" {
-		return "", runnableSigningKeyError("signing key ID is required", nil)
-	}
-	if trimmed != keyID {
-		return "", runnableSigningKeyError("signing key ID must not contain surrounding whitespace", nil)
+	if err := compiler.ValidateKeyID(keyID); err != nil {
+		return "", runnableSigningKeyError("invalid signing key ID", err)
 	}
 
 	return keyID, nil

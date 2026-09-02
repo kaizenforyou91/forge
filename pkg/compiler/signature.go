@@ -4,7 +4,6 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"fmt"
-	"strings"
 )
 
 // PackageSigner signs package integrity metadata.
@@ -51,10 +50,11 @@ func (s PackageSignature) Validate() error {
 		)
 	}
 
-	if strings.TrimSpace(s.KeyID) == "" {
+	if err := ValidateKeyID(s.KeyID); err != nil {
 		return fmt.Errorf(
-			"%w: key ID is required",
+			"%w: invalid key ID: %w",
 			ErrInvalidPackageSignature,
+			err,
 		)
 	}
 

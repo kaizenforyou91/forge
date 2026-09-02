@@ -194,6 +194,7 @@ func TestRunTrustKeyIDValidation(t *testing.T) {
 		"NUL":                 "trusted\x00key",
 		"ESC":                 "trusted\x1bkey",
 		"DEL":                 "trusted\x7fkey",
+		"invalid UTF-8":       string([]byte{'t', 0xff}),
 	}
 	for name, keyID := range rejected {
 		t.Run(name, func(t *testing.T) {
@@ -202,6 +203,9 @@ func TestRunTrustKeyIDValidation(t *testing.T) {
 				t.Fatalf("expected empty rejected key ID, got %q", got)
 			}
 			requireRunTrustKeyError(t, err)
+			if !errors.Is(err, compiler.ErrInvalidKeyID) {
+				t.Fatalf("expected ErrInvalidKeyID, got %v", err)
+			}
 		})
 	}
 
@@ -212,6 +216,12 @@ func TestRunTrustKeyIDValidation(t *testing.T) {
 	}
 	if got != keyID {
 		t.Fatalf("expected exact key ID %q, got %q", keyID, got)
+	}
+
+	unicodeKeyID := "kunci-é-e\u0301"
+	got, err = validateRunTrustKeyID(unicodeKeyID)
+	if err != nil || got != unicodeKeyID {
+		t.Fatalf("Unicode key ID was not preserved exactly: got %q, err %v", got, err)
 	}
 }
 

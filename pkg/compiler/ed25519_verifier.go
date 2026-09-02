@@ -4,7 +4,6 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"fmt"
-	"strings"
 )
 
 // Ed25519Verifier verifies trusted Forge package signatures.
@@ -49,12 +48,11 @@ func (v *Ed25519Verifier) TrustKey(
 		v.trustStore = NewTrustStore()
 	}
 
-	keyID = strings.TrimSpace(keyID)
-
-	if keyID == "" {
+	if err := ValidateKeyID(keyID); err != nil {
 		return fmt.Errorf(
-			"%w: key ID is required",
+			"%w: invalid key ID: %w",
 			ErrInvalidPackageSignature,
+			err,
 		)
 	}
 

@@ -170,6 +170,9 @@ func TestBuildRunnableCommandSigningFailuresCreateNoOutput(t *testing.T) {
 		"noncanonical key ID": func(_ *testing.T, fixture buildRunnableFixture) (string, string) {
 			return fixture.keyPath, " " + buildRunnableTestKeyID
 		},
+		"control-character key ID": func(_ *testing.T, fixture buildRunnableFixture) (string, string) {
+			return fixture.keyPath, buildRunnableTestKeyID + "\x1b"
+		},
 		"malformed key": func(t *testing.T, fixture buildRunnableFixture) (string, string) {
 			path := filepath.Join(fixture.directory, "malformed.pem")
 			if err := os.WriteFile(path, []byte("not a PEM key"), 0o600); err != nil {
@@ -203,6 +206,10 @@ func TestBuildRunnableCommandSigningFailuresCreateNoOutput(t *testing.T) {
 			)
 			if !errors.Is(err, compiler.ErrInvalidPackageSignature) {
 				t.Fatalf("expected ErrInvalidPackageSignature, got %v", err)
+			}
+			if (keyID == "" || strings.ContainsRune(keyID, '\x1b') || strings.HasPrefix(keyID, " ")) &&
+				!errors.Is(err, compiler.ErrInvalidKeyID) {
+				t.Fatalf("expected ErrInvalidKeyID, got %v", err)
 			}
 			requireBuildCommandOutputAbsent(t, outputPath)
 			requireNoRunnableStagingDirectories(t, filepath.Dir(outputPath))

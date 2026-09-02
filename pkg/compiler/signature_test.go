@@ -110,6 +110,49 @@ func TestEd25519SignerRejectsEmptyKeyID(t *testing.T) {
 			err,
 		)
 	}
+	if !errors.Is(err, ErrInvalidKeyID) {
+		t.Fatalf("expected ErrInvalidKeyID, got %v", err)
+	}
+}
+
+func TestEd25519SignerRejectsNoncanonicalKeyIDs(t *testing.T) {
+	_, privateKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, keyID := range map[string]string{
+		"surrounding whitespace": " forge-dev ",
+		"control":                "forge\x1bdev",
+		"invalid UTF-8":          string([]byte{'f', 0xff}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := NewEd25519Signer(keyID, privateKey)
+			if !errors.Is(err, ErrInvalidPackageSignature) || !errors.Is(err, ErrInvalidKeyID) {
+				t.Fatalf("expected signature and KeyID errors, got %v", err)
+			}
+
+			_, err = GenerateEd25519Signer(keyID)
+			if !errors.Is(err, ErrInvalidPackageSignature) || !errors.Is(err, ErrInvalidKeyID) {
+				t.Fatalf("GenerateEd25519Signer: expected signature and KeyID errors, got %v", err)
+			}
+		})
+	}
+}
+
+func TestEd25519SignerPreservesUnicodeKeyID(t *testing.T) {
+	const keyID = "kunci-é-e\u0301"
+	signer, err := GenerateEd25519Signer(keyID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature, err := signer.Sign([]byte("payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if signature.KeyID != keyID {
+		t.Fatalf("key ID = %q, want exact %q", signature.KeyID, keyID)
+	}
 }
 
 func TestPackageSignatureValidate(t *testing.T) {
@@ -269,6 +312,63 @@ func TestUnmarshalPackageSignatureRejectsInvalidJSON(t *testing.T) {
 			"expected ErrInvalidPackageSignature, got %v",
 			err,
 		)
+	}
+}
+
+func TestUnmarshalPackageSignatureRejectsInvalidUTF8Document(t *testing.T) {
+	data := append([]byte(`{"version":1,"algorithm":"ed25519","key_id":"team`), 0xff)
+	data = append(data, []byte(`","public_key":"","signature":""}`)...)
+
+	_, err := UnmarshalPackageSignature(data)
+	if !errors.Is(err, ErrInvalidPackageSignature) {
+		t.Fatalf("expected ErrInvalidPackageSignature, got %v", err)
+	}
+	if errors.Is(err, ErrInvalidKeyID) {
+		t.Fatalf("raw document UTF-8 error was incorrectly classified as ErrInvalidKeyID: %v", err)
+	}
+}
+
+func TestUnmarshalPackageSignaturePreservesExactUnicodeKeyID(t *testing.T) {
+	for name, keyID := range map[string]string{
+		"composed":   "é",
+		"decomposed": "e\u0301",
+	} {
+		t.Run(name, func(t *testing.T) {
+			signer, err := GenerateEd25519Signer(keyID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			signature, err := signer.Sign([]byte("payload"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := MarshalPackageSignature(signature)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoded, err := UnmarshalPackageSignature(data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decoded.KeyID != keyID {
+				t.Fatalf("decoded key ID = %q, want exact %q", decoded.KeyID, keyID)
+			}
+		})
+	}
+}
+
+func TestUnmarshalPackageSignatureRejectsNoncanonicalKeyID(t *testing.T) {
+	for name, encodedKeyID := range map[string]string{
+		"surrounding whitespace": ` team `,
+		"escaped control":        `team\u001bkey`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			data := []byte(`{"version":1,"algorithm":"ed25519","key_id":"` + encodedKeyID + `","public_key":"","signature":""}`)
+			_, err := UnmarshalPackageSignature(data)
+			if !errors.Is(err, ErrInvalidPackageSignature) || !errors.Is(err, ErrInvalidKeyID) {
+				t.Fatalf("expected signature and KeyID errors, got %v", err)
+			}
+		})
 	}
 }
 
@@ -445,6 +545,26 @@ func TestEd25519VerifierRejectsWrongTrustedKey(t *testing.T) {
 	}
 }
 
+func TestEd25519VerifierRejectsInvalidSignatureKeyIDBeforeTrustLookup(t *testing.T) {
+	signer, err := GenerateEd25519Signer("forge-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature, err := signer.Sign([]byte("payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature.KeyID = "forge\ninvalid"
+
+	err = NewEd25519Verifier().Verify([]byte("payload"), signature)
+	if !errors.Is(err, ErrInvalidPackageSignature) || !errors.Is(err, ErrInvalidKeyID) {
+		t.Fatalf("expected signature and KeyID errors, got %v", err)
+	}
+	if errors.Is(err, ErrUntrustedPackageKey) {
+		t.Fatalf("invalid KeyID reached trust routing: %v", err)
+	}
+}
+
 func TestEd25519VerifierRejectsMalformedSignature(t *testing.T) {
 	signer, err := GenerateEd25519Signer("forge-dev")
 	if err != nil {
@@ -517,5 +637,31 @@ func TestPackageSignatureRejectsWhitespaceKeyID(t *testing.T) {
 			"expected ErrInvalidPackageSignature, got %v",
 			err,
 		)
+	}
+}
+
+func TestPackageSignatureRejectsInvalidKeyIDs(t *testing.T) {
+	signer, err := GenerateEd25519Signer("forge-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature, err := signer.Sign([]byte("payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, keyID := range map[string]string{
+		"surrounding whitespace": " forge-dev ",
+		"control":                "forge\x00dev",
+		"invalid UTF-8":          string([]byte{'f', 0xff}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			invalid := signature
+			invalid.KeyID = keyID
+			err := invalid.Validate()
+			if !errors.Is(err, ErrInvalidPackageSignature) || !errors.Is(err, ErrInvalidKeyID) {
+				t.Fatalf("expected signature and KeyID errors, got %v", err)
+			}
+		})
 	}
 }

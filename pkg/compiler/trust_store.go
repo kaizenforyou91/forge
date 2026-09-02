@@ -2,8 +2,8 @@ package compiler
 
 import (
 	"crypto/ed25519"
+	"fmt"
 	"sort"
-	"strings"
 	"sync"
 )
 
@@ -32,7 +32,7 @@ func NewTrustStore() *TrustStore {
 // Register adds a trusted public key.
 //
 // Register rejects:
-//   - empty key IDs
+//   - invalid key IDs
 //   - invalid public key lengths
 //   - duplicate key IDs
 func (s *TrustStore) Register(
@@ -43,9 +43,8 @@ func (s *TrustStore) Register(
 		return ErrNilTrustStore
 	}
 
-	keyID = strings.TrimSpace(keyID)
-	if keyID == "" {
-		return ErrInvalidTrustKey
+	if err := ValidateKeyID(keyID); err != nil {
+		return invalidTrustKeyIDError(err)
 	}
 
 	if len(publicKey) != ed25519.PublicKeySize {
@@ -77,9 +76,8 @@ func (s *TrustStore) Get(
 		return TrustedKey{}, ErrNilTrustStore
 	}
 
-	keyID = strings.TrimSpace(keyID)
-	if keyID == "" {
-		return TrustedKey{}, ErrInvalidTrustKey
+	if err := ValidateKeyID(keyID); err != nil {
+		return TrustedKey{}, invalidTrustKeyIDError(err)
 	}
 
 	s.mu.RLock()
@@ -105,8 +103,7 @@ func (s *TrustStore) Has(keyID string) bool {
 		return false
 	}
 
-	keyID = strings.TrimSpace(keyID)
-	if keyID == "" {
+	if ValidateKeyID(keyID) != nil {
 		return false
 	}
 
@@ -125,9 +122,8 @@ func (s *TrustStore) Remove(keyID string) error {
 		return ErrNilTrustStore
 	}
 
-	keyID = strings.TrimSpace(keyID)
-	if keyID == "" {
-		return ErrInvalidTrustKey
+	if err := ValidateKeyID(keyID); err != nil {
+		return invalidTrustKeyIDError(err)
 	}
 
 	s.mu.Lock()
@@ -180,4 +176,8 @@ func (s *TrustStore) List() []TrustedKey {
 // The returned slice and public keys do not alias the store.
 func (s *TrustStore) Snapshot() []TrustedKey {
 	return s.List()
+}
+
+func invalidTrustKeyIDError(cause error) error {
+	return fmt.Errorf("%w: invalid key ID: %w", ErrInvalidTrustKey, cause)
 }

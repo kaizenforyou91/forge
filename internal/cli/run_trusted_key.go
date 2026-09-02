@@ -100,17 +100,8 @@ func loadRunTrustedPublicKey(path string) (ed25519.PublicKey, error) {
 }
 
 func validateRunTrustKeyID(keyID string) (string, error) {
-	trimmed := strings.TrimSpace(keyID)
-	if trimmed == "" {
-		return "", runTrustedKeyError("trusted key ID is required", nil)
-	}
-	if trimmed != keyID {
-		return "", runTrustedKeyError("trusted key ID must not contain surrounding whitespace", nil)
-	}
-	for _, character := range keyID {
-		if character <= 0x1f || character == 0x7f {
-			return "", runTrustedKeyError("trusted key ID must not contain ASCII control characters", nil)
-		}
+	if err := compiler.ValidateKeyID(keyID); err != nil {
+		return "", runTrustedKeyError("invalid trusted key ID", err)
 	}
 
 	return keyID, nil
