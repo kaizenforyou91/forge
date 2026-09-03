@@ -74,6 +74,10 @@
   runtime composition through strict loading, host authorization, secure
   materialization, direct-child execution, Wait/reap, bounded output, and
   cleanup.
+- Added independent `acceptance (ubuntu-latest)` and
+  `acceptance (windows-latest)` CI checks with matrix `fail-fast: false`.
+- Added a focused `race (ubuntu-latest)` CI check for `pkg/compiler`, `runtime`,
+  and `internal/cli`.
 
 ## Changed
 
@@ -91,8 +95,8 @@
 - Unsupported package and bundle versions now fail closed.
 - Package compatibility and tamper behavior are now explicit, with reader error
   precedence hardened at security boundaries.
-- Package Format Stabilization is now a completed technical checkpoint within
-  ongoing Phase 6 package pipeline hardening.
+- Package Format Stabilization is a completed technical checkpoint within the
+  now-closed bounded Phase 6 compiler/package/runnable pipeline.
 - The package reader now explicitly dispatches the supported `(1,1)` and
   `(2,2)` package-format/bundle-schema pairs.
 - Integrity validation is schema-aware internally while integrity schema 2 and
@@ -145,10 +149,10 @@
 - Manifest entrypoint metadata remains build intent rather than runtime trust
   authorization; runtime authority still begins at strict signed-package
   verification.
-- Manifest Application Entrypoint is complete as a technical checkpoint;
-  User-Facing Runnable Workflow is also complete while Phase 6 remains in
-  progress. The `forge run` Architecture Review, support primitives, explicit
-  trusted command, and formal closure are completed checkpoints.
+- Manifest Application Entrypoint and User-Facing Runnable Workflow are
+  complete technical checkpoints. The `forge run` Architecture Review,
+  support primitives, explicit trusted command, and formal closure are also
+  completed checkpoints.
 - `forge build-runnable` uses immutable `PrepareManifestAdmission` evidence and
   requires its admitted application entrypoint without publishing package or
   source candidates into shared registries.
@@ -174,6 +178,24 @@
 - `forge run` package input now owns lexical/local path policy only; filesystem
   existence and object identity are delegated to the compiler reader. Trust
   validation can therefore precede package filesystem loading.
+- One exact KeyID validator now governs `build-runnable`, the signer,
+  `PackageSignature`, `TrustStore`, verifier, and `forge run`. KeyIDs must be
+  valid nonempty UTF-8 without surrounding Unicode whitespace, ASCII controls
+  U+0000 through U+001F, or U+007F; other Unicode remains exact. TrustStore no
+  longer trims identifiers, and no case folding or Unicode normalization is
+  applied.
+- All supported package JSON documents now use one shared strict structural
+  decoder: `package.json`, bundle schemas v1 and v2, `integrity.json`, and
+  `signature.json` require valid raw UTF-8, one object followed only by JSON
+  whitespace, recursive duplicate-key rejection, unknown-field rejection, and
+  domain/schema validation afterward.
+- Package JSON hardening is a Pre-Alpha compatibility tightening. Canonical v1
+  and v2 writer output remains accepted; schema versions, serialized layouts,
+  hashing, Ed25519, and exact-byte signature payloads are unchanged, with no
+  verification-time canonicalization or reserialization.
+- Phase 6 — Compiler / Package Pipeline Hardening is CLOSED / PASS for the
+  bounded Pre-Alpha / First Alpha compiler-package-runnable pipeline. This is
+  not a Beta, production-readiness, or all-hardening claim.
 
 ## Security
 
@@ -197,6 +219,9 @@
   acceptance. This is not an immutable snapshot; same-user in-place mutation
   and the materialized validation-handle-close-to-OS-exec race remain separate
   hardening debt.
+- Raw invalid UTF-8 in package documents, including `signature.json`, is
+  rejected before `encoding/json` can repair malformed bytes. Exact stored
+  `integrity.json` bytes remain the Ed25519 verification payload.
 
 ## Tests
 
@@ -277,14 +302,19 @@
   non-nil `ProcessState`, and direct-child PID evidence instead of treating
   `ProcessState.Exited()` as reap proof for signal-terminated children. No
   production ProcessRunner behavior changed; Ubuntu GitHub Actions is green.
+- Added package-document matrices covering object roots, unknown fields,
+  recursive duplicates, trailing content, malformed raw UTF-8, canonical
+  writer output, v1/v2 round trips, and security error precedence.
+- CI acceptance now runs `go mod tidy` plus dependency-file diff, `go list`,
+  vet, uncached full tests, and full builds on Ubuntu and Windows. The first
+  hosted Windows acceptance passed on Windows Server 2025 with Go 1.26.7 on
+  windows/amd64; focused Ubuntu race acceptance also passed.
 
 ## Known Limitations
 
 - Legacy package inspection and migration tooling are not implemented.
 - Only the explicit package-format/bundle-schema pairs `(1,1)` and `(2,2)` are
   supported; broader compatibility and migration tooling do not exist.
-- The v1 bundle codec and integrity/signature document decoders remain
-  permissive toward unknown and duplicate fields.
 - `forge build` still emits package format 1; signed runnable package-v2
   creation is the separate explicit `forge build-runnable` workflow.
 - Manifest decoding has no strict unknown-field guarantee, JSON duplicate keys
@@ -299,8 +329,9 @@
   guaranteed reproducible across toolchains.
 - Runtime package ingestion has fixed Alpha byte and entry ceilings. Process
   memory/CPU controls and runtime sandboxing are not implemented.
-- Advanced Windows ACL/reparse hardening for materialized executables is not
-  complete.
+- Advanced Windows ACL/reparse/share-mode hardening for materialized
+  executables is not complete, and some Windows symlink security fixtures
+  remain capability-dependent.
 - Runnable signing-key files are permission-checked on Unix, but Windows ACL
   validation is not implemented; filesystems without hard-link support cannot
   publish runnable output and fail safely.
@@ -309,13 +340,15 @@
   reauthorization are not implemented.
 - Open-once package selection does not provide immutable-snapshot protection
   against same-user in-place modification of the accepted file.
-- ProcessRunner closes its validation handle before OS pathname execution;
-  stronger materialized validation-to-exec binding remains future work.
+- ProcessRunner closes its validation handle before OS pathname execution. The
+  architecture review is complete; stronger materialized validation-to-exec
+  binding implementation remains deferred technical debt.
 - No process resource isolation or filesystem/network/syscall sandbox exists.
-- Runtime trust is command-local and limited to one explicit key per invocation;
-  persistent trust configuration and remote package acquisition are absent.
-- Producer/run KeyID control-character policy, cross-platform signal acceptance,
-  and command-level Start/Wait/Close/output fault injection remain technical
+- Runtime trust is command-local and limited to one explicit key per
+  invocation; persistent trust configuration, multiple configured trusted
+  keys, rotation/revocation, and remote package acquisition are absent.
+- Cross-platform signal acceptance, package-handle Close failure injection,
+  and command-level Start/Wait/Close/output fault-injection seams remain test
   debt.
 - Remote package registry is not implemented.
 - No-integrity mode provides structural validation without cryptographic tamper
@@ -325,7 +358,10 @@
 - Strict cross-registry atomicity is not guaranteed.
 - Process-crash atomicity is not guaranteed.
 - Full concurrent-build isolation is not guaranteed.
-- Same-output-path concurrency remains unresolved.
+- `build-runnable` uses same-filesystem staging and atomic hard-link no-replace
+  publication: one concurrent publisher may win, and existing targets are not
+  overwritten. Broader generic/full-build coordination and global
+  multi-process output ownership remain unresolved.
 - Forge remains Pre-Alpha and is not production-ready.
 
 ## FW-030 — Manifest Engine Foundation
@@ -388,7 +424,8 @@ This project follows **Semantic Versioning**.
 - Compiler package-format production hardening, legacy tooling, and optimization
 - Build isolation, process resource controls, dependency provenance, and
   reproducibility hardening
-- Materialized executable validation-to-exec race hardening review
+- Materialized executable validation-to-exec hardening implementation
+  (architecture review complete; implementation deferred)
 - Process-tree/descendant lifecycle, graceful shutdown, and optional Windows Job
   Object or Unix process-group policy
 - Richer arguments/environment/working-directory contracts, process resource

@@ -185,7 +185,7 @@ Capabilities:
 
 Status:
 
-Planned
+Closed / Pass for the bounded Pre-Alpha compiler/package/runnable pipeline
 
 ---
 
@@ -296,7 +296,8 @@ Compiler
 
 Status:
 
-Planned
+Closed / Pass for the bounded Pre-Alpha compiler/package/runnable scope;
+broader compiler capabilities remain planned
 
 ---
 
@@ -348,7 +349,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 3 — Manifest Engine | ✅ Complete |
 | Phase 4 — Validation Engine | 🔄 Partial Foundation in Manifest Layer / Dedicated Validation Engine Not Started |
 | Phase 5 — Registry | 🔄 Foundation Complete / In Progress |
-| Phase 6 — Compiler | 🔄 Foundation Complete / Package Pipeline Hardening In Progress |
+| Phase 6 — Compiler | ✅ CLOSED / PASS — bounded Pre-Alpha compiler/package/runnable pipeline |
 | Phase 7 — Runtime | 🔄 Foundation Complete / In Progress |
 | Phase 8 — AI Runtime | ⏳ Not Started |
 
@@ -511,6 +512,27 @@ assigning new milestone or task identifiers:
 - Linux runtime reaping tests now use portable `cmd.Wait`/`ProcessState`
   evidence for signal-terminated children; no production ProcessRunner
   lifecycle change was required, and Ubuntu GitHub Actions is green.
+- Exact KeyID Alignment establishes one valid-UTF-8, nonempty,
+  non-trimming, non-normalizing identifier contract across `build-runnable`,
+  the signer, `PackageSignature`, `TrustStore`, verifier, and `forge run`.
+  Surrounding Unicode whitespace and ASCII controls U+0000 through U+001F and
+  U+007F are rejected; all other Unicode identity remains exact.
+- Secondary-Document Strict JSON Alignment applies one shared structural
+  contract to `package.json`, bundle schemas v1 and v2, `integrity.json`, and
+  `signature.json`: valid raw UTF-8, one object, trailing whitespace only,
+  recursive duplicate rejection, unknown-field rejection, and subsequent
+  domain/schema validation. This subsumes the signature-specific invalid-UTF-8
+  guard by rejecting malformed raw bytes before JSON repair. Canonical writer
+  bytes, schema versions, hashes, and signature payloads remain unchanged.
+- Linux / Windows Continuous Acceptance adds independent Ubuntu and Windows
+  matrix checks with dependency cleanliness, package enumeration, vet, full
+  uncached tests, and full builds. A separate focused Ubuntu race check covers
+  `pkg/compiler`, `runtime`, and `internal/cli`; the first hosted Windows run
+  passed on Windows Server 2025 with Go 1.26.7 on windows/amd64.
+- Phase 6 Compiler / Package Pipeline Hardening Formal Closure accepts the
+  bounded Pre-Alpha / First Alpha implementation as technically complete with
+  no implementation blocker. Residual hardening, testing debt, and future
+  capabilities remain explicit and do not reopen Phase 6.
 
 ## Current Implemented Foundation
 
@@ -551,6 +573,11 @@ Forge currently provides:
 - Integrity schema v2 with exact package metadata, bundle, and payload binding
 - Signature schema v1 with Ed25519 signing and verification
 - Trust store and verification policy
+- One exact KeyID contract across producers, serialized signatures, trust
+  routing, verification, and execution, without trimming, case folding, or
+  Unicode normalization
+- One strict package-document JSON contract across `package.json`, bundle v1,
+  bundle v2, `integrity.json`, and `signature.json`
 - Versioned ZIP package read-back with explicit `(1,1)` and `(2,2)` dispatch
 - Legacy package rejection and package tamper/downgrade hardening
 - Runnable application metadata with `RuntimeDescriptor`, logical entrypoint,
@@ -588,6 +615,9 @@ Forge currently provides:
 - Predictable admission failures without persistent candidate mutation
 - Accepted admission state retained after downstream failures
 - Shared-application repeated deterministic builds
+- Continuous Ubuntu and Windows acceptance with dependency-cleanliness, list,
+  vet, full-test, and full-build gates, plus a focused Ubuntu race gate for the
+  compiler/runtime/CLI boundary
 
 ## Phase 5 — Registry Foundation
 
@@ -628,6 +658,14 @@ Implemented foundation:
 - Integrity schema v2 with exact package metadata, bundle, and payload binding.
 - Signature schema v1 with Ed25519 signing and verification, trust store, and
   verification policy.
+- One exact KeyID validator shared by `build-runnable`, the signer,
+  `PackageSignature`, `TrustStore`, verifier, and `forge run`. TrustStore
+  routing preserves exact Go-string identity and performs no trimming, case
+  folding, or Unicode normalization.
+- Shared strict JSON decoding for `package.json`, bundle schema v1, bundle
+  schema v2, `integrity.json`, and `signature.json`, including raw UTF-8,
+  object-root, single-value, recursive duplicate-key, unknown-field, and
+  trailing-whitespace enforcement before domain/schema validation.
 - Versioned ZIP read-back with explicit `(1,1)` and `(2,2)` dispatch.
 - Legacy/unversioned package rejection and current-format tamper/downgrade
   hardening.
@@ -680,35 +718,57 @@ Implemented foundation:
 - No persistent candidate mutation for predictable admission failures.
 - Accepted registration remains committed after downstream execution or package
   failure.
+- Continuous `acceptance (ubuntu-latest)` and `acceptance (windows-latest)`
+  gates with `fail-fast: false`, dependency-file cleanliness, `go list`, vet,
+  full uncached tests, and full builds.
+- Focused `race (ubuntu-latest)` coverage for `pkg/compiler`, `runtime`, and
+  `internal/cli`.
+- Formal technical closure of Phase 6 for the bounded Pre-Alpha / First Alpha
+  compiler-package-runnable pipeline.
 
-Remaining work:
+Status: **CLOSED / PASS for the bounded Pre-Alpha / First Alpha scope.** This
+does not mean Beta readiness, production readiness, completion of all security
+hardening, or completion of future compiler and runtime capabilities.
 
-- Secondary-document strict JSON decoding.
+Deferred hardening and test debt (does not reopen Phase 6):
+
+- Same-user coherent in-place mutation of an already-open package remains
+  outside immutable-snapshot guarantees; package parsing, integrity, and
+  signatures remain authoritative.
+- The materialized executable validation-to-exec architecture review is
+  complete; stronger object-bound execution implementation remains deferred.
+- Windows ACL, reparse-point, and share-mode hardening, plus
+  capability-dependent Windows package-symlink coverage.
+- Direct package-handle Close failure injection and command-level
+  Start/Wait/Close/output-write failure-injection seams.
+- Cross-toolchain golden validation, reproducibility hardening, and build
+  environment isolation.
+- Strict cross-registry transaction visibility and process-crash recovery
+  between registry commits.
+- Concurrent full-build isolation and broader generic/full-build output-path
+  coordination. `build-runnable` already uses same-filesystem staging and
+  atomic hard-link no-replace publication: one concurrent publisher may win,
+  while existing targets are not overwritten.
+- Manifest decoder strictness remains separate from the completed package-
+  document strictness contract.
+
+Future capabilities (do not keep Phase 6 open):
+
 - Legacy inspection and migration tooling.
-- Compatibility beyond the explicitly supported `(1,1)` and `(2,2)` pairs if
-  required.
-- Cross-toolchain golden archive validation.
-- Same-user in-place mutation of an already-open package remains outside
-  immutable-snapshot guarantees; package parsing, integrity, and signatures
-  remain authoritative.
-- Stronger materialized executable validation-to-exec object binding.
-- Windows package-symlink fixtures require symlink privilege, and direct
-  package-handle close-failure injection remains test debt.
-- Producer/run KeyID validation alignment and command-level Start/Wait/Close/
-  output-write fault injection.
-- Process-tree/descendant lifecycle, graceful termination, and platform policy
-  for Windows Job Objects or Unix process groups if selected.
-- Richer argument, environment, and working-directory contracts if selected,
-  plus process memory/CPU limits, sandboxing, and other execution controls.
-- Trust snapshot/revocation and start-time authorization policy.
-- Dependency provenance and SBOM support for runnable packages.
-- Build isolation and cross-toolchain reproducibility hardening.
-- Compiler optimization.
-- Remote registry negotiation and package acquisition.
-- Strict cross-registry transaction visibility.
-- Process-crash recovery between registry commits.
-- Concurrent full-build isolation.
-- Same-output-path concurrency coordination.
+- Package-format compatibility or future schemas beyond the explicitly
+  supported `(1,1)` and `(2,2)` pairs.
+- Persistent trust, multiple configured trusted keys, rotation, revocation,
+  trust snapshots, and start-time reauthorization.
+- Source-content and repository-commit provenance, dependency provenance, and
+  SBOM support.
+- Runtime arguments, caller environment, stdin, caller working directory, and
+  live streaming.
+- Process-tree/descendant lifecycle, graceful shutdown protocols, and Windows
+  Job Object or Unix process-group policy.
+- Sandboxing and CPU, memory, process-count, filesystem, network, syscall, and
+  privilege controls.
+- Compiler optimization, remote registry negotiation and package acquisition,
+  scheduler work, and AI runtime capabilities.
 
 ## Evidence-Based Current Roadmap Position
 
@@ -733,7 +793,13 @@ Pre-Alpha
 → CLI Package Preflight Simplification: Completed
 → TOCTOU Hardening Formal Closure: Completed
 → Runtime Reaping CI Portability Defect: Resolved
-→ Materialized Executable Validation-to-Exec Race Hardening Review: Next
+→ Exact KeyID Alignment: Completed
+→ Secondary-Document Strict JSON Alignment: Completed
+→ Linux / Windows Acceptance Matrix: Completed
+→ Focused Ubuntu Race Gate: Completed
+→ Materialized Executable Validation-to-Exec Architecture Review: Completed
+→ Materialized Executable Validation-to-Exec Implementation: Deferred
+→ Phase 6 Compiler / Package Pipeline Hardening: CLOSED / PASS
 ```
 
 Completed checkpoints: **Manifest Admission Hardening**, **Package Format
@@ -745,13 +811,18 @@ Review**, **Trusted Run Support Primitives**, **Explicit Trusted forge run
 Command**, **forge run Formal Closure**, **Package / Materialization TOCTOU
 Hardening Architecture Review**, **Atomic Package-Open Identity Binding**,
 **CLI Package Preflight Simplification**, and **TOCTOU Hardening Formal
-Closure**.
+Closure**, **Exact KeyID Alignment**, **Secondary-Document Strict JSON
+Alignment**, **Linux / Windows Continuous Acceptance**, and the **Phase 6
+Compiler / Package Pipeline Hardening Formal Closure Review**.
 
 `forge run` is completed for its narrow Pre-Alpha boundary: existing local
 signed runnable package v2, one explicit command-local trusted Ed25519 public
 key and KeyID, strict runtime verification, host-only authorization, secure
 materialization, one direct child, Wait/reap, bounded output, cleanup, and exact
-child/cancellation exit mapping. Phase 6 remains in progress.
+child/cancellation exit mapping. Phase 6 is **CLOSED / PASS** for this bounded
+Pre-Alpha / First Alpha compiler-package-runnable pipeline. This closure does
+not mean Beta or production readiness and does not erase the deferred
+hardening and future-capability work listed above.
 
 The frozen grammar is `forge run <package.zip> --trusted-key
 <public-key.pem> --key-id <key-id>`. It accepts one local regular, non-symlink
@@ -775,10 +846,11 @@ containment, graceful shutdown guarantee, or production-safety claim.
 Package-selection TOCTOU hardening is complete for the current Alpha boundary.
 It does not claim an immutable package snapshot: same-user in-place mutation of
 the accepted file remains bounded by ZIP, integrity, and signature validation.
-The next architecture focus is **Materialized Executable Validation-to-Exec
-Race Hardening Architecture Review**. This is a review target, not an approved
-implementation or an expansion to arguments, environment, stdin, sandboxing,
-process-tree containment, or resource controls.
+The **Materialized Executable Validation-to-Exec Race Hardening Architecture
+Review** is complete, and implementation remains deferred technical debt. It
+is not an active Phase-6 implementation and does not authorize expansion to
+arguments, environment, stdin, sandboxing, process-tree containment, or
+resource controls.
 
 ## Remaining Platform Work
 
@@ -791,7 +863,8 @@ The following capabilities remain future work:
 - Package-format production hardening and legacy tooling
 - Compiler optimization, build isolation, process resource controls, dependency
   provenance, and reproducibility hardening
-- Materialized executable validation-to-exec race hardening review
+- Materialized executable validation-to-exec implementation (architecture
+  review complete; implementation deferred)
 - Process-tree/descendant lifecycle, graceful shutdown, and optional Windows Job
   Object or Unix process-group policy
 - Richer arguments/environment/working-directory contracts, process resource

@@ -58,7 +58,7 @@ or production-stable.
 | Manifest Engine | ✅ Complete |
 | Validation Engine | 🚧 Partial Manifest-Layer Foundation |
 | Registry | 🚧 Foundation Complete / In Progress |
-| Compiler | 🚧 Foundation Complete / Package Pipeline Hardening |
+| Compiler | CLOSED / PASS — Phase 6 bounded Pre-Alpha pipeline |
 | Runtime | 🚧 Foundation Complete / In Progress |
 | Plugin System | 🚧 Foundation Complete / In Progress |
 | AI Runtime | ⏳ Planned |
@@ -82,6 +82,11 @@ The current tested foundation includes:
   workflow.
 - Explicit reader dispatch for package format/bundle schema pairs `(1,1)` and
   `(2,2)`.
+- Package format 1 / bundle schema 1 remains the supported readable
+  identity/provenance format and is non-runnable. Package format 2 / bundle
+  schema 2 is the supported runnable application format. Crossed,
+  unsupported, and future pairs fail closed; integrity remains schema 2 and
+  signatures remain schema 1.
 - `forge build` remains on package format v1 and bundle schema v1, with
   identity/provenance artifact payloads.
 - Package format v2 and bundle schema v2 define runnable application packages
@@ -93,6 +98,14 @@ The current tested foundation includes:
   signature schema v1.
 - Exact-byte integrity binding for package metadata, bundles, and artifact
   payloads.
+- One strict structural JSON contract covers `package.json`, bundle schema v1,
+  bundle schema v2, `integrity.json`, and `signature.json`: raw bytes must be
+  valid UTF-8, the root must be one object followed only by JSON whitespace,
+  duplicate member names are rejected recursively, unknown fields are
+  rejected, and domain/schema validation follows structural decoding.
+- Strict package-document decoding does not canonicalize or reserialize
+  verification inputs. The exact stored `package.json`, `bundle.json`, artifact,
+  and `integrity.json` bytes remain the hashing and signature authority.
 - Verified read-back of real executable package payloads; optional trusted
   signatures authenticate their integrity transitively.
 - Strict trust-store-backed signature verification and configurable verification
@@ -138,10 +151,15 @@ The current tested foundation includes:
   exits remain process results; context cancellation and immediate manual
   direct-child termination retain distinct result evidence, and pending cleanup
   runs after reap when `Close` was requested.
-- Linux CI tests for signal-terminated children use portable `cmd.Wait` and
+- Linux tests for signal-terminated children use portable `cmd.Wait` and
   matching `ProcessState` PID evidence rather than treating
   `ProcessState.Exited()` as reap proof; this was a test portability correction,
   not a production ProcessRunner lifecycle change.
+- Continuous CI runs independent `acceptance (ubuntu-latest)` and
+  `acceptance (windows-latest)` checks plus `race (ubuntu-latest)`. Acceptance
+  enforces dependency-file cleanliness, package enumeration, vet, uncached
+  full tests, and a full build; the focused race check covers `pkg/compiler`,
+  `runtime`, and `internal/cli`.
 - The real production path is proven end to end from a trusted signed package
   through strict loading, secure materialization, direct child execution,
   deterministic result capture, and explicit cleanup.
@@ -181,11 +199,58 @@ Manifest Admission Hardening, Package Format Stabilization, Runnable Package
 Contract R1A, Real Executable Output R1B, Verified Runtime Package Loader R2A,
 Secure Executable Materialization R2B, the direct-child Process Runner, and the
 Manifest Application Entrypoint and User-Facing Runnable Workflow are
-implemented and validated technical checkpoints. Phase 6 and the Compiler
-remain in progress. The `forge run` Architecture Review, trusted-run
-primitives, explicit command, and formal closure are completed checkpoints.
+implemented and validated technical checkpoints. **Phase 6 — Compiler /
+Package Pipeline Hardening is CLOSED / PASS for the bounded Pre-Alpha / First
+Alpha compiler-package-runnable pipeline.** The `forge run` Architecture
+Review, trusted-run primitives, explicit command, and formal closure are
+completed checkpoints.
 The package-selection TOCTOU review, atomic package-open identity binding, CLI
 preflight simplification, and formal hardening closure are also complete.
+
+This bounded closure does not make Forge Beta or production-ready, and it does
+not complete all future compiler, runtime, trust, provenance, isolation, or
+security-hardening work.
+
+## Package Identity and Parsing Contracts
+
+Forge supports exactly these package-format/bundle-schema pairs:
+
+| Package format | Bundle schema | Current contract |
+|---|---|---|
+| 1 | 1 | Readable identity/provenance package; non-runnable |
+| 2 | 2 | Runnable `application_executable` package |
+
+All other pairs fail closed. Integrity schema 2 and signature schema 1 remain
+the only supported security-document versions.
+
+The package documents `package.json`, bundle v1, bundle v2, `integrity.json`,
+and `signature.json` share one strict decoding contract: valid raw UTF-8, one
+top-level JSON object, only trailing JSON whitespace, recursive duplicate-key
+rejection, unknown-field rejection, and domain/schema validation afterward.
+Valid canonical Forge v1 and v2 writer output remains accepted. Verification
+uses the exact ZIP-stored bytes; decoding never reserializes documents for
+hashing or signature verification.
+
+One exact KeyID contract applies from `forge build-runnable` through the signer,
+`PackageSignature`, `TrustStore`, verifier, and `forge run`. A KeyID must be a
+nonempty valid UTF-8 Go string, must have no surrounding Unicode whitespace,
+and must contain neither ASCII controls U+0000 through U+001F nor U+007F.
+Other Unicode is allowed. Forge does not trim, case-fold, or apply NFC/NFD or
+other normalization; trust routing uses exact Go-string identity.
+
+## Continuous Acceptance
+
+The required continuous checks are `acceptance (ubuntu-latest)`,
+`acceptance (windows-latest)`, and `race (ubuntu-latest)`. Both acceptance
+jobs run `go mod tidy` followed by a `go.mod`/`go.sum` cleanliness diff,
+`go list ./...`, `go vet ./...`, `go test ./... -count=1`, and
+`go build ./...`. The focused Ubuntu race job runs the compiler, runtime, and
+CLI package boundaries under the race detector.
+
+The first hosted Windows acceptance passed on Windows Server 2025 with Go
+1.26.7 on windows/amd64. Routine CI output is intentionally non-verbose, so
+this does not claim that every capability-dependent Windows symlink fixture
+executed rather than skipped.
 
 ## Manifest Runnable Contract
 
@@ -242,10 +307,10 @@ forge build-runnable <manifest> \
 
 The manifest must declare an application entrypoint. Signing is mandatory: the
 key file must be an unencrypted PKCS#8 PEM Ed25519 private key with PEM type
-`PRIVATE KEY`, no larger than 16 KiB, and the explicit KeyID must be nonblank
-without surrounding whitespace. The key path must name a regular, non-symlink
-file; owner-only permissions are enforced on Unix. Windows ACL validation is
-not currently claimed.
+`PRIVATE KEY`, no larger than 16 KiB, and the explicit KeyID must satisfy the
+exact package KeyID contract above. The key path must name a regular,
+non-symlink file; owner-only permissions are enforced on Unix. Windows ACL
+validation is not currently claimed.
 
 The command uses the process current working directory as its Go build working
 directory and targets the host `GOOS/GOARCH`; it has no working-directory or
@@ -259,7 +324,10 @@ working directory. Existing targets are never overwritten and there is no
 `--force` mode. Forge stages the package in the final parent directory,
 strictly verifies its signature and v2 runtime/artifact metadata under the
 fixed Alpha read limits, then publishes it atomically with no-replace hard-link
-semantics. Filesystems without required hard-link support fail safely.
+semantics. An existing target is never overwritten; if concurrent publishers
+select the same path, one may win and the others fail safely. Filesystems
+without required hard-link support fail safely. Broader generic/full-build
+coordination and a global multi-process ownership policy remain deferred.
 
 `build-runnable` creates a package only; it never executes its output. Signing
 authenticates the produced package bytes and metadata, but does not prove
@@ -290,10 +358,11 @@ SubjectPublicKeyInfo encoded as one `PUBLIC KEY` PEM block containing an
 Ed25519 public key. The regular, non-symlink file is limited to 16 KiB; because
 it is public material, owner-only permissions are not required. Certificates,
 private keys, alternate PEM types, and trailing data are rejected. KeyID is
-explicit rather than derived from the key or filename; it must be nonblank,
-contain no surrounding whitespace, and contain no ASCII control characters.
-Each invocation creates a command-local TrustStore holding exactly this one
-KeyID/key pair; no trust is persisted globally or in config.
+explicit rather than derived from the key or filename and follows the same
+exact, non-normalizing contract used by the producer, signature model,
+TrustStore, and verifier. Each invocation creates a command-local TrustStore
+holding exactly this one KeyID/key pair; no trust is persisted globally or in
+config.
 
 ```text
 local signed package v2
@@ -371,7 +440,8 @@ child, no live streaming, and no remote package acquisition.
 - Runtime package ingestion has fixed Alpha byte and entry ceilings. Process
   memory/CPU controls and runtime sandboxing are not implemented.
 - Advanced Windows ACL/reparse hardening for materialized executables is not
-  complete.
+  complete. Windows share-mode behavior and capability-dependent symlink
+  security fixtures also remain bounded platform-hardening and coverage debt.
 - Host PE/ELF/Mach-O family and architecture validation is implemented, but it
   is not malware analysis. Trust snapshot/revocation epoch semantics and
   start-time trust reauthorization are not implemented.
@@ -382,15 +452,17 @@ child, no live streaming, and no remote package acquisition.
   content authority.
 - `ProcessRunner` revalidates the materialized executable's type, size, digest,
   identity, target, and binary header before Start, but closes its validation
-  handle before OS pathname execution. Stronger validation-to-exec object
-  binding remains future architecture work.
+  handle before OS pathname execution. Its architecture review is complete;
+  stronger validation-to-exec object binding remains explicitly deferred
+  technical debt.
 - There are no CPU, memory, process-count, filesystem, network, syscall, or
   privilege-dropping sandbox controls.
-- Runtime trust is invocation-local with one key; persistent trust configuration
-  and revocation policy are not implemented. Producer and run-side KeyID
-  validation are not fully aligned on ASCII control characters.
-- Exact cross-platform terminal signal acceptance and command-level fault
-  injection for Start, Wait, Close, and output-write failures remain test debt.
+- Runtime trust is invocation-local with one key; persistent trust
+  configuration, multiple configured keys, rotation, and revocation policy are
+  not implemented.
+- Exact cross-platform terminal signal acceptance, package-handle Close failure
+  injection, and command-level fault injection for Start, Wait, Close, and
+  output-write failures remain test debt.
 - Executable builds partly inherit the host build environment and are not
   guaranteed to be reproducible across toolchains.
 - Admission freezes the canonical source `ImportPath`, not source repository
@@ -399,8 +471,6 @@ child, no live streaming, and no remote package acquisition.
   migration tooling are not implemented.
 - The reader supports only the explicit `(1,1)` and `(2,2)` package/bundle
   version pairs; broader multi-version compatibility is not implemented.
-- Bundle schema v1 and the integrity/signature JSON decoders retain permissive
-  unknown- or duplicate-field behavior in some paths.
 - Remote package registry, resolution, and package acquisition are not implemented.
 - Strict atomic visibility across the package and package-source registries is
   not guaranteed.
@@ -574,7 +644,8 @@ Package Registry
 Foundation complete / in progress
 
 Compiler
-Foundation complete / package pipeline hardening in progress
+Phase 6 compiler/package/runnable pipeline CLOSED / PASS for the bounded
+Pre-Alpha / First Alpha scope
 
 AI Runtime
 ░░░░░░░░░░░░░░░░░░░░ 0%
@@ -589,9 +660,9 @@ AI Runtime
 
 Forge is currently in the **Pre-Alpha** stage.
 
-The core engineering foundation is now substantially established. Package Format
-Stabilization is a completed technical checkpoint within ongoing package pipeline
-hardening, while registry, validation, and runtime capabilities continue to
-evolve.
+The core engineering foundation is now substantially established. Phase 6 —
+Compiler / Package Pipeline Hardening is closed for its bounded Pre-Alpha /
+First Alpha compiler-package-runnable contract, while registry, validation,
+runtime expansion, and additional security hardening continue to evolve.
 
 AI-First Engineering Operating System
