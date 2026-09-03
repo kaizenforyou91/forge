@@ -452,6 +452,40 @@ func TestSignedZIPPackageRejectsInvalidSignatureKeyIDBeforeTrustRouting(t *testi
 	}
 }
 
+func TestSignedZIPPackageRejectsDuplicateKeyIDBeforeTrustRouting(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	changedPath := filepath.Join(dir, "duplicate-key-id.zip")
+	signer, err := GenerateEd25519Signer("forge-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := NewZIPPackagerWithSigner(signer).Package(
+		testPackageBundle(),
+		testPackagePayloads(),
+		validPath,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readZIPEntriesForTest(t, validPath)
+	entries[signatureManifestPath] = bytes.Replace(
+		entries[signatureManifestPath],
+		[]byte(`"key_id":`),
+		[]byte(`"key_id":"untrusted","key_id":`),
+		1,
+	)
+	writeZIPEntriesForTest(t, changedPath, entries)
+
+	_, _, err = NewZIPPackageReaderWithVerifier(NewEd25519Verifier()).Read(changedPath)
+	if !errors.Is(err, ErrInvalidPackageSignature) {
+		t.Fatalf("expected ErrInvalidPackageSignature, got %v", err)
+	}
+	if errors.Is(err, ErrUntrustedPackageKey) || errors.Is(err, ErrSignatureMismatch) {
+		t.Fatalf("duplicate key ID reached trust or signature verification: %v", err)
+	}
+}
+
 func TestSignedZIPPackageV2UsesSignatureSchemaV1(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "signed-v2.zip")
 	signer, verifier := trustedTestSignerAndVerifier(t)

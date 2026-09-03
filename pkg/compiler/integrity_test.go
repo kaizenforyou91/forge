@@ -663,6 +663,14 @@ func TestUnmarshalPackageIntegrity(t *testing.T) {
 			got,
 		)
 	}
+
+	second, err := MarshalPackageIntegrity(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(data, second) {
+		t.Fatalf("round-trip changed canonical bytes: %s != %s", data, second)
+	}
 }
 
 func TestUnmarshalPackageIntegrityAcceptsVersionTwo(t *testing.T) {
@@ -766,6 +774,133 @@ func TestUnmarshalPackageIntegrityCreatesIndependentSlice(t *testing.T) {
 	if original.Artifacts[0].Module == "changed" {
 		t.Fatal("integrity artifacts unexpectedly aliased")
 	}
+}
+
+func TestUnmarshalPackageIntegrityRejectsUnknownFields(t *testing.T) {
+	_, data := canonicalIntegrityJSON(t)
+	for name, changed := range map[string][]byte{
+		"root": bytes.Replace(data, []byte(`{"version":2`), []byte(`{"future":true,"version":2`), 1),
+		"artifact": bytes.Replace(
+			data,
+			[]byte(`"module":"http"`),
+			[]byte(`"future":true,"module":"http"`),
+			1,
+		),
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireInvalidIntegrityJSON(t, changed)
+		})
+	}
+}
+
+func TestUnmarshalPackageIntegrityRejectsDuplicateKeys(t *testing.T) {
+	integrity, data := canonicalIntegrityJSON(t)
+	metadataDigest := `"package_metadata_sha256":"` + integrity.PackageMetadataSHA256 + `"`
+	bundleDigest := `"bundle_sha256":"` + integrity.BundleSHA256 + `"`
+	artifactModule := `"module":"` + integrity.Artifacts[0].Module + `"`
+	artifactVersion := `"version":"` + integrity.Artifacts[0].Version + `"`
+	artifactDigest := `"sha256":"` + integrity.Artifacts[0].SHA256 + `"`
+
+	for name, member := range map[string]string{
+		"version":                 `"version":2`,
+		"algorithm":               `"algorithm":"sha256"`,
+		"package metadata digest": metadataDigest,
+		"bundle digest":           bundleDigest,
+		"artifact module":         artifactModule,
+		"artifact version":        artifactVersion,
+		"artifact digest":         artifactDigest,
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireInvalidIntegrityJSON(t, duplicateJSONMember(t, data, member))
+		})
+	}
+
+	duplicateArtifacts := bytes.Replace(
+		data,
+		[]byte(`"artifacts":`),
+		[]byte(`"artifacts":[],"artifacts":`),
+		1,
+	)
+	requireInvalidIntegrityJSON(t, duplicateArtifacts)
+}
+
+func TestUnmarshalPackageIntegrityStrictDocumentContract(t *testing.T) {
+	_, canonical := canonicalIntegrityJSON(t)
+	for _, data := range []string{"null", "[]", `"hello"`, "123", "true"} {
+		t.Run("top level "+data, func(t *testing.T) {
+			requireInvalidIntegrityJSON(t, []byte(data))
+		})
+	}
+	for name, suffix := range map[string]string{
+		"second object": `{}`,
+		"primitive":     `true`,
+		"garbage":       `garbage`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireInvalidIntegrityJSON(t, append(append([]byte(nil), canonical...), suffix...))
+		})
+	}
+	if _, err := UnmarshalPackageIntegrity(
+		append(append([]byte(nil), canonical...), []byte(" \r\n\t")...),
+	); err != nil {
+		t.Fatalf("trailing whitespace rejected: %v", err)
+	}
+}
+
+func TestUnmarshalPackageIntegrityRejectsInvalidUTF8(t *testing.T) {
+	_, data := canonicalIntegrityJSON(t)
+	changed := bytes.Replace(data, []byte(`"module":"http"`), []byte("\"module\":\"ht\xfftp\""), 1)
+	requireInvalidIntegrityJSON(t, changed)
+}
+
+func TestUnmarshalPackageIntegrityAcceptsEscapedReplacementCharacter(t *testing.T) {
+	integrity, _ := canonicalIntegrityJSON(t)
+	integrity.Artifacts[0].Module = "\ufffd"
+	data, err := MarshalPackageIntegrity(integrity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UnmarshalPackageIntegrity(data); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func canonicalIntegrityJSON(t *testing.T) (PackageIntegrity, []byte) {
+	t.Helper()
+	integrity, err := buildTestPackageIntegrity(
+		integrityTestBundle(),
+		integrityTestBundleJSON(t),
+		integrityTestPayloads(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := MarshalPackageIntegrity(integrity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return integrity, data
+}
+
+func requireInvalidIntegrityJSON(t *testing.T, data []byte) {
+	t.Helper()
+	_, err := UnmarshalPackageIntegrity(data)
+	if !errors.Is(err, ErrInvalidPackageIntegrity) {
+		t.Fatalf("expected ErrInvalidPackageIntegrity, got %v", err)
+	}
+	if errors.Is(err, ErrIntegrityMismatch) {
+		t.Fatalf("structural error classified as ErrIntegrityMismatch: %v", err)
+	}
+}
+
+func duplicateJSONMember(t *testing.T, data []byte, member string) []byte {
+	t.Helper()
+	replacement := []byte(member + `,` + member)
+	changed := bytes.Replace(data, []byte(member), replacement, 1)
+	if bytes.Equal(changed, data) {
+		t.Fatalf("member %q not found", member)
+	}
+	return changed
 }
 
 func TestVerifyPackageIntegrity(t *testing.T) {

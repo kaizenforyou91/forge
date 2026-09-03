@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 )
 
 // ArtifactBundleDocument is the stable JSON representation of an artifact
@@ -116,9 +115,6 @@ func marshalArtifactBundleForSchema(bundle ArtifactBundle, schemaVersion int) ([
 }
 
 // UnmarshalArtifactBundle deserializes and validates an artifact bundle.
-//
-// Unknown JSON fields are intentionally ignored so the format can evolve
-// without breaking older readers.
 func UnmarshalArtifactBundle(data []byte) (ArtifactBundle, error) {
 	if len(bytes.TrimSpace(data)) == 0 {
 		return ArtifactBundle{}, fmt.Errorf(
@@ -129,7 +125,7 @@ func UnmarshalArtifactBundle(data []byte) (ArtifactBundle, error) {
 
 	var document ArtifactBundleDocument
 
-	if err := json.Unmarshal(data, &document); err != nil {
+	if err := decodeStrictJSON(data, &document); err != nil {
 		return ArtifactBundle{}, fmt.Errorf(
 			"%w: invalid JSON: %v",
 			ErrInvalidArtifactBundle,
@@ -172,22 +168,9 @@ func unmarshalArtifactBundleForSchema(data []byte, schemaVersion int) (ArtifactB
 	if len(bytes.TrimSpace(data)) == 0 {
 		return ArtifactBundle{}, fmt.Errorf("%w: empty JSON document", ErrInvalidArtifactBundle)
 	}
-	if err := rejectDuplicateJSONKeys(data); err != nil {
-		return ArtifactBundle{}, fmt.Errorf("%w: inspect artifact bundle: %v", ErrInvalidArtifactBundle, err)
-	}
-
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
 	var document artifactBundleDocumentV2
-	if err := decoder.Decode(&document); err != nil {
+	if err := decodeStrictJSON(data, &document); err != nil {
 		return ArtifactBundle{}, fmt.Errorf("%w: invalid JSON: %v", ErrInvalidArtifactBundle, err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			err = fmt.Errorf("unexpected trailing JSON value")
-		}
-		return ArtifactBundle{}, fmt.Errorf("%w: trailing JSON content: %v", ErrInvalidArtifactBundle, err)
 	}
 
 	bundle := ArtifactBundle{
@@ -224,74 +207,4 @@ func artifactsFromDocuments(documents []ArtifactDocument) []Artifact {
 		artifacts[i] = Artifact{Module: artifact.Module, Version: artifact.Version, ImportPath: artifact.ImportPath}
 	}
 	return artifacts
-}
-
-func rejectDuplicateJSONKeys(data []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	if err := inspectJSONValue(decoder); err != nil {
-		return err
-	}
-	if token, err := decoder.Token(); err != io.EOF {
-		if err == nil {
-			return fmt.Errorf("unexpected trailing JSON token %v", token)
-		}
-		return err
-	}
-	return nil
-}
-
-func inspectJSONValue(decoder *json.Decoder) error {
-	token, err := decoder.Token()
-	if err != nil {
-		return err
-	}
-	delimiter, ok := token.(json.Delim)
-	if !ok {
-		return nil
-	}
-
-	switch delimiter {
-	case '{':
-		seen := make(map[string]struct{})
-		for decoder.More() {
-			keyToken, err := decoder.Token()
-			if err != nil {
-				return err
-			}
-			key, ok := keyToken.(string)
-			if !ok {
-				return fmt.Errorf("object key must be a string")
-			}
-			if _, exists := seen[key]; exists {
-				return fmt.Errorf("duplicate object key %q", key)
-			}
-			seen[key] = struct{}{}
-			if err := inspectJSONValue(decoder); err != nil {
-				return err
-			}
-		}
-		closing, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		if closing != json.Delim('}') {
-			return fmt.Errorf("object is not closed")
-		}
-	case '[':
-		for decoder.More() {
-			if err := inspectJSONValue(decoder); err != nil {
-				return err
-			}
-		}
-		closing, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		if closing != json.Delim(']') {
-			return fmt.Errorf("array is not closed")
-		}
-	default:
-		return fmt.Errorf("unexpected JSON delimiter %q", delimiter)
-	}
-	return nil
 }

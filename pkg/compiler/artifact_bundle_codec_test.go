@@ -367,19 +367,65 @@ func TestMarshalArtifactBundleV1CanonicalBytesUnchanged(t *testing.T) {
 	}
 }
 
-func TestUnmarshalArtifactBundleV1IgnoresRuntimeField(t *testing.T) {
+func TestUnmarshalArtifactBundleV1RejectsRuntimeField(t *testing.T) {
 	data := []byte(`{"manifest_name":"demo","manifest_version":"v1","runtime":{"kind":"future"},"artifacts":[{"module":"demo","version":"v1","import_path":"example.com/demo"}]}`)
-	bundle, err := UnmarshalArtifactBundle(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bundle.Runtime != nil {
-		t.Fatalf("expected v1 runtime to be ignored, got %#v", bundle.Runtime)
+	requireInvalidArtifactBundleV1JSON(t, data)
+}
+
+func TestUnmarshalArtifactBundleV1RejectsUnknownFields(t *testing.T) {
+	for name, data := range map[string][]byte{
+		"root":     []byte(`{"manifest_name":"demo","manifest_version":"v1","future":true,"artifacts":[]}`),
+		"artifact": []byte(`{"manifest_name":"demo","manifest_version":"v1","artifacts":[{"module":"demo","version":"v1","import_path":"example.com/demo","future":true}]}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireInvalidArtifactBundleV1JSON(t, data)
+		})
 	}
 }
 
-func TestUnmarshalArtifactBundleV1UnknownFieldRegression(t *testing.T) {
-	data := []byte(`{"manifest_name":"demo","manifest_version":"v1","future":true,"artifacts":[{"module":"demo","version":"v1","import_path":"example.com/demo","future":true}]}`)
+func TestUnmarshalArtifactBundleV1RejectsDuplicateKeys(t *testing.T) {
+	for name, data := range map[string][]byte{
+		"manifest name":    []byte(`{"manifest_name":"demo","manifest_name":"other","manifest_version":"v1","artifacts":[]}`),
+		"manifest version": []byte(`{"manifest_name":"demo","manifest_version":"v1","manifest_version":"v2","artifacts":[]}`),
+		"artifact module":  []byte(`{"manifest_name":"demo","manifest_version":"v1","artifacts":[{"module":"demo","module":"other","version":"v1","import_path":"example.com/demo"}]}`),
+		"artifact version": []byte(`{"manifest_name":"demo","manifest_version":"v1","artifacts":[{"module":"demo","version":"v1","version":"v2","import_path":"example.com/demo"}]}`),
+		"artifact path":    []byte(`{"manifest_name":"demo","manifest_version":"v1","artifacts":[{"module":"demo","version":"v1","import_path":"example.com/demo","import_path":"example.com/other"}]}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireInvalidArtifactBundleV1JSON(t, data)
+		})
+	}
+}
+
+func TestUnmarshalArtifactBundleV1StrictDocumentContract(t *testing.T) {
+	canonical := []byte(`{"manifest_name":"demo","manifest_version":"v1","artifacts":[]}`)
+	for _, data := range []string{"null", "[]", `"hello"`, "123", "true"} {
+		t.Run("top level "+data, func(t *testing.T) {
+			requireInvalidArtifactBundleV1JSON(t, []byte(data))
+		})
+	}
+	for name, suffix := range map[string]string{
+		"second object": `{}`,
+		"primitive":     `true`,
+		"garbage":       `garbage`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireInvalidArtifactBundleV1JSON(t, append(append([]byte(nil), canonical...), suffix...))
+		})
+	}
+	if _, err := UnmarshalArtifactBundle(append(append([]byte(nil), canonical...), []byte(" \r\n\t")...)); err != nil {
+		t.Fatalf("trailing whitespace rejected: %v", err)
+	}
+}
+
+func TestUnmarshalArtifactBundleV1RejectsInvalidUTF8(t *testing.T) {
+	data := append([]byte(`{"manifest_name":"de`), 0xff)
+	data = append(data, []byte(`mo","manifest_version":"v1","artifacts":[]}`)...)
+	requireInvalidArtifactBundleV1JSON(t, data)
+}
+
+func TestUnmarshalArtifactBundleV1AcceptsEscapedReplacementCharacter(t *testing.T) {
+	data := []byte(`{"manifest_name":"demo\ufffd","manifest_version":"v1","artifacts":[]}`)
 	if _, err := UnmarshalArtifactBundle(data); err != nil {
 		t.Fatal(err)
 	}
@@ -431,6 +477,28 @@ func TestUnmarshalArtifactBundleV2RoundTrip(t *testing.T) {
 	if want.Runtime.TargetOS != "windows" {
 		t.Fatal("decoded runtime descriptor aliases source bundle")
 	}
+
+	got.Runtime.TargetOS = "windows"
+	second, err := marshalArtifactBundleForSchema(got, artifactBundleSchemaVersionV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(data, second) {
+		t.Fatalf("round-trip changed canonical bytes: %s != %s", data, second)
+	}
+}
+
+func TestStrictJSONRejectsDeepDuplicateObjectMember(t *testing.T) {
+	var destination struct {
+		Values []any `json:"values"`
+	}
+	err := decodeStrictJSON(
+		[]byte(`{"values":[{"nested":{"deeper":{"key":1,"key":2}}}]}`),
+		&destination,
+	)
+	if err == nil {
+		t.Fatal("expected deeply nested duplicate-key error")
+	}
 }
 
 func TestUnmarshalArtifactBundleV2RejectsUnknownRootField(t *testing.T) {
@@ -469,6 +537,35 @@ func TestUnmarshalArtifactBundleV2RejectsTrailingJSON(t *testing.T) {
 	requireInvalidArtifactBundleJSON(t, append(canonicalV2BundleJSON(t), []byte(`{}`)...))
 }
 
+func TestUnmarshalArtifactBundleV2StrictDocumentContract(t *testing.T) {
+	for _, data := range []string{"null", "[]", `"hello"`, "123", "true"} {
+		t.Run("top level "+data, func(t *testing.T) {
+			requireInvalidArtifactBundleJSON(t, []byte(data))
+		})
+	}
+
+	canonical := canonicalV2BundleJSON(t)
+	for name, suffix := range map[string]string{
+		"primitive": `true`,
+		"garbage":   `garbage`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireInvalidArtifactBundleJSON(t, append(append([]byte(nil), canonical...), suffix...))
+		})
+	}
+	if _, err := unmarshalArtifactBundleForSchema(
+		append(append([]byte(nil), canonical...), []byte(" \r\n\t")...),
+		artifactBundleSchemaVersionV2,
+	); err != nil {
+		t.Fatalf("trailing whitespace rejected: %v", err)
+	}
+}
+
+func TestUnmarshalArtifactBundleV2RejectsInvalidUTF8(t *testing.T) {
+	data := replaceV2BundleJSON(t, `"manifest_name":"demo"`, `"manifest_name":"de`+string([]byte{0xff})+`mo"`)
+	requireInvalidArtifactBundleJSON(t, data)
+}
+
 func canonicalV2BundleJSON(t *testing.T) []byte {
 	t.Helper()
 	data, err := marshalArtifactBundleForSchema(testRunnableArtifactBundle(), artifactBundleSchemaVersionV2)
@@ -491,6 +588,14 @@ func replaceV2BundleJSON(t *testing.T, old, replacement string) []byte {
 func requireInvalidArtifactBundleJSON(t *testing.T, data []byte) {
 	t.Helper()
 	_, err := unmarshalArtifactBundleForSchema(data, artifactBundleSchemaVersionV2)
+	if !errors.Is(err, ErrInvalidArtifactBundle) {
+		t.Fatalf("expected ErrInvalidArtifactBundle, got %v", err)
+	}
+}
+
+func requireInvalidArtifactBundleV1JSON(t *testing.T, data []byte) {
+	t.Helper()
+	_, err := UnmarshalArtifactBundle(data)
 	if !errors.Is(err, ErrInvalidArtifactBundle) {
 		t.Fatalf("expected ErrInvalidArtifactBundle, got %v", err)
 	}

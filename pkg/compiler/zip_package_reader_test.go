@@ -532,6 +532,30 @@ func TestZIPPackageReaderRejectsIntegrityVersionDowngradeAndFuture(t *testing.T)
 	}
 }
 
+func TestZIPPackageReaderRejectsDuplicateIntegrityDigestBeforeComparison(t *testing.T) {
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.zip")
+	changedPath := filepath.Join(dir, "duplicate-integrity-digest.zip")
+	createValidFW051Package(t, validPath)
+
+	entries := readZIPEntriesForTest(t, validPath)
+	entries[integrityManifestPath] = bytes.Replace(
+		entries[integrityManifestPath],
+		[]byte(`"bundle_sha256":`),
+		[]byte(`"bundle_sha256":null,"bundle_sha256":`),
+		1,
+	)
+	writeZIPEntriesForTest(t, changedPath, entries)
+
+	_, _, err := NewZIPPackageReader().Read(changedPath)
+	if !errors.Is(err, ErrInvalidPackageIntegrity) {
+		t.Fatalf("expected ErrInvalidPackageIntegrity, got %v", err)
+	}
+	if errors.Is(err, ErrIntegrityMismatch) {
+		t.Fatalf("duplicate digest reached integrity comparison: %v", err)
+	}
+}
+
 func TestZIPPackageReaderTamperMatrix(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -117,6 +117,28 @@ func TestUnmarshalPackageMetadataAcceptsSupportedVersionPairs(t *testing.T) {
 	}
 }
 
+func TestPackageMetadataStrictRoundTripPreservesCanonicalBytes(t *testing.T) {
+	for _, metadata := range []packageMetadataDocument{packageMetadataV1(), packageMetadataV2()} {
+		t.Run(packageMetadataPairTestName(metadata), func(t *testing.T) {
+			first, err := marshalPackageMetadata(metadata)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoded, err := unmarshalPackageMetadata(first)
+			if err != nil {
+				t.Fatal(err)
+			}
+			second, err := marshalPackageMetadata(decoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(first, second) {
+				t.Fatalf("round-trip changed canonical bytes: %s != %s", first, second)
+			}
+		})
+	}
+}
+
 func TestUnmarshalPackageMetadataRejectsMissingPackageFormatVersion(t *testing.T) {
 	_, err := unmarshalPackageMetadata([]byte(`{"bundle_schema_version":1}`))
 	if !errors.Is(err, ErrInvalidPackageMetadata) {
@@ -249,6 +271,43 @@ func TestUnmarshalPackageMetadataAllowsTrailingWhitespace(t *testing.T) {
 
 	if want := currentPackageMetadata(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected %#v, got %#v", want, got)
+	}
+}
+
+func TestUnmarshalPackageMetadataRejectsNonObjectTopLevelValues(t *testing.T) {
+	for _, data := range []string{"null", "[]", `"hello"`, "123", "true"} {
+		t.Run(data, func(t *testing.T) {
+			_, err := unmarshalPackageMetadata([]byte(data))
+			if !errors.Is(err, ErrInvalidPackageMetadata) {
+				t.Fatalf("expected ErrInvalidPackageMetadata, got %v", err)
+			}
+		})
+	}
+}
+
+func TestUnmarshalPackageMetadataRejectsInvalidUTF8(t *testing.T) {
+	data := append([]byte(`{"package_format_version":1,"bundle_schema_version":1,"future":"`), 0xff)
+	data = append(data, []byte(`"}`)...)
+
+	_, err := unmarshalPackageMetadata(data)
+	if !errors.Is(err, ErrInvalidPackageMetadata) {
+		t.Fatalf("expected ErrInvalidPackageMetadata, got %v", err)
+	}
+}
+
+func TestUnmarshalPackageMetadataTrailingContentContract(t *testing.T) {
+	canonical := []byte(`{"package_format_version":1,"bundle_schema_version":1}`)
+	for name, suffix := range map[string]string{
+		"second object":    `{}`,
+		"JSON primitive":   `true`,
+		"non-JSON garbage": `garbage`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := unmarshalPackageMetadata(append(append([]byte(nil), canonical...), suffix...))
+			if !errors.Is(err, ErrInvalidPackageMetadata) {
+				t.Fatalf("expected ErrInvalidPackageMetadata, got %v", err)
+			}
+		})
 	}
 }
 

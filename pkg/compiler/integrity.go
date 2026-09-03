@@ -231,7 +231,7 @@ func UnmarshalPackageIntegrity(
 
 	var integrity PackageIntegrity
 
-	if err := json.Unmarshal(data, &integrity); err != nil {
+	if err := decodeStrictJSON(data, &integrity); err != nil {
 		return PackageIntegrity{}, fmt.Errorf(
 			"%w: invalid integrity JSON: %v",
 			ErrInvalidPackageIntegrity,

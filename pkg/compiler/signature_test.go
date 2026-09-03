@@ -296,6 +296,14 @@ func TestUnmarshalPackageSignature(t *testing.T) {
 			got,
 		)
 	}
+
+	second, err := MarshalPackageSignature(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(data, second) {
+		t.Fatalf("round-trip changed canonical bytes: %s != %s", data, second)
+	}
 }
 
 func TestUnmarshalPackageSignatureRejectsInvalidJSON(t *testing.T) {
@@ -384,6 +392,104 @@ func TestUnmarshalPackageSignatureRejectsEmptyDocument(t *testing.T) {
 			"expected ErrInvalidPackageSignature, got %v",
 			err,
 		)
+	}
+}
+
+func TestUnmarshalPackageSignatureRejectsUnknownAndDuplicateFields(t *testing.T) {
+	signature, data := canonicalSignatureJSON(t)
+	for name, changed := range map[string][]byte{
+		"unknown": bytes.Replace(data, []byte(`{"version":1`), []byte(`{"future":true,"version":1`), 1),
+		"version": bytes.Replace(data, []byte(`"version":1`), []byte(`"version":1,"version":1`), 1),
+		"algorithm": bytes.Replace(
+			data,
+			[]byte(`"algorithm":"ed25519"`),
+			[]byte(`"algorithm":"ed25519","algorithm":"ed25519"`),
+			1,
+		),
+		"key ID": duplicateJSONMember(t, data, `"key_id":"`+signature.KeyID+`"`),
+		"public key": duplicateJSONMember(
+			t,
+			data,
+			`"public_key":"`+signature.PublicKey+`"`,
+		),
+		"signature": duplicateJSONMember(
+			t,
+			data,
+			`"signature":"`+signature.Signature+`"`,
+		),
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireInvalidSignatureJSON(t, changed)
+		})
+	}
+}
+
+func TestUnmarshalPackageSignatureStrictDocumentContract(t *testing.T) {
+	_, canonical := canonicalSignatureJSON(t)
+	for _, data := range []string{"null", "[]", `"hello"`, "123", "true"} {
+		t.Run("top level "+data, func(t *testing.T) {
+			requireInvalidSignatureJSON(t, []byte(data))
+		})
+	}
+	for name, suffix := range map[string]string{
+		"second object": `{}`,
+		"primitive":     `true`,
+		"garbage":       `garbage`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireInvalidSignatureJSON(t, append(append([]byte(nil), canonical...), suffix...))
+		})
+	}
+	if _, err := UnmarshalPackageSignature(
+		append(append([]byte(nil), canonical...), []byte(" \r\n\t")...),
+	); err != nil {
+		t.Fatalf("trailing whitespace rejected: %v", err)
+	}
+}
+
+func TestUnmarshalPackageSignatureAcceptsReplacementCharacterKeyID(t *testing.T) {
+	signer, err := GenerateEd25519Signer("\ufffd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature, err := signer.Sign([]byte("payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := MarshalPackageSignature(signature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UnmarshalPackageSignature(data); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func canonicalSignatureJSON(t *testing.T) (PackageSignature, []byte) {
+	t.Helper()
+	signer, err := GenerateEd25519Signer("forge-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature, err := signer.Sign([]byte("payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := MarshalPackageSignature(signature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signature, data
+}
+
+func requireInvalidSignatureJSON(t *testing.T, data []byte) {
+	t.Helper()
+	_, err := UnmarshalPackageSignature(data)
+	if !errors.Is(err, ErrInvalidPackageSignature) {
+		t.Fatalf("expected ErrInvalidPackageSignature, got %v", err)
+	}
+	if errors.Is(err, ErrUntrustedPackageKey) || errors.Is(err, ErrSignatureMismatch) {
+		t.Fatalf("structural error reached trust or signature classification: %v", err)
 	}
 }
 
