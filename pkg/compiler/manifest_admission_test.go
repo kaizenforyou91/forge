@@ -2,6 +2,8 @@ package compiler
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -166,6 +168,58 @@ func TestPrepareManifestAdmission(t *testing.T) {
 				plan.Steps[i].Module,
 			)
 		}
+	}
+}
+
+func TestPrepareManifestAdmissionAcceptsEquivalentStrictLoaderResults(t *testing.T) {
+	directory := t.TempDir()
+	yamlPath := filepath.Join(directory, "forge.yaml")
+	jsonPath := filepath.Join(directory, "forge.json")
+	yamlData := []byte(`version: v1
+name: aplikasi
+entrypoint: {module: app, version: v1}
+modules:
+  - name: app
+    version: v1
+    import_path: " example.com/app "
+`)
+	jsonData := []byte(`{"version":"v1","name":"aplikasi","entrypoint":{"module":"app","version":"v1"},"modules":[{"name":"app","version":"v1","import_path":" example.com/app "}]}`)
+	if err := os.WriteFile(yamlPath, yamlData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(jsonPath, jsonData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	yamlManifest, err := manifest.LoadYAML(yamlPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsonManifest, err := manifest.LoadJSON(jsonPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	yamlOriginal := cloneManifestAdmissionTestManifest(yamlManifest)
+	jsonOriginal := cloneManifestAdmissionTestManifest(jsonManifest)
+
+	yamlAdmission, err := PrepareManifestAdmission(yamlManifest, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsonAdmission, err := PrepareManifestAdmission(jsonManifest, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(yamlAdmission.BuildPlan(), jsonAdmission.BuildPlan()) ||
+		!reflect.DeepEqual(yamlAdmission.Packages(), jsonAdmission.Packages()) ||
+		!reflect.DeepEqual(yamlAdmission.Sources(), jsonAdmission.Sources()) {
+		t.Fatalf("strict loader admissions differ:\nYAML: %#v\nJSON: %#v", yamlAdmission, jsonAdmission)
+	}
+	if !reflect.DeepEqual(yamlManifest, yamlOriginal) {
+		t.Fatalf("YAML manifest mutated: want %#v, got %#v", yamlOriginal, yamlManifest)
+	}
+	if !reflect.DeepEqual(jsonManifest, jsonOriginal) {
+		t.Fatalf("JSON manifest mutated: want %#v, got %#v", jsonOriginal, jsonManifest)
 	}
 }
 
@@ -548,6 +602,14 @@ func TestPrepareManifestAdmissionRejectsInvalidManifest(t *testing.T) {
 					validModule,
 					validModule,
 				},
+			},
+		},
+		{
+			name: "ambiguous manifest identity",
+			manifest: manifest.Manifest{
+				Name:    "demo@other",
+				Version: "v1",
+				Modules: []manifest.Module{validModule},
 			},
 		},
 	}

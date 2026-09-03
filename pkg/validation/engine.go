@@ -60,10 +60,38 @@ func (e *Engine) Validate(m manifest.Manifest) error {
 	}
 
 	for _, validator := range e.validators {
-		if err := validator.Validate(m); err != nil {
+		if err := validator.Validate(cloneManifest(m)); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func cloneManifest(original manifest.Manifest) manifest.Manifest {
+	clone := original
+
+	if original.Entrypoint != nil {
+		entrypoint := *original.Entrypoint
+		clone.Entrypoint = &entrypoint
+	}
+
+	if original.Modules == nil {
+		return clone
+	}
+
+	clone.Modules = make([]manifest.Module, len(original.Modules))
+	for i, module := range original.Modules {
+		clone.Modules[i] = module
+		if module.Dependencies == nil {
+			continue
+		}
+		clone.Modules[i].Dependencies = make(
+			[]manifest.Dependency,
+			len(module.Dependencies),
+		)
+		copy(clone.Modules[i].Dependencies, module.Dependencies)
+	}
+
+	return clone
 }

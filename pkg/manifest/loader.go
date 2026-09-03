@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"go.yaml.in/yaml/v3"
+	forgeerrors "github.com/kaizenforyou91/forge/pkg/errors"
 )
 
 // LoadYAML loads a Forge manifest from a YAML file.
@@ -16,8 +16,12 @@ func LoadYAML(path string) (Manifest, error) {
 
 	var manifest Manifest
 
-	if err := yaml.Unmarshal(data, &manifest); err != nil {
-		return Manifest{}, fmt.Errorf("load manifest %q: %w", path, err)
+	if err := decodeStrictManifestYAML(data, &manifest); err != nil {
+		return Manifest{}, forgeerrors.Wrap(
+			err,
+			forgeerrors.CodeInvalidManifest,
+			fmt.Sprintf("load YAML manifest %q", path),
+		)
 	}
 
 	return manifest, nil

@@ -256,6 +256,28 @@ func TestDependencyGraphValidateRejectsCycle(t *testing.T) {
 	}
 }
 
+func TestDependencyGraphCycleDiagnosticIsDeterministic(t *testing.T) {
+	graph := &DependencyGraph{
+		Nodes: map[string][]string{
+			"z@v1": {"y@v1"},
+			"y@v1": {"z@v1"},
+			"b@v1": {"a@v1"},
+			"a@v1": {"b@v1"},
+		},
+	}
+	const want = "circular module dependency detected: b@v1 -> a@v1"
+
+	for i := 0; i < 200; i++ {
+		err := graph.Validate()
+		if err == nil {
+			t.Fatal("expected cycle validation error")
+		}
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("iteration %d: expected %q, got %v", i, want, err)
+		}
+	}
+}
+
 func TestDependencyGraphValidateNilGraph(t *testing.T) {
 	var graph *DependencyGraph
 

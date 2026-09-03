@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"fmt"
+	"sort"
 
 	forgeerrors "github.com/kaizenforyou91/forge/pkg/errors"
 )
@@ -91,7 +92,13 @@ func (g *DependencyGraph) Validate() error {
 	visited := make(map[string]bool, len(g.Nodes))
 	stack := make(map[string]bool, len(g.Nodes))
 
+	nodes := make([]string, 0, len(g.Nodes))
 	for node := range g.Nodes {
+		nodes = append(nodes, node)
+	}
+	sort.Strings(nodes)
+
+	for _, node := range nodes {
 		if visited[node] {
 			continue
 		}

@@ -159,6 +159,70 @@ func TestBuildRunnableCommandRequiresEntrypointBeforeKeyLoad(t *testing.T) {
 	requireNoRunnableStagingDirectories(t, filepath.Dir(outputPath))
 }
 
+func TestBuildRunnableCommandRejectsStrictManifestViolationsBeforeSideEffects(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		data     []byte
+	}{
+		{
+			name:     "duplicate JSON key",
+			filename: "forge.json",
+			data:     []byte(`{"version":"v1","name":"demo","modules":[],"modules":[]}`),
+		},
+		{
+			name:     "unknown JSON field",
+			filename: "forge.json",
+			data:     []byte(`{"version":"v1","name":"demo","modules":[],"extra":true}`),
+		},
+		{
+			name:     "malformed UTF-8 YAML",
+			filename: "forge.yaml",
+			data:     append([]byte("version: v1\nname: "), append([]byte{0xff}, []byte("\nmodules: []\n")...)...),
+		},
+		{
+			name:     "multiple YAML documents",
+			filename: "forge.yaml",
+			data:     []byte("version: v1\nname: demo\nmodules: []\n---\n{}\n"),
+		},
+		{
+			name:     "YAML alias feature",
+			filename: "forge.yaml",
+			data:     []byte("version: &version v1\nname: demo\nmodules: []\ncopy: *version\n"),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+			manifestPath := filepath.Join(directory, test.filename)
+			if err := os.WriteFile(manifestPath, test.data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			outputPath := filepath.Join(directory, "must-not-exist.zip")
+			application := bootstrap.NewApplication()
+			packages, sources := buildCommandRegistries(t, application)
+			before := snapshotBuildCommandRegistries(packages, sources)
+
+			_, err := executeBuildRunnableCommand(
+				application,
+				nil,
+				manifestPath,
+				filepath.Join(directory, "missing-key.pem"),
+				buildRunnableTestKeyID,
+				outputPath,
+			)
+			requireInvalidManifestCode(t, err)
+			if errors.Is(err, compiler.ErrInvalidPackageSignature) {
+				t.Fatalf("signing input was consulted before strict manifest rejection: %v", err)
+			}
+			requireBuildCommandRegistrySnapshot(t, packages, sources, before)
+			requireBuildCommandOutputAbsent(t, outputPath)
+			requireNoRunnableStagingDirectories(t, filepath.Dir(outputPath))
+		})
+	}
+}
+
 func TestBuildRunnableCommandSigningFailuresCreateNoOutput(t *testing.T) {
 	tests := map[string]func(*testing.T, buildRunnableFixture) (string, string){
 		"missing signing key": func(_ *testing.T, _ buildRunnableFixture) (string, string) {

@@ -2,6 +2,7 @@ package validation
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/kaizenforyou91/forge/pkg/manifest"
@@ -225,4 +226,79 @@ func TestEngineEmptyValidators(t *testing.T) {
 	if err := engine.Validate(validManifest()); err != nil {
 		t.Fatalf("expected valid manifest, got %v", err)
 	}
+}
+
+func TestEngineIsolatesCallerAndValidatorsFromManifestMutation(t *testing.T) {
+	original := manifest.Manifest{
+		Version: "v1",
+		Name:    "demo",
+		Entrypoint: &manifest.ApplicationEntrypoint{
+			Module:  "app",
+			Version: "v1",
+		},
+		Modules: []manifest.Module{
+			{
+				Name:    "app",
+				Version: "v1",
+				Dependencies: []manifest.Dependency{
+					{Name: "dep", Version: "v1"},
+				},
+			},
+			{Name: "dep", Version: "v1"},
+		},
+	}
+	want := cloneEngineTestManifest(original)
+	secondSawOriginal := false
+
+	engine, err := NewEngine(
+		ValidatorFunc(func(received manifest.Manifest) error {
+			received.Entrypoint.Module = "mutated-entrypoint"
+			received.Modules[0].Name = "mutated-module"
+			received.Modules[0].Dependencies[0].Name = "mutated-dependency"
+			received.Modules[0].Dependencies = append(
+				received.Modules[0].Dependencies,
+				manifest.Dependency{Name: "extra", Version: "v1"},
+			)
+			received.Modules = append(
+				received.Modules,
+				manifest.Module{Name: "extra", Version: "v1"},
+			)
+			return nil
+		}),
+		ValidatorFunc(func(received manifest.Manifest) error {
+			secondSawOriginal = reflect.DeepEqual(received, want)
+			return nil
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Validate(original); err != nil {
+		t.Fatal(err)
+	}
+	if !secondSawOriginal {
+		t.Fatal("second validator observed mutations from first validator")
+	}
+	if !reflect.DeepEqual(original, want) {
+		t.Fatalf("caller manifest mutated:\nwant: %#v\ngot:  %#v", want, original)
+	}
+}
+
+func cloneEngineTestManifest(original manifest.Manifest) manifest.Manifest {
+	clone := original
+	if original.Entrypoint != nil {
+		entrypoint := *original.Entrypoint
+		clone.Entrypoint = &entrypoint
+	}
+	if original.Modules != nil {
+		clone.Modules = make([]manifest.Module, len(original.Modules))
+		for i, module := range original.Modules {
+			clone.Modules[i] = module
+			clone.Modules[i].Dependencies = append(
+				[]manifest.Dependency(nil),
+				module.Dependencies...,
+			)
+		}
+	}
+	return clone
 }

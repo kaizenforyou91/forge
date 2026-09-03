@@ -280,3 +280,124 @@ func TestManifestValidateUsesInvalidManifestCode(t *testing.T) {
 		)
 	}
 }
+
+func TestManifestValidateAcceptsExactUnicodeIdentities(t *testing.T) {
+	m := Manifest{
+		Version: "versi-é",
+		Name:    "aplikasi-東京",
+		Entrypoint: &ApplicationEntrypoint{
+			Module:  "aplikasi",
+			Version: "vé",
+		},
+		Modules: []Module{
+			{
+				Name:    "aplikasi",
+				Version: "vé",
+				Dependencies: []Dependency{
+					{Name: "pustaka", Version: "v一"},
+				},
+			},
+			{Name: "pustaka", Version: "v一"},
+		},
+	}
+
+	if err := m.Validate(); err != nil {
+		t.Fatalf("expected Unicode identities to remain valid, got %v", err)
+	}
+}
+
+func TestManifestValidateRejectsAmbiguousIdentityComponents(t *testing.T) {
+	invalidValues := []struct {
+		name  string
+		value string
+	}{
+		{name: "leading ASCII space", value: " identity"},
+		{name: "trailing ASCII space", value: "identity "},
+		{name: "leading Unicode whitespace", value: "\u2003identity"},
+		{name: "trailing Unicode whitespace", value: "identity\u3000"},
+		{name: "newline", value: "iden\ntity"},
+		{name: "tab", value: "iden\ttity"},
+		{name: "NUL", value: "iden\x00tity"},
+		{name: "DEL", value: "iden\x7ftity"},
+		{name: "at delimiter", value: "iden@tity"},
+		{name: "invalid UTF-8", value: string([]byte{'i', 0xff})},
+	}
+	fields := []struct {
+		name   string
+		mutate func(*Manifest, string)
+	}{
+		{name: "manifest name", mutate: func(m *Manifest, value string) { m.Name = value }},
+		{name: "manifest version", mutate: func(m *Manifest, value string) { m.Version = value }},
+		{name: "module name", mutate: func(m *Manifest, value string) { m.Modules[0].Name = value }},
+		{name: "module version", mutate: func(m *Manifest, value string) { m.Modules[0].Version = value }},
+		{name: "dependency name", mutate: func(m *Manifest, value string) { m.Modules[0].Dependencies[0].Name = value }},
+		{name: "dependency version", mutate: func(m *Manifest, value string) { m.Modules[0].Dependencies[0].Version = value }},
+		{name: "entrypoint module", mutate: func(m *Manifest, value string) { m.Entrypoint.Module = value }},
+		{name: "entrypoint version", mutate: func(m *Manifest, value string) { m.Entrypoint.Version = value }},
+	}
+
+	for _, field := range fields {
+		for _, invalid := range invalidValues {
+			t.Run(field.name+"/"+invalid.name, func(t *testing.T) {
+				m := manifestIdentityTestManifest()
+				field.mutate(&m, invalid.value)
+				err := m.Validate()
+				if err == nil {
+					t.Fatal("expected identity validation error")
+				}
+				forgeErr, ok := err.(*forgeerrors.Error)
+				if !ok || forgeErr.Code != forgeerrors.CodeInvalidManifest {
+					t.Fatalf("expected invalid manifest error, got %T: %v", err, err)
+				}
+			})
+		}
+	}
+}
+
+func TestManifestValidateKeepsCanonicallyDifferentUnicodeExact(t *testing.T) {
+	m := Manifest{
+		Version: "v1",
+		Name:    "demo",
+		Modules: []Module{
+			{Name: "é", Version: "v1"},
+			{Name: "e\u0301", Version: "v1"},
+		},
+	}
+
+	if err := m.Validate(); err != nil {
+		t.Fatalf("expected canonically different exact identities, got %v", err)
+	}
+	if m.Modules[0].Name == m.Modules[1].Name {
+		t.Fatal("test fixture identities unexpectedly compare equal")
+	}
+}
+
+func TestManifestValidateDoesNotApplyIdentityRulesToImportPath(t *testing.T) {
+	m := validTestManifest()
+	m.Modules[0].ImportPath = " \t@import\x00path "
+
+	if err := m.Validate(); err != nil {
+		t.Fatalf("manifest validation unexpectedly changed ImportPath semantics: %v", err)
+	}
+}
+
+func manifestIdentityTestManifest() Manifest {
+	return Manifest{
+		Version: "v1",
+		Name:    "demo",
+		Entrypoint: &ApplicationEntrypoint{
+			Module:  "app",
+			Version: "v1",
+		},
+		Modules: []Module{
+			{
+				Name:    "app",
+				Version: "v1",
+				Dependencies: []Dependency{
+					{Name: "dep", Version: "v1"},
+				},
+			},
+			{Name: "dep", Version: "v1"},
+		},
+	}
+}

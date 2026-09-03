@@ -1,10 +1,12 @@
 package validation
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	forgeerrors "github.com/kaizenforyou91/forge/pkg/errors"
 	"github.com/kaizenforyou91/forge/pkg/manifest"
 )
 
@@ -72,7 +74,7 @@ func TestJSONManifestValidationIntegration(t *testing.T) {
 	}
 }
 
-func TestValidationEngineRejectsInvalidLoadedManifest(t *testing.T) {
+func TestStrictLoaderRejectsStructurallyInvalidManifestBeforeEngine(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "forge.yaml")
 
@@ -87,18 +89,16 @@ modules:
 		t.Fatal(err)
 	}
 
-	m, err := manifest.LoadYAML(path)
-	if err != nil {
-		t.Fatalf("load YAML: %v", err)
+	_, err := manifest.LoadYAML(path)
+	if err == nil {
+		t.Fatal("expected strict YAML structure error")
 	}
-
-	engine, err := NewEngine()
-	if err != nil {
-		t.Fatal(err)
+	var forgeErr *forgeerrors.Error
+	if !errors.As(err, &forgeErr) {
+		t.Fatalf("expected *errors.Error, got %T: %v", err, err)
 	}
-
-	if err := engine.Validate(m); err == nil {
-		t.Fatal("expected validation error")
+	if forgeErr.Code != forgeerrors.CodeInvalidManifest {
+		t.Fatalf("expected %s, got %s", forgeerrors.CodeInvalidManifest, forgeErr.Code)
 	}
 }
 

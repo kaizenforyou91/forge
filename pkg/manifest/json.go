@@ -1,9 +1,10 @@
 package manifest
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
+
+	forgeerrors "github.com/kaizenforyou91/forge/pkg/errors"
 )
 
 // LoadJSON loads a Forge manifest from a JSON file.
@@ -15,8 +16,12 @@ func LoadJSON(path string) (Manifest, error) {
 
 	var manifest Manifest
 
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return Manifest{}, fmt.Errorf("load manifest %q: %w", path, err)
+	if err := decodeStrictManifestJSON(data, &manifest); err != nil {
+		return Manifest{}, forgeerrors.Wrap(
+			err,
+			forgeerrors.CodeInvalidManifest,
+			fmt.Sprintf("load JSON manifest %q", path),
+		)
 	}
 
 	return manifest, nil

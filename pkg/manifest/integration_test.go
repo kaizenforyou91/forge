@@ -7,6 +7,78 @@ import (
 	"testing"
 )
 
+func TestStrictYAMLAndJSONManifestSemanticParity(t *testing.T) {
+	directory := t.TempDir()
+	yamlPath := filepath.Join(directory, "forge.yaml")
+	jsonPath := filepath.Join(directory, "forge.json")
+	yamlData := []byte(`version: v2
+name: aplikasi-東京
+entrypoint:
+  module: aplikasi
+  version: vé
+modules:
+  - name: aplikasi
+    version: vé
+    import_path: example.com/aplikasi
+    dependencies:
+      - name: pustaka
+        version: v1
+  - name: pustaka
+    version: v1
+    import_path: example.com/pustaka
+`)
+	jsonData := []byte(`{
+  "version": "v2",
+  "name": "aplikasi-東京",
+  "entrypoint": {"module": "aplikasi", "version": "vé"},
+  "modules": [
+    {
+      "name": "aplikasi",
+      "version": "vé",
+      "import_path": "example.com/aplikasi",
+      "dependencies": [{"name": "pustaka", "version": "v1"}]
+    },
+    {"name": "pustaka", "version": "v1", "import_path": "example.com/pustaka"}
+  ]
+}`)
+	if err := os.WriteFile(yamlPath, yamlData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(jsonPath, jsonData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	yamlManifest, err := LoadYAML(yamlPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsonManifest, err := LoadJSON(jsonPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(yamlManifest, jsonManifest) {
+		t.Fatalf("strict loader results differ:\nYAML: %#v\nJSON: %#v", yamlManifest, jsonManifest)
+	}
+	if err := yamlManifest.Validate(); err != nil {
+		t.Fatalf("YAML domain validation failed: %v", err)
+	}
+	if err := jsonManifest.Validate(); err != nil {
+		t.Fatalf("JSON domain validation failed: %v", err)
+	}
+
+	yamlPlan, err := BuildPlanForManifest(yamlManifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsonPlan, err := BuildPlanForManifest(jsonManifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(yamlPlan, jsonPlan) {
+		t.Fatalf("build plans differ:\nYAML: %#v\nJSON: %#v", yamlPlan, jsonPlan)
+	}
+}
+
 func TestYAMLManifestPipeline(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "forge.yaml")
@@ -124,14 +196,8 @@ modules:
 		t.Fatal(err)
 	}
 
-	manifest, err := LoadYAML(path)
-	if err != nil {
-		t.Fatalf("unexpected YAML load error: %v", err)
-	}
-
-	if err := manifest.Validate(); err == nil {
-		t.Fatal("expected manifest validation error")
-	}
+	_, err := LoadYAML(path)
+	requireInvalidManifestError(t, err)
 }
 
 func TestManifestPipelineRejectsMissingModule(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	"github.com/kaizenforyou91/forge/internal/bootstrap"
 	"github.com/kaizenforyou91/forge/pkg/app"
 	"github.com/kaizenforyou91/forge/pkg/compiler"
+	forgeerrors "github.com/kaizenforyou91/forge/pkg/errors"
 	"github.com/kaizenforyou91/forge/pkg/registry"
 	"github.com/spf13/cobra"
 )
@@ -985,6 +986,59 @@ func TestBuildCommandRejectsInvalidManifestContent(
 	}
 }
 
+func TestBuildCommandRejectsStrictManifestViolationsBeforeAdmission(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		data     []byte
+	}{
+		{
+			name:     "duplicate JSON key",
+			filename: "forge.json",
+			data:     []byte(`{"version":"v1","version":"v2","name":"demo","modules":[]}`),
+		},
+		{
+			name:     "unknown JSON field",
+			filename: "forge.json",
+			data:     []byte(`{"version":"v1","name":"demo","modules":[],"extra":true}`),
+		},
+		{
+			name:     "malformed UTF-8 JSON",
+			filename: "forge.json",
+			data:     append([]byte(`{"version":"v1","name":"`), append([]byte{0xff}, []byte(`","modules":[]}`)...)...),
+		},
+		{
+			name:     "multiple YAML documents",
+			filename: "forge.yaml",
+			data:     []byte("version: v1\nname: demo\nmodules: []\n---\n{}\n"),
+		},
+		{
+			name:     "YAML anchor",
+			filename: "forge.yaml",
+			data:     []byte("version: &version v1\nname: demo\nmodules: []\n"),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+			manifestPath := filepath.Join(directory, test.filename)
+			if err := os.WriteFile(manifestPath, test.data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			outputPath := filepath.Join(directory, "must-not-exist.zip")
+			application := bootstrap.NewApplication()
+			packages, sources := buildCommandRegistries(t, application)
+			before := snapshotBuildCommandRegistries(packages, sources)
+
+			err := executeBuildCommand(application, manifestPath, outputPath)
+			requireInvalidManifestCode(t, err)
+			requireBuildCommandRegistrySnapshot(t, packages, sources, before)
+			requireBuildCommandOutputAbsent(t, outputPath)
+		})
+	}
+}
+
 func TestBuildCommandOutputErrorIsPropagated(
 	t *testing.T,
 ) {
@@ -1010,6 +1064,20 @@ func TestBuildCommandOutputErrorIsPropagated(
 			"expected os.ErrNotExist, got %v",
 			err,
 		)
+	}
+}
+
+func requireInvalidManifestCode(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected invalid manifest error")
+	}
+	var forgeErr *forgeerrors.Error
+	if !errors.As(err, &forgeErr) {
+		t.Fatalf("expected *errors.Error, got %T: %v", err, err)
+	}
+	if forgeErr.Code != forgeerrors.CodeInvalidManifest {
+		t.Fatalf("expected code %s, got %s", forgeerrors.CodeInvalidManifest, forgeErr.Code)
 	}
 }
 

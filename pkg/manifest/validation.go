@@ -3,56 +3,65 @@ package manifest
 import (
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	forgeerrors "github.com/kaizenforyou91/forge/pkg/errors"
 )
 
 // Validate validates the manifest contract.
 func (m Manifest) Validate() error {
-	if m.Version == "" {
-		return invalidManifest("manifest.version is required")
+	if err := validateManifestIdentity(
+		"manifest.version",
+		m.Version,
+	); err != nil {
+		return err
 	}
 
-	if m.Name == "" {
-		return invalidManifest("manifest.name is required")
+	if err := validateManifestIdentity("manifest.name", m.Name); err != nil {
+		return err
 	}
 
 	seen := make(map[string]struct{}, len(m.Modules))
 
 	for i, module := range m.Modules {
-		if module.Name == "" {
-			return invalidManifest(
-				fmt.Sprintf("manifest.modules[%d].name is required", i),
-			)
+		if err := validateManifestIdentity(
+			fmt.Sprintf("manifest.modules[%d].name", i),
+			module.Name,
+		); err != nil {
+			return err
 		}
 
-		if module.Version == "" {
-			return invalidManifest(
-				fmt.Sprintf("manifest.modules[%d].version is required", i),
-			)
+		if err := validateManifestIdentity(
+			fmt.Sprintf("manifest.modules[%d].version", i),
+			module.Version,
+		); err != nil {
+			return err
 		}
 
 		seenDependencies := make(map[string]struct{}, len(module.Dependencies))
 
 		for dependencyIndex, dependency := range module.Dependencies {
-			if dependency.Name == "" {
-				return invalidManifest(
-					fmt.Sprintf(
-						"manifest.modules[%d].dependencies[%d].name is required",
-						i,
-						dependencyIndex,
-					),
-				)
+			if err := validateManifestIdentity(
+				fmt.Sprintf(
+					"manifest.modules[%d].dependencies[%d].name",
+					i,
+					dependencyIndex,
+				),
+				dependency.Name,
+			); err != nil {
+				return err
 			}
 
-			if dependency.Version == "" {
-				return invalidManifest(
-					fmt.Sprintf(
-						"manifest.modules[%d].dependencies[%d].version is required",
-						i,
-						dependencyIndex,
-					),
-				)
+			if err := validateManifestIdentity(
+				fmt.Sprintf(
+					"manifest.modules[%d].dependencies[%d].version",
+					i,
+					dependencyIndex,
+				),
+				dependency.Version,
+			); err != nil {
+				return err
 			}
 
 			if dependency.Name == module.Name &&
@@ -98,24 +107,18 @@ func (m Manifest) Validate() error {
 	entrypointModule := m.Entrypoint.Module
 	entrypointVersion := m.Entrypoint.Version
 
-	if strings.TrimSpace(entrypointModule) == "" {
-		return invalidManifest("manifest.entrypoint.module is required")
+	if err := validateManifestIdentity(
+		"manifest.entrypoint.module",
+		entrypointModule,
+	); err != nil {
+		return err
 	}
 
-	if strings.TrimSpace(entrypointVersion) == "" {
-		return invalidManifest("manifest.entrypoint.version is required")
-	}
-
-	if strings.TrimSpace(entrypointModule) != entrypointModule {
-		return invalidManifest(
-			"manifest.entrypoint.module must not contain surrounding whitespace",
-		)
-	}
-
-	if strings.TrimSpace(entrypointVersion) != entrypointVersion {
-		return invalidManifest(
-			"manifest.entrypoint.version must not contain surrounding whitespace",
-		)
+	if err := validateManifestIdentity(
+		"manifest.entrypoint.version",
+		entrypointVersion,
+	); err != nil {
+		return err
 	}
 
 	matches := 0
@@ -134,6 +137,29 @@ func (m Manifest) Validate() error {
 				entrypointVersion,
 			),
 		)
+	}
+
+	return nil
+}
+
+func validateManifestIdentity(field, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return invalidManifest(field + " is required")
+	}
+	if !utf8.ValidString(value) {
+		return invalidManifest(field + " must be valid UTF-8")
+	}
+	if strings.TrimFunc(value, unicode.IsSpace) != value {
+		return invalidManifest(field + " must not contain surrounding whitespace")
+	}
+
+	for _, r := range value {
+		if r <= '\x1f' || r == '\x7f' {
+			return invalidManifest(field + " must not contain ASCII control characters")
+		}
+		if r == '@' {
+			return invalidManifest(field + " must not contain '@'")
+		}
 	}
 
 	return nil
