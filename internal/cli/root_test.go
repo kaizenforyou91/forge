@@ -21,6 +21,7 @@ func TestNewRootCommand(t *testing.T) {
 		"config",
 		"doctor",
 		"run",
+		"validate",
 		"version",
 	}
 
@@ -53,6 +54,9 @@ func TestNewRootCommandHelp(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "run") {
 		t.Fatalf("expected run in root help, got %q", out.String())
+	}
+	if !strings.Contains(out.String(), "validate") {
+		t.Fatalf("expected validate in root help, got %q", out.String())
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/kaizenforyou91/forge/pkg/app"
 	"github.com/kaizenforyou91/forge/pkg/compiler"
+	"github.com/kaizenforyou91/forge/pkg/manifest"
 	"github.com/spf13/cobra"
 )
 
@@ -56,18 +57,7 @@ func newBuildRunnableCmd() *cobra.Command {
 				return err
 			}
 
-			entrypoint, present := admission.ApplicationEntrypoint()
-			if !present {
-				return fmt.Errorf(
-					"%w: manifest has no application entrypoint",
-					compiler.ErrInvalidApplicationEntrypoint,
-				)
-			}
-			admittedSource, err := runnableBuildAdmittedSource(
-				admission,
-				entrypoint.Module,
-				entrypoint.Version,
-			)
+			entrypoint, admittedSource, err := runnableBuildAdmittedEntrypoint(admission)
 			if err != nil {
 				return err
 			}
@@ -286,4 +276,27 @@ func runnableBuildAdmittedSource(
 	}
 
 	return selected, nil
+}
+
+func runnableBuildAdmittedEntrypoint(
+	admission compiler.ManifestAdmissionPlan,
+) (manifest.ApplicationEntrypoint, compiler.PackageSource, error) {
+	entrypoint, present := admission.ApplicationEntrypoint()
+	if !present {
+		return manifest.ApplicationEntrypoint{}, compiler.PackageSource{}, fmt.Errorf(
+			"%w: manifest has no application entrypoint",
+			compiler.ErrInvalidApplicationEntrypoint,
+		)
+	}
+
+	source, err := runnableBuildAdmittedSource(
+		admission,
+		entrypoint.Module,
+		entrypoint.Version,
+	)
+	if err != nil {
+		return manifest.ApplicationEntrypoint{}, compiler.PackageSource{}, err
+	}
+
+	return entrypoint, source, nil
 }
