@@ -33,7 +33,7 @@ Every milestone must satisfy the following principles:
 | Version | Status |
 |----------|--------|
 | Pre-Alpha | 🚧 In Progress |
-| Alpha | Planned |
+| Alpha | Planned / Pending Formal Readiness Review |
 | Beta | Planned |
 | RC | Planned |
 | Stable 1.0 | Planned |
@@ -84,7 +84,11 @@ Deliverables:
 
 Status:
 
-Planned
+**Alpha-Bounded Closed.** Configuration, logging, errors, lifecycle,
+dependency injection, version hooks, and the required Go-native filesystem and
+platform behavior support the First Alpha boundary. Generic filesystem and
+platform abstractions remain possible future expansion; release stamping is an
+external workflow/release responsibility.
 
 ---
 
@@ -104,17 +108,19 @@ Commands:
 - forge version
 
 These are long-term Phase 2 command targets. The currently implemented
-top-level commands are `forge version`, `forge doctor`, `forge config`, and
-`forge build`, plus the explicit signed `forge build-runnable` producer and
-explicit trusted `forge run` execution workflow.
+top-level commands are `forge version`, `forge doctor`, `forge config`,
+`forge validate`, `forge build`, `forge build-runnable`, `forge inspect`, and
+`forge run`. The historical `forge init` and `forge fmt` targets remain
+deferred.
 
 Status:
 
-Planned
+**Alpha workflow implemented; long-term CLI expansion remains planned.** This
+is not a formal full Phase-2 closure decision.
 
 ---
 
-| Phase 3 — Manifest Engine | ✅ Foundation Complete |
+# Phase 3 — Manifest Engine
 
 Objective:
 
@@ -129,7 +135,7 @@ Capabilities:
 
 Status:
 
-Planned
+Completed for the current strict manifest contract.
 
 ---
 
@@ -148,7 +154,10 @@ Capabilities:
 
 Status:
 
-Planned
+**Alpha validation workflow implemented; long-term validation expansion
+remains planned.** Strict YAML/JSON admission, structural/build/runnable
+profiles, deterministic diagnostics, and `forge validate` are implemented.
+This is not a formal full Phase-4 closure decision.
 
 ---
 
@@ -167,7 +176,11 @@ Capabilities:
 
 Status:
 
-Planned
+**Alpha-Bounded Closed.** The local invocation-scoped contract covers exact
+package identities and sources, deterministic dependency resolution/order,
+non-mutating admission snapshots, and controlled build-path commit. Remote
+registry/acquisition, persistence, version ranges, indexing, and complete
+provenance remain planned.
 
 ---
 
@@ -204,7 +217,12 @@ Capabilities:
 
 Status:
 
-Planned
+**Alpha-Bounded Closed.** The bounded runtime loads an explicitly trusted,
+signed local runnable package, authorizes the host, materializes privately,
+executes one direct no-shell child with bounded output, waits/reaps, maps the
+result, and cleans up. Scheduling, dynamic plugin loading, richer inputs,
+process-tree control, graceful shutdown, sandboxing, quotas, and persistent
+trust remain planned.
 
 ---
 
@@ -224,7 +242,7 @@ Capabilities:
 
 Status:
 
-Planned
+Not Started
 
 ---
 
@@ -246,7 +264,7 @@ Foundation Library
 
 Status:
 
-Planned
+Alpha-Bounded Closed; long-term foundation expansion remains planned
 
 ---
 
@@ -256,7 +274,7 @@ CLI
 
 Status:
 
-Planned
+Alpha workflow implemented; long-term CLI expansion remains planned
 
 ---
 
@@ -266,7 +284,7 @@ Manifest Engine
 
 Status:
 
-Planned
+Completed for the current strict manifest contract
 
 ---
 
@@ -276,7 +294,7 @@ Validation Engine
 
 Status:
 
-Planned
+Alpha validation workflow implemented; long-term expansion remains planned
 
 ---
 
@@ -286,7 +304,8 @@ Registry
 
 Status:
 
-Planned
+Alpha-Bounded Closed for the local exact-identity registry boundary; remote,
+persistent, and advanced-resolution capabilities remain planned
 
 ---
 
@@ -307,7 +326,8 @@ Runtime
 
 Status:
 
-Planned
+Alpha-Bounded Closed for the trusted local direct-child boundary; scheduler,
+dynamic loading, richer inputs, and isolation remain planned
 
 ---
 
@@ -317,7 +337,7 @@ AI Runtime
 
 Status:
 
-Planned
+Not Started
 
 ---
 
@@ -344,13 +364,13 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase | Status |
 |---|---|
 | Phase 0 — Foundation | ✅ Completed |
-| Phase 1 — Core Foundation | 🔄 Substantially Complete |
-| Phase 2 — CLI | 🔄 Foundation Complete / In Progress |
-| Phase 3 — Manifest Engine | ✅ Complete |
-| Phase 4 — Validation Engine | 🔄 Partial Foundation in Manifest Layer / Dedicated Validation Engine Not Started |
-| Phase 5 — Registry | 🔄 Foundation Complete / In Progress |
+| Phase 1 — Core Foundation | ✅ Alpha-Bounded Closed; long-term expansion planned |
+| Phase 2 — CLI | Alpha workflow implemented; long-term expansion planned |
+| Phase 3 — Manifest Engine | ✅ Complete for current strict contract |
+| Phase 4 — Validation Engine | Alpha validation workflow implemented; long-term expansion planned |
+| Phase 5 — Registry | ✅ Alpha-Bounded Closed; local exact-identity boundary |
 | Phase 6 — Compiler | ✅ CLOSED / PASS — bounded Pre-Alpha compiler/package/runnable pipeline |
-| Phase 7 — Runtime | 🔄 Foundation Complete / In Progress |
+| Phase 7 — Runtime | ✅ Alpha-Bounded Closed; trusted local direct-child boundary |
 | Phase 8 — AI Runtime | ⏳ Not Started |
 
 ## Engineering Milestones
@@ -533,6 +553,18 @@ assigning new milestone or task identifiers:
   bounded Pre-Alpha / First Alpha implementation as technically complete with
   no implementation blocker. Residual hardening, testing debt, and future
   capabilities remain explicit and do not reopen Phase 6.
+- Strict Manifest Admission Alignment establishes one strict YAML/JSON
+  document boundary with UTF-8, single-document/object, exact field-type,
+  recursive duplicate-field, unknown-field, and unsafe-YAML rejection.
+- `forge validate` Vertical Slice adds non-mutating structural, build, and
+  runnable admission profiles with deterministic human-readable results.
+- Verified Package Inspection Architecture and implementation establish a
+  bounded, version-aware, metadata-only read path with integrity verification,
+  self-signature verification, and optional explicit trust verification.
+- `forge inspect` Vertical Slice exposes v1/v2 package identity, runtime,
+  artifact, integrity, and exact signature-state evidence without execution.
+- Bounded Phase 1 / 5 / 7 Closure Review accepts those three First Alpha
+  scopes as Alpha-Bounded Closed while preserving their long-term work.
 
 ## Current Implemented Foundation
 
@@ -548,9 +580,12 @@ Forge currently provides:
 - Plugin contract and registry
 - Plugin configuration enablement
 - Manifest contract
-- YAML manifest loading
-- JSON manifest loading
-- Manifest validation
+- Strict YAML manifest document loading
+- Strict JSON manifest document loading
+- Manifest validation with recursive duplicate-field and unknown-field
+  rejection
+- CLI `forge validate` with non-mutating structural, build, and runnable
+  profiles
 - Optional exact application-entrypoint declaration and structural validation
 - Exact module resolution
 - Dependency-aware deterministic build planning
@@ -611,6 +646,9 @@ Forge currently provides:
   creation with strict staged verification and no-replace publication
 - CLI `forge run` for an existing local signed runnable package v2 with one
   explicit command-local Ed25519 public key and exact KeyID
+- CLI `forge inspect` for bounded, non-executing v1/v2 inspection with verified
+  integrity, unsigned/signed-unverified/signed-trusted states, and optional
+  explicit command-local trust
 - Declaration-order admission with dependency-first execution
 - Predictable admission failures without persistent candidate mutation
 - Accepted admission state retained after downstream failures
@@ -619,9 +657,9 @@ Forge currently provides:
   vet, full-test, and full-build gates, plus a focused Ubuntu race gate for the
   compiler/runtime/CLI boundary
 
-## Phase 5 — Registry Foundation
+## Phase 5 — Registry Alpha-Bounded Scope
 
-Implemented foundation:
+Implemented Alpha contract:
 
 - Concurrency-safe in-memory package identity registry.
 - Exact package name/version resolution.
@@ -633,13 +671,16 @@ Implemented foundation:
 - Deterministic successful insertion order.
 - Deterministic dependency graph/order integration.
 
-Remaining work:
+Long-term remaining work:
 
 - Remote registry and remote resolution.
 - Package acquisition.
 - Advanced version constraints.
 - Registry persistence.
 - Remote and distributed transaction semantics.
+
+Status: **ALPHA-BOUNDED CLOSED.** These deferred distribution and persistence
+capabilities are not marked complete.
 
 ## Phase 6 — Compiler Foundation
 
@@ -774,8 +815,15 @@ Future capabilities (do not keep Phase 6 open):
 
 ```text
 Pre-Alpha
-→ Phase 6 — Compiler
-→ Package Pipeline Hardening
+→ Phase 1 — Core Foundation: Alpha-Bounded Closed
+→ Phase 2 — Alpha workflow implemented; long-term expansion planned
+→ Phase 3 — Manifest Engine: Complete for current contract
+→ Phase 4 — Alpha validation workflow implemented; long-term expansion planned
+→ Phase 5 — Registry: Alpha-Bounded Closed
+→ Phase 6 — Compiler / Package Pipeline: CLOSED / PASS
+→ Phase 7 — Runtime: Alpha-Bounded Closed
+→ Phase 8 — AI Runtime: Not Started
+→ Package Pipeline Hardening checkpoints
 → Package Format Stabilization: Completed
 → Runnable Package Contract R1A: Completed
 → Real Executable Output R1B: Completed
@@ -797,6 +845,11 @@ Pre-Alpha
 → Secondary-Document Strict JSON Alignment: Completed
 → Linux / Windows Acceptance Matrix: Completed
 → Focused Ubuntu Race Gate: Completed
+→ Strict Manifest Admission Alignment: Completed
+→ forge validate Vertical Slice: Completed
+→ Verified Package Inspection Architecture / Implementation: Completed
+→ forge inspect Vertical Slice: Completed
+→ Bounded Phase 1 / 5 / 7 Closure Review: Completed
 → Materialized Executable Validation-to-Exec Architecture Review: Completed
 → Materialized Executable Validation-to-Exec Implementation: Deferred
 → Phase 6 Compiler / Package Pipeline Hardening: CLOSED / PASS
@@ -856,10 +909,11 @@ resource controls.
 
 The following capabilities remain future work:
 
-- Dedicated Validation Engine
-- Manifest decoder strictness, JSON duplicate-key handling, and explicit
-  manifest schema versioning
+- Long-term validation expansion and an explicit manifest schema-version policy
+- `forge init`, `forge fmt`, and machine-readable validation/inspection output
 - Remote package registry and package acquisition
+- Persistent local registry, package indexing, advanced version constraints,
+  and complete provenance/SBOM
 - Package-format production hardening and legacy tooling
 - Compiler optimization, build isolation, process resource controls, dependency
   provenance, and reproducibility hardening
@@ -870,7 +924,9 @@ The following capabilities remain future work:
 - Richer arguments/environment/working-directory contracts, process resource
   controls, and sandboxing
 - Trust snapshot/revocation and start-time authorization policy
-- Scheduler
+- Persistent trust, multiple configured keys, rotation, and revocation
+- Scheduler and multi-application orchestration
+- Dynamic plugin discovery/loading
 - Remote package resolution
 - Advanced dependency and version resolution
 - AI Runtime

@@ -4,6 +4,17 @@
 
 ## Added
 
+- Added strict YAML and JSON manifest document admission with valid UTF-8,
+  single-document/object, exact field-type, recursive duplicate-field, and
+  unknown-field enforcement plus rejection of ambiguous YAML features.
+- Added `forge validate <manifest> [--profile structural|build|runnable]` for
+  non-mutating manifest and compiler-admission checks.
+- Added bounded verified `forge inspect <package.zip>` for v1/v2 package,
+  runtime, artifact, integrity, and signature-state evidence without execution.
+- Added optional explicit `--trusted-key` and `--key-id` inspection trust for
+  invocation-local Ed25519 signer verification.
+- Added the canonical external Alpha example and documented validation,
+  v1-build, v2-build, inspection, explicit-trust, and execution workflow.
 - Added a dependency-aware compiler execution pipeline.
 - Added CLI `forge build` for YAML and JSON manifests.
 - Added a package source registry.
@@ -81,6 +92,13 @@
 
 ## Changed
 
+- Accepted Phase 1, Phase 5, and Phase 7 as Alpha-bounded closed scopes while
+  retaining their long-term core, distribution, trust, runtime, scheduling,
+  isolation, and platform work.
+- Shared neutral Alpha package read limits now support both runtime loading and
+  safe non-executing inspection without weakening the stricter runtime policy.
+- Aligned README, roadmap, release-stamping guidance, and external-user
+  workflow documentation with the implemented command and security boundaries.
 - Manifest module `import_path` is now the package source of truth.
 - Artifacts and bundle documents preserve import-path provenance.
 - Compiler composition is available through application bootstrap.
@@ -199,6 +217,12 @@
 
 ## Security
 
+- Manifest admission now fails closed on unknown fields, recursive duplicate
+  fields, malformed UTF-8, multiple/trailing documents, wrong field types, and
+  unsupported YAML alias/anchor/merge/tag behavior.
+- Package inspection distinguishes unsigned, self-consistent but explicitly
+  untrusted signatures, and signatures verified against a supplied trusted
+  key. Signed-unverified packages are not described as authentic or trusted.
 - Runnable CLI signing is mandatory and uses an explicit KeyID; there is no
   unsigned mode or private-key input through command arguments or environment.
 - Staged runnable packages are signature-checked and semantically verified as
@@ -317,8 +341,9 @@
   supported; broader compatibility and migration tooling do not exist.
 - `forge build` still emits package format 1; signed runnable package-v2
   creation is the separate explicit `forge build-runnable` workflow.
-- Manifest decoding has no strict unknown-field guarantee, JSON duplicate keys
-  are not rejected, and no separate manifest `schema_version` exists.
+- Manifest decoding has no separate `schema_version` field; the strict current
+  manifest contract remains Pre-Alpha and is not a stable compatibility
+  guarantee.
 - Process management is host-only and direct-child-only. Descendants, process
   trees, graceful shutdown, arbitrary arguments/environment/working-directory
   policy, live streaming, and resource controls are not implemented.
@@ -418,9 +443,11 @@ This project follows **Semantic Versioning**.
 
 ### Remaining Platform Work
 
-- Dedicated Validation Engine
+- Long-term validation expansion and an explicit manifest schema-version policy
+- `forge init`, `forge fmt`, and machine-readable validation/inspection output
 - Remote package registry, acquisition, and resolution
-- Advanced dependency and version constraints
+- Persistent registry, package indexing, and advanced dependency/version
+  constraints
 - Compiler package-format production hardening, legacy tooling, and optimization
 - Build isolation, process resource controls, dependency provenance, and
   reproducibility hardening
@@ -431,7 +458,8 @@ This project follows **Semantic Versioning**.
 - Richer arguments/environment/working-directory contracts, process resource
   isolation, and sandboxing
 - Trust snapshot/revocation and start-time authorization policy
-- Runtime scheduler
+- Persistent trust, runtime scheduling, dynamic plugin loading, and
+  multi-application orchestration
 - AI Runtime
 
 ---

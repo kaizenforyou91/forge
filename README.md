@@ -46,22 +46,23 @@ Forge is built around several engineering principles.
 
 # Platform Status
 
-Forge is being developed incrementally. A status of "foundation complete" means
-that a tested implementation exists; it does not mean the component is complete
-or production-stable.
+Forge is being developed incrementally. An Alpha-bounded status means the tested
+subset needed by the first local Alpha workflow is complete; it does not mean
+the component's full roadmap or production hardening is complete.
 
 | Component | Status |
 |-----------|--------|
-| Workspace | ✅ Bootstrap |
-| Documentation | 🚧 In Progress |
-| CLI | 🚧 Foundation Complete / In Progress |
-| Manifest Engine | ✅ Complete |
-| Validation Engine | 🚧 Partial Manifest-Layer Foundation |
-| Registry | 🚧 Foundation Complete / In Progress |
-| Compiler | CLOSED / PASS — Phase 6 bounded Pre-Alpha pipeline |
-| Runtime | 🚧 Foundation Complete / In Progress |
-| Plugin System | 🚧 Foundation Complete / In Progress |
-| AI Runtime | ⏳ Planned |
+| Workspace | Bootstrap complete |
+| Core | Alpha-bounded scope complete; long-term expansion planned |
+| Documentation | External Alpha workflow established; release review pending |
+| CLI | Alpha workflow implemented; long-term expansion planned |
+| Manifest Engine | Complete for current contract |
+| Validation Engine | Alpha validation workflow implemented; long-term expansion planned |
+| Registry | Alpha-bounded local exact-identity scope complete |
+| Compiler | CLOSED / PASS — bounded Pre-Alpha / First Alpha pipeline |
+| Runtime | Alpha-bounded trusted local direct-child scope complete |
+| Plugin System | Static foundation complete; dynamic loading deferred |
+| AI Runtime | Not started |
 
 ---
 
@@ -70,7 +71,10 @@ or production-stable.
 The current tested foundation includes:
 
 - Manifest-driven application architecture.
-- YAML and JSON manifest loading.
+- Strict YAML and JSON manifest loading with UTF-8, single-document/object,
+  recursive duplicate-field, unknown-field, and exact field-type enforcement.
+- Non-mutating `forge validate` profiles for structural, build-admission, and
+  runnable-admission checks.
 - Exact module and version resolution.
 - Dependency-aware deterministic build planning.
 - Multi-module, dependency-first builds.
@@ -167,6 +171,10 @@ The current tested foundation includes:
   explicit command-local Ed25519 trust, strict runtime verification, exact host
   authorization, private materialization, direct-child execution, Wait/reap,
   bounded output presentation, and cleanup.
+- Bounded `forge inspect` reads supported v1 and v2 packages without execution,
+  verifies integrity, and distinguishes unsigned, signed-but-untrusted, and
+  explicitly trusted signature states. Trust verification is optional and
+  invocation-local.
 - Normal-reader rejection of legacy/unversioned packages and unsupported package
   or bundle versions.
 - Artifact source provenance preserved through package read-back.
@@ -189,7 +197,9 @@ The current tested foundation includes:
   HTTP, middleware, and plugin foundations.
 
 The implemented top-level CLI commands are `forge version`, `forge doctor`,
-`forge config`, `forge build`, `forge build-runnable`, and `forge run`.
+`forge config`, `forge validate`, `forge build`, `forge build-runnable`,
+`forge inspect`, and `forge run`. The historical `forge init` and `forge fmt`
+targets are not current commands.
 
 Forge remains **Pre-Alpha**. The compiler and package pipeline are a tested
 foundation, not a production-ready package ecosystem or stable production
@@ -210,6 +220,39 @@ preflight simplification, and formal hardening closure are also complete.
 This bounded closure does not make Forge Beta or production-ready, and it does
 not complete all future compiler, runtime, trust, provenance, isolation, or
 security-hardening work.
+
+## Quick Start: External Alpha Workflow
+
+Requirements are Git, Go 1.26 or newer, and a temporary directory outside the
+repository. The workflow uses only the Go standard library to generate its
+ephemeral signing and trust keys.
+
+The canonical example consists of
+[`examples/alpha-app/main.go`](examples/alpha-app/main.go) and
+[`examples/alpha-app/forge.yaml`](examples/alpha-app/forge.yaml). The complete,
+platform-aware walkthrough is
+[`docs/ALPHA_WORKFLOW.md`](docs/ALPHA_WORKFLOW.md).
+
+From the repository root, build Forge into a temporary location, then exercise
+the bounded workflow with explicit external output paths:
+
+```text
+go build -trimpath -o <forge> ./cmd/forge
+<forge> validate examples/alpha-app/forge.yaml --profile structural
+<forge> validate examples/alpha-app/forge.yaml
+<forge> validate examples/alpha-app/forge.yaml --profile runnable
+<forge> build examples/alpha-app/forge.yaml --output <temp>/forge-alpha-example-v1.zip
+<forge> inspect <temp>/forge-alpha-example-v1.zip
+<forge> build-runnable examples/alpha-app/forge.yaml --signing-key <temp>/alpha-private.pem --key-id alpha-acceptance-key --output <temp>/forge-alpha-example-runnable.zip
+<forge> inspect <temp>/forge-alpha-example-runnable.zip
+<forge> inspect <temp>/forge-alpha-example-runnable.zip --trusted-key <temp>/alpha-public.pem --key-id alpha-acceptance-key
+<forge> run <temp>/forge-alpha-example-runnable.zip --trusted-key <temp>/alpha-public.pem --key-id alpha-acceptance-key
+```
+
+The detailed guide includes release stamping, accepted Ed25519 key formats,
+key generation, expected output, failure behavior, cleanup, and prominent
+security non-guarantees. Forge remains **Pre-Alpha** pending the Formal Alpha
+Readiness Review.
 
 ## Package Identity and Parsing Contracts
 
@@ -334,6 +377,37 @@ authenticates the produced package bytes and metadata, but does not prove
 reproducible source contents, a repository commit/digest, an SBOM, or that the
 signed code is safe.
 
+## Verified Package Inspection
+
+Inspect a supported local package without extracting or executing it:
+
+```text
+forge inspect <package.zip>
+```
+
+Inspection uses bounded version-aware reads and verifies package integrity. It
+reports format and bundle versions, manifest identity, runnable metadata when
+present, artifacts, and exactly one signature state:
+
+- `unsigned`: no signature is present;
+- `present, trust not verified`: the signature is cryptographically consistent
+  with the embedded public key, but no trusted identity has been supplied;
+- `trusted`: verification succeeded against the explicitly supplied public key
+  and exact KeyID.
+
+Optional trust verification requires both flags:
+
+```text
+forge inspect <package.zip> \
+  --trusted-key <public-key.pem> \
+  --key-id <key-id>
+```
+
+A signed-but-unverified package is not authentic, trusted, or a verified
+publisher. Explicit trust authenticates signed bytes relative to that supplied
+key; it does not prove that native code is safe. Inspection never executes the
+package.
+
 ## Trusted Package Execution
 
 Run an existing local signed runnable package v2 with exactly one explicitly
@@ -427,9 +501,10 @@ child, no live streaming, and no remote package acquisition.
 - `forge build` still emits package format v1 identity/provenance packages;
   `forge build-runnable` is the separate signed package-v2 workflow, and
   `forge run` accepts only an existing local trusted package v2.
-- Manifest loading does not provide a strict unknown-field contract, JSON
-  duplicate keys are not rejected, and there is no separate manifest
-  `schema_version` field.
+- Manifest loading rejects unknown and recursively duplicated fields in both
+  YAML and JSON, enforces exact field types, and rejects ambiguous YAML
+  features. There is no separate manifest `schema_version` field, and the
+  current manifest contract remains Pre-Alpha.
 - Process execution is limited to one host-target direct child with zero user
   arguments, no environment injection, nil stdin, a reduced environment, and a
   private working directory. Descendants are not managed; graceful shutdown,
@@ -560,6 +635,10 @@ Run tests.
 go test ./...
 ```
 
+To exercise the actual user-facing validation, packaging, inspection, trust,
+and execution path, follow the
+[External Alpha Workflow](docs/ALPHA_WORKFLOW.md).
+
 ---
 
 # Documentation
@@ -623,13 +702,13 @@ Apache License 2.0
 
 ```text
 Core Foundation
-████████████████████ 100%
+Alpha-bounded scope complete; long-term expansion planned
 
-CLI Foundation
-████████████████████ 100%
+CLI
+Alpha workflow implemented; long-term expansion planned
 
-Runtime Foundation
-████████████████████ 100%
+Runtime
+Alpha-bounded trusted local direct-child scope complete
 
 Plugin Foundation
 ████████████████████ 100%
@@ -638,10 +717,10 @@ Manifest Engine
 ████████████████████ 100%
 
 Validation Engine
-Partial foundation in the manifest layer
+Alpha validation workflow implemented; long-term expansion planned
 
 Package Registry
-Foundation complete / in progress
+Alpha-bounded local exact-identity scope complete
 
 Compiler
 Phase 6 compiler/package/runnable pipeline CLOSED / PASS for the bounded
@@ -660,9 +739,11 @@ AI Runtime
 
 Forge is currently in the **Pre-Alpha** stage.
 
-The core engineering foundation is now substantially established. Phase 6 —
-Compiler / Package Pipeline Hardening is closed for its bounded Pre-Alpha /
-First Alpha compiler-package-runnable contract, while registry, validation,
-runtime expansion, and additional security hardening continue to evolve.
+The core, local exact-identity registry, and trusted local runtime scopes are
+Alpha-bounded closed. Phase 6 — Compiler / Package Pipeline Hardening is
+CLOSED / PASS for its bounded Pre-Alpha / First Alpha contract. The external
+workflow baseline is documented, but Forge remains Pre-Alpha until the Formal
+Alpha Readiness Review; long-term CLI, validation, registry, runtime, trust,
+isolation, distribution, and security work remains planned.
 
 AI-First Engineering Operating System

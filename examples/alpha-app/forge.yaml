@@ -1,0 +1,10 @@
+version: v1
+name: forge-alpha-example
+entrypoint:
+  module: app
+  version: v1
+modules:
+  - name: app
+    version: v1
+    import_path: github.com/kaizenforyou91/forge/examples/alpha-app
+    dependencies: []
