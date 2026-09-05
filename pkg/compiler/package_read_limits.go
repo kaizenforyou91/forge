@@ -35,10 +35,9 @@ func (l PackageReadLimits) Validate() error {
 	return nil
 }
 
-// AlphaRuntimePackageReadLimits returns the bounded package-read policy for
-// the Alpha runtime-loading path. These are Alpha safety limits, not
-// production guarantees.
-func AlphaRuntimePackageReadLimits() PackageReadLimits {
+// AlphaPackageReadLimits returns the bounded package-read policy for Alpha
+// package consumers. These are Alpha safety limits, not production guarantees.
+func AlphaPackageReadLimits() PackageReadLimits {
 	return PackageReadLimits{
 		MaxArchiveBytes:           80 * binaryMiB,
 		MaxEntries:                16,
@@ -47,4 +46,13 @@ func AlphaRuntimePackageReadLimits() PackageReadLimits {
 		MaxTotalUncompressedBytes: 72 * binaryMiB,
 		RequireStoreCompression:   true,
 	}
+}
+
+// AlphaRuntimePackageReadLimits returns the bounded package-read policy for
+// the Alpha runtime-loading path.
+//
+// It is retained for compatibility. New package consumers should use
+// AlphaPackageReadLimits.
+func AlphaRuntimePackageReadLimits() PackageReadLimits {
+	return AlphaPackageReadLimits()
 }

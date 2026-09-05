@@ -16,6 +16,10 @@ import (
 const maxRunTrustedKeyFileBytes int64 = 16 * 1024
 
 func loadRunTrustedPublicKey(path string) (ed25519.PublicKey, error) {
+	return loadTrustedPublicKey(path)
+}
+
+func loadTrustedPublicKey(path string) (ed25519.PublicKey, error) {
 	trimmedPath := strings.TrimSpace(path)
 	if trimmedPath == "" {
 		return nil, runTrustedKeyError("trusted public-key path is required", nil)
@@ -100,6 +104,10 @@ func loadRunTrustedPublicKey(path string) (ed25519.PublicKey, error) {
 }
 
 func validateRunTrustKeyID(keyID string) (string, error) {
+	return validateTrustedKeyID(keyID)
+}
+
+func validateTrustedKeyID(keyID string) (string, error) {
 	if err := compiler.ValidateKeyID(keyID); err != nil {
 		return "", runTrustedKeyError("invalid trusted key ID", err)
 	}

@@ -37,6 +37,7 @@ func NewRootCommandWithApplication(
 		newValidateCmd(),
 		newBuildCmd(),
 		newBuildRunnableCmd(),
+		newInspectCmd(),
 		newRunCmd(),
 	)
 

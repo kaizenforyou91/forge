@@ -121,15 +121,43 @@ func (r *ZIPPackageReader) Read(
 func (r *ZIPPackageReader) ReadDetailed(
 	path string,
 ) (result PackageReadResult, resultErr error) {
+	evidence, err := r.readDetailed(path)
+	if err != nil {
+		return PackageReadResult{}, err
+	}
+
+	return PackageReadResult{
+		PackageFormatVersion: evidence.PackageFormatVersion,
+		BundleSchemaVersion:  evidence.BundleSchemaVersion,
+		Bundle:               evidence.Bundle,
+		Payloads:             evidence.Payloads,
+		VerifiedSignerKeyID:  evidence.VerifiedSignerKeyID,
+	}, nil
+}
+
+type packageReadEvidence struct {
+	PackageFormatVersion int
+	BundleSchemaVersion  int
+	Bundle               ArtifactBundle
+	Payloads             map[string][]byte
+	VerifiedSignerKeyID  string
+	IntegrityData        []byte
+	Signature            PackageSignature
+	SignaturePresent     bool
+}
+
+func (r *ZIPPackageReader) readDetailed(
+	path string,
+) (result packageReadEvidence, resultErr error) {
 	if r == nil {
-		return PackageReadResult{}, fmt.Errorf(
+		return packageReadEvidence{}, fmt.Errorf(
 			"%w: reader is nil",
 			ErrInvalidArtifactPackage,
 		)
 	}
 
 	if strings.TrimSpace(path) == "" {
-		return PackageReadResult{}, fmt.Errorf(
+		return packageReadEvidence{}, fmt.Errorf(
 			"%w: package path is required",
 			ErrInvalidArtifactPackage,
 		)
@@ -137,7 +165,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 
 	packageFile, reader, err := r.openPackage(path)
 	if err != nil {
-		return PackageReadResult{}, err
+		return packageReadEvidence{}, err
 	}
 	defer func() {
 		if closeErr := packageFile.Close(); closeErr != nil {
@@ -147,7 +175,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 				closeErr,
 			)
 			if resultErr == nil {
-				result = PackageReadResult{}
+				result = packageReadEvidence{}
 				resultErr = wrapped
 				return
 			}
@@ -156,13 +184,13 @@ func (r *ZIPPackageReader) ReadDetailed(
 	}()
 
 	if len(reader.File) == 0 {
-		return PackageReadResult{}, fmt.Errorf(
+		return packageReadEvidence{}, fmt.Errorf(
 			"%w: package is empty",
 			ErrInvalidArtifactPackage,
 		)
 	}
 	if r.limits != nil && len(reader.File) > r.limits.MaxEntries {
-		return PackageReadResult{}, fmt.Errorf(
+		return packageReadEvidence{}, fmt.Errorf(
 			"%w: archive contains %d entries, limit is %d",
 			ErrPackageReadLimitExceeded,
 			len(reader.File),
@@ -177,7 +205,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 
 	for _, file := range reader.File {
 		if !validArchivePath(file.Name) {
-			return PackageReadResult{}, fmt.Errorf(
+			return packageReadEvidence{}, fmt.Errorf(
 				"%w: unsafe archive path %q",
 				ErrInvalidArtifactPackage,
 				file.Name,
@@ -185,7 +213,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 		}
 
 		if _, exists := seen[file.Name]; exists {
-			return PackageReadResult{}, fmt.Errorf(
+			return packageReadEvidence{}, fmt.Errorf(
 				"%w: duplicate archive entry %q",
 				ErrInvalidArtifactPackage,
 				file.Name,
@@ -195,7 +223,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 		seen[file.Name] = struct{}{}
 
 		if strings.HasSuffix(file.Name, "/") {
-			return PackageReadResult{}, fmt.Errorf(
+			return packageReadEvidence{}, fmt.Errorf(
 				"%w: directory entry %q is not allowed",
 				ErrInvalidArtifactPackage,
 				file.Name,
@@ -207,7 +235,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 			data, err = readZIPEntry(file)
 		} else {
 			if r.limits.RequireStoreCompression && file.Method != zip.Store {
-				return PackageReadResult{}, fmt.Errorf(
+				return packageReadEvidence{}, fmt.Errorf(
 					"%w: archive entry %q uses unsupported compression method %d",
 					ErrInvalidArtifactPackage,
 					file.Name,
@@ -217,7 +245,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 
 			entryLimit := r.entryReadLimit(file.Name)
 			if file.UncompressedSize64 > uint64(entryLimit) {
-				return PackageReadResult{}, fmt.Errorf(
+				return packageReadEvidence{}, fmt.Errorf(
 					"%w: archive entry %q declares %d uncompressed bytes, limit is %d",
 					ErrPackageReadLimitExceeded,
 					file.Name,
@@ -228,7 +256,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 
 			maxTotal := uint64(r.limits.MaxTotalUncompressedBytes)
 			if headerTotal > maxTotal || file.UncompressedSize64 > maxTotal-headerTotal {
-				return PackageReadResult{}, fmt.Errorf(
+				return packageReadEvidence{}, fmt.Errorf(
 					"%w: declared total uncompressed bytes exceed limit %d at entry %q",
 					ErrPackageReadLimitExceeded,
 					r.limits.MaxTotalUncompressedBytes,
@@ -248,7 +276,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 			data, exceeded, err = readZIPEntryBounded(file, actualLimit)
 			if exceeded {
 				if totalIsLimiting {
-					return PackageReadResult{}, fmt.Errorf(
+					return packageReadEvidence{}, fmt.Errorf(
 						"%w: actual total uncompressed bytes exceed limit %d at entry %q",
 						ErrPackageReadLimitExceeded,
 						r.limits.MaxTotalUncompressedBytes,
@@ -256,7 +284,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 					)
 				}
 
-				return PackageReadResult{}, fmt.Errorf(
+				return packageReadEvidence{}, fmt.Errorf(
 					"%w: archive entry %q exceeds actual-read limit %d",
 					ErrPackageReadLimitExceeded,
 					file.Name,
@@ -266,7 +294,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 			actualTotal += int64(len(data))
 		}
 		if err != nil {
-			return PackageReadResult{}, fmt.Errorf(
+			return packageReadEvidence{}, fmt.Errorf(
 				"%w: read %q: %v",
 				ErrInvalidArtifactPackage,
 				file.Name,
@@ -279,7 +307,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 
 	packageMetadataData, ok := files[packageMetadataPath]
 	if !ok {
-		return PackageReadResult{}, fmt.Errorf(
+		return packageReadEvidence{}, fmt.Errorf(
 			"%w: %s is missing",
 			ErrLegacyPackageUnsupported,
 			packageMetadataPath,
@@ -288,16 +316,16 @@ func (r *ZIPPackageReader) ReadDetailed(
 
 	metadata, err := unmarshalPackageMetadata(packageMetadataData)
 	if err != nil {
-		return PackageReadResult{}, err
+		return packageReadEvidence{}, err
 	}
 	bundleSchemaVersion, err := bundleSchemaVersionForPackageMetadata(metadata)
 	if err != nil {
-		return PackageReadResult{}, err
+		return packageReadEvidence{}, err
 	}
 
 	bundleData, ok := files[bundleManifestPath]
 	if !ok {
-		return PackageReadResult{}, fmt.Errorf(
+		return packageReadEvidence{}, fmt.Errorf(
 			"%w: %s is missing",
 			ErrInvalidArtifactPackage,
 			bundleManifestPath,
@@ -309,7 +337,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 		bundleSchemaVersion,
 	)
 	if err != nil {
-		return PackageReadResult{}, err
+		return packageReadEvidence{}, err
 	}
 
 	var integrityData []byte
@@ -321,7 +349,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 	}
 
 	if r.policy.RequireIntegrity && !integrityPresent {
-		return PackageReadResult{}, fmt.Errorf(
+		return packageReadEvidence{}, fmt.Errorf(
 			"%w: %s is missing",
 			ErrMissingPackageIntegrity,
 			integrityManifestPath,
@@ -333,16 +361,16 @@ func (r *ZIPPackageReader) ReadDetailed(
 	if integrityPresent {
 		integrity, err = UnmarshalPackageIntegrity(integrityData)
 		if err != nil {
-			return PackageReadResult{}, err
+			return packageReadEvidence{}, err
 		}
 	}
 	signature, signaturePresent, err := readOptionalPackageSignature(files)
 	if err != nil {
-		return PackageReadResult{}, err
+		return packageReadEvidence{}, err
 	}
 
 	if signaturePresent && !integrityPresent {
-		return PackageReadResult{}, fmt.Errorf(
+		return packageReadEvidence{}, fmt.Errorf(
 			"%w: signature requires %s",
 			ErrMissingPackageIntegrity,
 			integrityManifestPath,
@@ -355,7 +383,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 		signaturePresent,
 	)
 	if err != nil {
-		return PackageReadResult{}, err
+		return packageReadEvidence{}, err
 	}
 
 	expected := make(map[string]string, len(bundle.Artifacts))
@@ -375,7 +403,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 
 		payload, ok := files[archivePath]
 		if !ok {
-			return PackageReadResult{}, fmt.Errorf(
+			return packageReadEvidence{}, fmt.Errorf(
 				"%w: artifact payload %q is missing",
 				ErrMissingArtifactPayload,
 				key,
@@ -394,7 +422,7 @@ func (r *ZIPPackageReader) ReadDetailed(
 		}
 
 		if _, ok := expected[path]; !ok {
-			return PackageReadResult{}, fmt.Errorf(
+			return packageReadEvidence{}, fmt.Errorf(
 				"%w: unexpected package entry %q",
 				ErrInvalidArtifactPackage,
 				path,
@@ -410,16 +438,19 @@ func (r *ZIPPackageReader) ReadDetailed(
 			payloads,
 			integrity,
 		); err != nil {
-			return PackageReadResult{}, err
+			return packageReadEvidence{}, err
 		}
 	}
 
-	return PackageReadResult{
+	return packageReadEvidence{
 		PackageFormatVersion: metadata.PackageFormatVersion,
 		BundleSchemaVersion:  bundleSchemaVersion,
 		Bundle:               bundle,
 		Payloads:             payloads,
 		VerifiedSignerKeyID:  verifiedSignerKeyID,
+		IntegrityData:        append([]byte(nil), integrityData...),
+		Signature:            signature,
+		SignaturePresent:     signaturePresent,
 	}, nil
 }
 

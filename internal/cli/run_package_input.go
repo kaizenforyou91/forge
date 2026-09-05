@@ -9,6 +9,10 @@ import (
 )
 
 func resolveRunPackagePath(cwd string, requested string) (string, error) {
+	return resolveLocalPackagePath(cwd, requested)
+}
+
+func resolveLocalPackagePath(cwd string, requested string) (string, error) {
 	if strings.TrimSpace(cwd) == "" {
 		return "", runPackageInputError("working directory is required", nil)
 	}
