@@ -2,7 +2,7 @@
 
 > **Build AI-Native Applications with Structured Manifests**
 
-![Status](https://img.shields.io/badge/status-pre--alpha-orange)
+![Status](https://img.shields.io/badge/status-first%20alpha-orange)
 ![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
@@ -10,7 +10,20 @@ Forge is an AI-native application platform written in Go. It is designed to buil
 
 The long-term vision of Forge is to become a modern application platform where applications are described declaratively, validated automatically, and executed through a modular runtime.
 
-> **Current Status:** Pre-Alpha (Under Active Development)
+> **Current Status:** First Alpha — 0.3.0-alpha.1
+>
+> Non-production technical preview.
+
+Forge First Alpha is a local, manifest-driven technical preview supporting
+strict manifest validation, deterministic package creation, signed host-target
+runnable packages, bounded non-executing inspection, invocation-local explicit
+trust, and controlled direct-child native execution. It remains non-production
+and uses pre-stable APIs and package formats.
+
+```text
+manifest → validate → package → signed runnable package → inspect
+         → explicit trust → direct-child native execution
+```
 
 ---
 
@@ -54,7 +67,7 @@ the component's full roadmap or production hardening is complete.
 |-----------|--------|
 | Workspace | Bootstrap complete |
 | Core | Alpha-bounded scope complete; long-term expansion planned |
-| Documentation | External Alpha workflow established; release review pending |
+| Documentation | External First Alpha workflow established |
 | CLI | Alpha workflow implemented; long-term expansion planned |
 | Manifest Engine | Complete for current contract |
 | Validation Engine | Alpha validation workflow implemented; long-term expansion planned |
@@ -201,9 +214,9 @@ The implemented top-level CLI commands are `forge version`, `forge doctor`,
 `forge inspect`, and `forge run`. The historical `forge init` and `forge fmt`
 targets are not current commands.
 
-Forge remains **Pre-Alpha**. The compiler and package pipeline are a tested
-foundation, not a production-ready package ecosystem or stable production
-format.
+Forge is now **First Alpha — 0.3.0-alpha.1**. The compiler and package pipeline
+are a tested local technical-preview foundation, not a production-ready package
+ecosystem or stable production format.
 
 Manifest Admission Hardening, Package Format Stabilization, Runnable Package
 Contract R1A, Real Executable Output R1B, Verified Runtime Package Loader R2A,
@@ -233,6 +246,9 @@ The canonical example consists of
 platform-aware walkthrough is
 [`docs/ALPHA_WORKFLOW.md`](docs/ALPHA_WORKFLOW.md).
 
+The `alpha-acceptance-key` identifier shown below is a TEST-ONLY example trust
+identity, not a Forge version, published key, or persistent trust entry.
+
 From the repository root, build Forge into a temporary location, then exercise
 the bounded workflow with explicit external output paths:
 
@@ -251,8 +267,8 @@ go build -trimpath -o <forge> ./cmd/forge
 
 The detailed guide includes release stamping, accepted Ed25519 key formats,
 key generation, expected output, failure behavior, cleanup, and prominent
-security non-guarantees. Forge remains **Pre-Alpha** pending the Formal Alpha
-Readiness Review.
+security non-guarantees. This is the bounded First Alpha workflow; it is not a
+production-readiness or stable-format claim.
 
 ## Package Identity and Parsing Contracts
 
@@ -504,7 +520,7 @@ child, no live streaming, and no remote package acquisition.
 - Manifest loading rejects unknown and recursively duplicated fields in both
   YAML and JSON, enforces exact field types, and rejects ambiguous YAML
   features. There is no separate manifest `schema_version` field, and the
-  current manifest contract remains Pre-Alpha.
+  current manifest contract remains pre-stable.
 - Process execution is limited to one host-target direct child with zero user
   arguments, no environment injection, nil stdin, a reduced environment, and a
   private working directory. Descendants are not managed; graceful shutdown,
@@ -557,7 +573,7 @@ child, no live streaming, and no remote package acquisition.
 - No-integrity mode provides structural validation only and no cryptographic
   tamper resistance.
 - Unsigned integrity proves consistency, not publisher authenticity.
-- The package format remains Pre-Alpha and is not production-stable.
+- The package format remains pre-stable and is not production-stable.
 
 ---
 
@@ -583,29 +599,21 @@ forge/
 
 # Development Roadmap
 
-## Phase 1
+The authoritative roadmap uses the Phase 0–8 model:
 
-- Workspace Bootstrap
-- Documentation
-- Engineering Standards
+- Phase 0 — Foundation
+- Phase 1 — Core
+- Phase 2 — CLI
+- Phase 3 — Manifest
+- Phase 4 — Validation
+- Phase 5 — Registry
+- Phase 6 — Compiler
+- Phase 7 — Runtime
+- Phase 8 — AI Runtime
 
-## Phase 2
-
-- CLI
-- Foundation Library
-- Manifest Engine
-
-## Phase 3
-
-- Validation Engine
-- Registry
-- Runtime
-
-## Phase 4
-
-- Compiler
-- Plugin System
-- AI Runtime
+Bounded Alpha closure does not mean that a phase's complete long-term scope is
+finished. See the current phase statuses and deferred work in
+[`ROADMAP.md`](ROADMAP.md).
 
 ---
 
@@ -643,19 +651,16 @@ and execution path, follow the
 
 # Documentation
 
-Project documentation is located inside:
+Current public entry points are:
 
-```text
-docs/
-```
-
-This directory contains:
-
-- Architecture
-- Specifications
-- ADR
-- API Documentation
-- Roadmap
+- [`README.md`](README.md) — product boundary, commands, and security model.
+- [`ROADMAP.md`](ROADMAP.md) — authoritative Phase 0–8 plan and status.
+- [`CHANGELOG.md`](CHANGELOG.md) — release and historical change notes.
+- [`docs/ALPHA_WORKFLOW.md`](docs/ALPHA_WORKFLOW.md) — canonical external
+  First Alpha walkthrough.
+- [`examples/alpha-app/`](examples/alpha-app/) — canonical example, including
+  [`forge.yaml`](examples/alpha-app/forge.yaml) and
+  [`main.go`](examples/alpha-app/main.go).
 
 ---
 
@@ -688,7 +693,7 @@ Release
 
 Forge is currently under active development.
 
-Contribution guidelines will be published after the first alpha release.
+Contribution guidance will continue to expand during Alpha.
 
 ---
 
@@ -737,13 +742,14 @@ AI Runtime
 
 ## Project Status
 
-Forge is currently in the **Pre-Alpha** stage.
+Forge is currently **First Alpha — 0.3.0-alpha.1**, a non-production technical
+preview.
 
 The core, local exact-identity registry, and trusted local runtime scopes are
 Alpha-bounded closed. Phase 6 — Compiler / Package Pipeline Hardening is
 CLOSED / PASS for its bounded Pre-Alpha / First Alpha contract. The external
-workflow baseline is documented, but Forge remains Pre-Alpha until the Formal
-Alpha Readiness Review; long-term CLI, validation, registry, runtime, trust,
-isolation, distribution, and security work remains planned.
+workflow baseline is documented and the formal readiness decision is Alpha GO
+with non-blocking accepted debt; long-term CLI, validation, registry, runtime,
+trust, isolation, distribution, and security work remains planned.
 
 AI-First Engineering Operating System

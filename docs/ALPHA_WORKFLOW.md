@@ -7,12 +7,14 @@ bounded First Alpha product path from a clean repository checkout. It covers
 manifest validation, package creation and inspection, explicit trust, and
 native application execution.
 
-## Current maturity: Pre-Alpha
+## Current maturity: First Alpha — 0.3.0-alpha.1
 
-Forge remains **Pre-Alpha**. This workflow prepares the project for its Formal
-Alpha Readiness Review; it is not an Alpha release, a stable-format promise, or
-a production-readiness claim. The public Alpha version and tag, if approved,
-are determined only after that review.
+Forge First Alpha is a local, manifest-driven, non-production technical
+preview. Formal readiness is approved with non-blocking accepted debt. This
+workflow demonstrates the bounded product path; it is not a stable-format or
+production-readiness claim. The approved Git tag is `v0.3.0-alpha.1`, but the
+tag and GitHub prerelease are created only by the later release stage. No
+official prebuilt binary assets are part of the approved release surface.
 
 ## Prerequisites
 
@@ -47,11 +49,11 @@ github.com/kaizenforyou91/forge/internal/cli.Commit
 github.com/kaizenforyou91/forge/internal/cli.BuildTime
 ```
 
-For a readiness-only build, choose an unmistakably non-release version such as
-`alpha-acceptance`, use the exact Git commit, and use a UTC RFC3339 timestamp:
+For the approved First Alpha identity, use version `0.3.0-alpha.1`, the exact
+release commit, and a UTC RFC3339 timestamp:
 
 ```text
-go build -trimpath -ldflags "-X github.com/kaizenforyou91/forge/internal/cli.AppVersion=alpha-acceptance -X github.com/kaizenforyou91/forge/internal/cli.Commit=<commit> -X github.com/kaizenforyou91/forge/internal/cli.BuildTime=<UTC-RFC3339>" -o <forge> ./cmd/forge
+go build -trimpath -ldflags "-X github.com/kaizenforyou91/forge/internal/cli.AppVersion=0.3.0-alpha.1 -X github.com/kaizenforyou91/forge/internal/cli.Commit=<commit> -X github.com/kaizenforyou91/forge/internal/cli.BuildTime=<UTC-RFC3339>" -o <forge> ./cmd/forge
 <forge> version
 ```
 
@@ -59,14 +61,16 @@ Expected fields are the exact supplied values:
 
 ```text
 Forge CLI
-Version : alpha-acceptance
+Version : 0.3.0-alpha.1
 Commit  : <commit>
 Built   : <UTC-RFC3339>
 ```
 
-`0.1.0-alpha.1` is an illustrative prerelease value only. Do not create that
-tag or treat it as the public release number before the Formal Alpha Readiness
-Review.
+The approved release identity is AppVersion `0.3.0-alpha.1` and annotated Git
+tag `v0.3.0-alpha.1`. Documentation of that identity does not mean the tag or
+GitHub prerelease already exists. The earlier value `alpha-acceptance` was a
+TEST-ONLY WP7 acceptance label and must never be treated as a published
+version.
 
 ## Example application
 
@@ -230,8 +234,9 @@ rejects symlinks and non-regular files, and enforces owner-only private-key
 permissions on Unix. Windows ACL validation is not currently claimed.
 
 Do not commit private keys, reuse example/acceptance keys, pass a private key as
-a command argument, or treat a filename as key identity. The explicit KeyID in
-this workflow is `alpha-acceptance-key`.
+a command argument, or treat a filename as key identity. The TEST-ONLY example
+KeyID in this workflow is `alpha-acceptance-key`; it is not a Forge version,
+published key, or persistent trust entry.
 
 ## Build signed runnable v2 package
 
@@ -330,7 +335,7 @@ directly with the invoking user's authority.
 Forge provides no sandbox, filesystem isolation, network isolation, privilege
 drop, CPU/memory/process quotas, process-tree containment, or production-safety
 guarantee. Persistent trust, multiple configured keys, rotation, and revocation
-are not implemented. Package formats remain Pre-Alpha and pre-stable.
+are not implemented. Package formats remain First Alpha and pre-stable.
 
 ## Deferred capabilities
 
@@ -352,6 +357,6 @@ This workflow does not guarantee production suitability, stable package or
 manifest compatibility, immutable package snapshots, malware safety,
 cross-toolchain reproducibility, complete Windows security parity, remote
 distribution, persistent trust, sandboxing, orchestration, or AI-native
-execution. Passing it means the bounded local workflow is reproducible and
-ready to be evaluated by the Formal Alpha Readiness Review; Forge is still
-Pre-Alpha until that review passes.
+execution. Passing it means the bounded local First Alpha workflow is
+reproducible; it does not strengthen Forge beyond a non-production technical
+preview with pre-stable APIs and package formats.

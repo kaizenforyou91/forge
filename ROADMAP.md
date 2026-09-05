@@ -2,7 +2,7 @@
 
 > Engineering roadmap for the Forge platform.
 
-**Project Status:** Pre-Alpha
+**Project Status:** First Alpha — 0.3.0-alpha.1
 
 ---
 
@@ -32,11 +32,16 @@ Every milestone must satisfy the following principles:
 
 | Version | Status |
 |----------|--------|
-| Pre-Alpha | 🚧 In Progress |
-| Alpha | Planned / Pending Formal Readiness Review |
+| Pre-Alpha | Completed |
+| Alpha | In Progress / Active |
 | Beta | Planned |
 | RC | Planned |
 | Stable 1.0 | Planned |
+
+Forge First Alpha is a local, manifest-driven, non-production technical
+preview with pre-stable APIs and package formats. It establishes the bounded
+validate/package/inspect/trust/run workflow; future roadmap capabilities remain
+intentionally incomplete.
 
 ---
 
@@ -814,7 +819,7 @@ Future capabilities (do not keep Phase 6 open):
 ## Evidence-Based Current Roadmap Position
 
 ```text
-Pre-Alpha
+First Alpha — 0.3.0-alpha.1
 → Phase 1 — Core Foundation: Alpha-Bounded Closed
 → Phase 2 — Alpha workflow implemented; long-term expansion planned
 → Phase 3 — Manifest Engine: Complete for current contract

@@ -1,8 +1,20 @@
 # Changelog
 
-# Unreleased
+All notable changes to Forge are documented in this file. The format follows
+Keep a Changelog, and release identities follow Semantic Versioning.
 
-## Added
+## Unreleased
+
+No changes recorded for a subsequent release.
+
+## 0.3.0-alpha.1 - 2026-09-05
+
+This section summarizes the complete First Alpha baseline accumulated across
+the preceding engineering checkpoints; it does not imply that every feature
+was introduced by one recent commit. Forge entered First Alpha as a
+non-production technical preview with pre-stable APIs and package formats.
+
+### Added
 
 - Added strict YAML and JSON manifest document admission with valid UTF-8,
   single-document/object, exact field-type, recursive duplicate-field, and
@@ -90,7 +102,10 @@
 - Added a focused `race (ubuntu-latest)` CI check for `pkg/compiler`, `runtime`,
   and `internal/cli`.
 
-## Changed
+### Changed
+
+- Entered **First Alpha — 0.3.0-alpha.1** with Phase 1, Phase 5, and Phase 7
+  Alpha-Bounded Closed and Phase 6 Closed / Pass.
 
 - Accepted Phase 1, Phase 5, and Phase 7 as Alpha-bounded closed scopes while
   retaining their long-term core, distribution, trust, runtime, scheduling,
@@ -207,7 +222,7 @@
   `signature.json` require valid raw UTF-8, one object followed only by JSON
   whitespace, recursive duplicate-key rejection, unknown-field rejection, and
   domain/schema validation afterward.
-- Package JSON hardening is a Pre-Alpha compatibility tightening. Canonical v1
+- Package JSON hardening is a pre-stable compatibility tightening. Canonical v1
   and v2 writer output remains accepted; schema versions, serialized layouts,
   hashing, Ed25519, and exact-byte signature payloads are unchanged, with no
   verification-time canonicalization or reserialization.
@@ -215,8 +230,12 @@
   bounded Pre-Alpha / First Alpha compiler-package-runnable pipeline. This is
   not a Beta, production-readiness, or all-hardening claim.
 
-## Security
+### Security
 
+- KeyID handling is exact across producers, signatures, trust routing,
+  verification, and execution: identifiers are not trimmed, case-folded, or
+  Unicode-normalized, and invalid UTF-8, surrounding Unicode whitespace, and
+  ASCII control characters are rejected.
 - Manifest admission now fails closed on unknown fields, recursive duplicate
   fields, malformed UTF-8, multiple/trailing documents, wrong field types, and
   unsupported YAML alias/anchor/merge/tag behavior.
@@ -247,7 +266,7 @@
   rejected before `encoding/json` can repair malformed bytes. Exact stored
   `integrity.json` bytes remain the Ed25519 verification payload.
 
-## Tests
+### Tests
 
 - Added multi-module dependency-first build coverage.
 - Added invalid dependency rejection coverage.
@@ -334,7 +353,7 @@
   hosted Windows acceptance passed on Windows Server 2025 with Go 1.26.7 on
   windows/amd64; focused Ubuntu race acceptance also passed.
 
-## Known Limitations
+### Limitations
 
 - Legacy package inspection and migration tooling are not implemented.
 - Only the explicit package-format/bundle-schema pairs `(1,1)` and `(2,2)` are
@@ -342,7 +361,7 @@
 - `forge build` still emits package format 1; signed runnable package-v2
   creation is the separate explicit `forge build-runnable` workflow.
 - Manifest decoding has no separate `schema_version` field; the strict current
-  manifest contract remains Pre-Alpha and is not a stable compatibility
+  manifest contract remains pre-stable and is not a stable compatibility
   guarantee.
 - Process management is host-only and direct-child-only. Descendants, process
   trees, graceful shutdown, arbitrary arguments/environment/working-directory
@@ -379,7 +398,7 @@
 - No-integrity mode provides structural validation without cryptographic tamper
   resistance.
 - Unsigned packages do not provide publisher authenticity.
-- The production package format remains Pre-Alpha.
+- The package formats remain pre-stable and are not production-stable.
 - Strict cross-registry atomicity is not guaranteed.
 - Process-crash atomicity is not guaranteed.
 - Full concurrent-build isolation is not guaranteed.
@@ -387,9 +406,9 @@
   publication: one concurrent publisher may win, and existing targets are not
   overwritten. Broader generic/full-build coordination and global
   multi-process output ownership remain unresolved.
-- Forge remains Pre-Alpha and is not production-ready.
+- Forge First Alpha remains a non-production technical preview.
 
-## FW-030 — Manifest Engine Foundation
+### Historical checkpoint: FW-030 — Manifest Engine Foundation
 
 - Added manifest contract.
 - Added YAML manifest loader.
@@ -399,7 +418,7 @@
 - Added end-to-end YAML and JSON manifest pipeline coverage.
 - Added race, vet, build, and regression validation.
 
-## FW-029 — Plugin System Foundation
+### Historical checkpoint: FW-029 — Plugin System Foundation
 
 - Added plugin contract.
 - Added plugin registry.
@@ -407,7 +426,7 @@
 - Added plugin configuration enablement.
 - Verified plugin integration with the application container.
 
-## FW-028 — CLI Foundation Completion
+### Historical checkpoint: FW-028 — CLI Foundation Completion
 
 - Completed CLI command construction.
 - Added configuration path handling.
@@ -415,7 +434,7 @@
 - Added CLI regression tests.
 - Added configuration watcher cancellation hardening.
 
-## FW-027 — Runtime Engine Foundation
+### Historical checkpoint: FW-027 — Runtime Engine Foundation
 
 - Added explicit application runtime states.
 - Added deterministic lifecycle transitions.
@@ -424,47 +443,37 @@
 - Added shutdown error aggregation.
 - Added deterministic lifecycle concurrency tests.
 
-### Architecture
+#### Architecture
 
 - Added Forge Architecture Freeze v1.0.
 - Added ADR-001 documenting the Core Runtime architecture baseline.
 - Established dependency direction and package boundary rules.
 - Established architecture change and ADR policies.
 
-All notable changes to this project will be documented in this file.
+## v0.2.0-core-runtime
 
-The format is based on **Keep a Changelog**.
+### Added
 
-This project follows **Semantic Versioning**.
+- Dependency Injection Container
+- Constructor Injection
+- Generic Resolve
+- Auto Wiring
+- Recursive Dependency Resolution
+- Module System
+- Application Host
+- Runtime Context
+- Startup Pipeline
+- Shutdown Pipeline
+- Fluent Builder API
 
----
+### Internal
 
-## [Unreleased]
+- Benchmark
+- Freeze Container
+- Dependency Graph
+- Cycle Detection
 
-### Remaining Platform Work
-
-- Long-term validation expansion and an explicit manifest schema-version policy
-- `forge init`, `forge fmt`, and machine-readable validation/inspection output
-- Remote package registry, acquisition, and resolution
-- Persistent registry, package indexing, and advanced dependency/version
-  constraints
-- Compiler package-format production hardening, legacy tooling, and optimization
-- Build isolation, process resource controls, dependency provenance, and
-  reproducibility hardening
-- Materialized executable validation-to-exec hardening implementation
-  (architecture review complete; implementation deferred)
-- Process-tree/descendant lifecycle, graceful shutdown, and optional Windows Job
-  Object or Unix process-group policy
-- Richer arguments/environment/working-directory contracts, process resource
-  isolation, and sandboxing
-- Trust snapshot/revocation and start-time authorization policy
-- Persistent trust, runtime scheduling, dynamic plugin loading, and
-  multi-application orchestration
-- AI Runtime
-
----
-
-## [0.1.0] - Pre-Alpha
+## 0.1.0 - Pre-Alpha
 
 ### Added
 
@@ -516,59 +525,59 @@ Added:
 
 ---
 
-## Upcoming Milestones
+### Historical planning snapshot recorded at 0.1.0
 
-### FW-002.4
+#### FW-002.4
 
 - Professional CHANGELOG
 
-### FW-002.5
+#### FW-002.5
 
 - SECURITY Policy
 
-### FW-002.6
+#### FW-002.6
 
 - ADR-001 Repository Layout
 
-### FW-003
+#### FW-003
 
 - Engineering Automation
 
-### FW-004
+#### FW-004
 
 - Foundation Library
 
-### FW-005
+#### FW-005
 
 - CLI Bootstrap
 
-### FW-006
+#### FW-006
 
 - Manifest Engine
 
-### FW-007
+#### FW-007
 
 - Validation Engine
 
-### FW-008
+#### FW-008
 
 - Registry
 
-### FW-009
+#### FW-009
 
 - Compiler
 
-### FW-010
+#### FW-010
 
 - Runtime
 
-### FW-011
+#### FW-011
 
 - AI Runtime
 
 ---
 
-## Versioning Strategy
+### Historical versioning strategy recorded at 0.1.0
 
 Forge follows Semantic Versioning.
 
@@ -586,7 +595,7 @@ Example:
 
 ---
 
-## Release Philosophy
+### Release philosophy
 
 Every release must satisfy the following requirements:
 
@@ -599,33 +608,7 @@ Every release must satisfy the following requirements:
 
 ---
 
-## Notes
+### Historical note
 
-Forge is currently in the **Pre-Alpha** stage.
-
-The engineering foundation has been established, and active development continues toward the first Alpha release.
-
-# Changelog
-
-## v0.2.0-core-runtime
-
-### Added
-
-- Dependency Injection Container
-- Constructor Injection
-- Generic Resolve
-- Auto Wiring
-- Recursive Dependency Resolution
-- Module System
-- Application Host
-- Runtime Context
-- Startup Pipeline
-- Shutdown Pipeline
-- Fluent Builder API
-
-### Internal
-
-- Benchmark
-- Freeze Container
-- Dependency Graph
-- Cycle Detection
+At the time of 0.1.0, Forge was in the **Pre-Alpha** stage and active
+development was progressing toward the first Alpha release.
