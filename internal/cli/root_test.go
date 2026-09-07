@@ -155,3 +155,32 @@ func TestNewRootCommandDoesNotDuplicateCommands(t *testing.T) {
 		seen[sub.Name()] = true
 	}
 }
+
+func TestAIDevelopmentCommandRegistrationAndExistingCommands(t *testing.T) {
+	root := NewRootCommand()
+	found, _, err := root.Find([]string{"ai", "prompt"})
+	if err != nil || found == nil || found.Name() != "prompt" {
+		t.Fatal("AI command missing", err)
+	}
+	// No credential lookup is performed: use per-tree dependencies that fail if
+	// touched, rather than inspecting or replacing a real environment secret.
+	for _, args := range [][]string{{"--help"}, {"version"}, {"doctor", "--help"}, {"config", "--help"}, {"validate", "--help"}, {"build", "--help"}, {"build-runnable", "--help"}, {"inspect", "--help"}, {"run", "--help"}} {
+		cmd := NewRootCommand()
+		for _, sub := range cmd.Commands() {
+			if sub.Name() == "ai" {
+				cmd.RemoveCommand(sub)
+			}
+		}
+		cmd.AddCommand(newAICmd(aiDependencies{
+			lookupKey:   func() string { t.Fatal("existing command read AI key"); return "" },
+			newProvider: nil,
+		}))
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		cmd.SetArgs(args)
+		if err := cmd.Execute(); err != nil {
+			t.Fatal("existing command regression", args, err)
+		}
+	}
+}
