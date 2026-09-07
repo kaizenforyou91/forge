@@ -10,9 +10,10 @@ Forge is an AI-native application platform written in Go. It is designed to buil
 
 The long-term vision of Forge is to become a modern application platform where applications are described declaratively, validated automatically, and executed through a modular runtime.
 
-> **Current Status:** First Alpha — 0.3.0-alpha.1
+> **Published release:** First Alpha — v0.3.0-alpha.1 (unchanged).
 >
-> Non-production technical preview.
+> **Current main:** bounded single-prompt AI execution integrated and
+> offline-accepted, **UNRELEASED**. Non-production technical preview.
 
 Forge First Alpha is a local, manifest-driven technical preview supporting
 strict manifest validation, deterministic package creation, signed host-target
@@ -68,14 +69,14 @@ the component's full roadmap or production hardening is complete.
 | Workspace | Bootstrap complete |
 | Core | Alpha-bounded scope complete; long-term expansion planned |
 | Documentation | External First Alpha workflow established |
-| CLI | Alpha workflow implemented; long-term expansion planned |
+| CLI | Alpha workflow implemented; unreleased single-prompt command integrated; long-term expansion planned |
 | Manifest Engine | Complete for current contract |
 | Validation Engine | Alpha validation workflow implemented; long-term expansion planned |
 | Registry | Alpha-bounded local exact-identity scope complete |
 | Compiler | CLOSED / PASS — bounded Pre-Alpha / First Alpha pipeline |
 | Runtime | Alpha-bounded trusted local direct-child scope complete |
 | Plugin System | Static foundation complete; dynamic loading deferred |
-| AI Runtime | Not started |
+| AI Runtime | IN PROGRESS — bounded single-prompt slice integrated into main / offline contract PASS; UNRELEASED |
 
 ---
 
@@ -176,7 +177,7 @@ The current tested foundation includes:
   `acceptance (windows-latest)` checks plus `race (ubuntu-latest)`. Acceptance
   enforces dependency-file cleanliness, package enumeration, vet, uncached
   full tests, and a full build; the focused race check covers `pkg/compiler`,
-  `runtime`, and `internal/cli`.
+  `runtime`, `internal/cli`, `pkg/ai`, and `internal/aiprovider/openai`.
 - The real production path is proven end to end from a trusted signed package
   through strict loading, secure materialization, direct child execution,
   deterministic result capture, and explicit cleanup.
@@ -208,15 +209,19 @@ The current tested foundation includes:
   failure.
 - Configuration, structured logging, dependency injection, application lifecycle,
   HTTP, middleware, and plugin foundations.
+- Bounded single-prompt AI core, one OpenAI Responses adapter, and
+  `forge ai prompt`, integrated into current main and offline-accepted;
+  unreleased and absent from published alpha.1.
 
-The implemented top-level CLI commands are `forge version`, `forge doctor`,
+Published `v0.3.0-alpha.1` provides `forge version`, `forge doctor`,
 `forge config`, `forge validate`, `forge build`, `forge build-runnable`,
-`forge inspect`, and `forge run`. The historical `forge init` and `forge fmt`
+`forge inspect`, and `forge run`. Current main also provides the unreleased
+`forge ai prompt` command. The historical `forge init` and `forge fmt`
 targets are not current commands.
 
-Forge is now **First Alpha — 0.3.0-alpha.1**. The compiler and package pipeline
-are a tested local technical-preview foundation, not a production-ready package
-ecosystem or stable production format.
+The published release remains **First Alpha — v0.3.0-alpha.1**. The compiler
+and package pipeline are a tested local technical-preview foundation, not a
+production-ready package ecosystem or stable production format.
 
 Manifest Admission Hardening, Package Format Stabilization, Runnable Package
 Contract R1A, Real Executable Output R1B, Verified Runtime Package Loader R2A,
@@ -234,23 +239,26 @@ This bounded closure does not make Forge Beta or production-ready, and it does
 not complete all future compiler, runtime, trust, provenance, isolation, or
 security-hardening work.
 
-## Development branch: single-prompt AI execution
+## Current main: single-prompt AI execution (UNRELEASED)
 
-The `phase8/single-prompt` development branch adds `forge ai prompt` for one
-explicit text request to OpenAI and one complete text response or classified
-error. **This command is not present in published `v0.3.0-alpha.1`.** The
-release tag, version and existing package/runtime contracts remain unchanged.
+Current main includes `forge ai prompt` for one explicit text prompt to one
+provider, OpenAI, and one complete text response or classified error.
+**This command is not present in published `v0.3.0-alpha.1`.** The release tag,
+version and existing package/runtime contracts remain unchanged.
 
-The [development workflow](docs/AI_PROMPT_WORKFLOW.md) documents required
-provider/model/text flags, explicit network permission, bounded request/response
-handling, invocation-local credentials and offline tests. There is no automatic
-tool, file, shell or model-output execution. Use dummy/non-sensitive text because
-command arguments can appear in terminal history.
+The [single-prompt workflow](docs/AI_PROMPT_WORKFLOW.md) documents required
+provider/model/text flags, explicit `--allow-network` permission, bounded
+request/response handling, and invocation-local `FORGE_OPENAI_API_KEY` input.
+There is no automatic tool, file, shell or model-output execution. Use
+dummy/non-sensitive text because command arguments can appear in terminal history.
 
-External pilot is DEFERRED / NON-BLOCKING / NOT RUN. This development slice uses
-offline contract tests only; **live provider acceptance is NOT RUN and requires
-separate approval**. It does not complete all of Phase 8.
-
+Code review is **ACCEPTED** and the offline contract is **PASS**. Main Ubuntu/
+Windows acceptance and focused race are **PASS**; see the
+[accepted source evidence](docs/AI_PROMPT_WORKFLOW.md#acceptance-evidence).
+**Live provider acceptance is NOT AUTHORIZED / NOT RUN** and requires separate
+owner approval. External pilot remains **DEFERRED / NON-BLOCKING / NOT RUN**.
+Phase 8 overall is **IN PROGRESS**; tool calling, agents, memory, and a workflow
+engine are not implemented by this slice.
 
 ## Quick Start: External Alpha Workflow
 
@@ -321,8 +329,17 @@ The required continuous checks are `acceptance (ubuntu-latest)`,
 `acceptance (windows-latest)`, and `race (ubuntu-latest)`. Both acceptance
 jobs run `go mod tidy` followed by a `go.mod`/`go.sum` cleanliness diff,
 `go list ./...`, `go vet ./...`, `go test ./... -count=1`, and
-`go build ./...`. The focused Ubuntu race job runs the compiler, runtime, and
-CLI package boundaries under the race detector.
+`go build ./...`. The focused Ubuntu race job runs `pkg/compiler`, `runtime`,
+`internal/cli`, `pkg/ai`, and `internal/aiprovider/openai` under the race detector.
+
+The accepted main source baseline is merge commit
+`bef4874020403e154680f0e682c1b79aed0b937d`;
+[main workflow 34099866050](https://github.com/kaizenforyou91/forge/actions/runs/34099866050)
+passed all three jobs on that actual main checkout. This is existing source
+acceptance evidence, not a claim that local tests were rerun for documentation
+alignment. The earlier local Windows focused race remains **NOT RUN** because
+that session lacked CGO/compiler support. Offline AI tests do not contact a real
+provider API; normal Go/CI dependency downloads may still use the network.
 
 The first hosted Windows acceptance passed on Windows Server 2025 with Go
 1.26.7 on windows/amd64. Routine CI output is intentionally non-verbose, so
@@ -627,7 +644,7 @@ The authoritative roadmap uses the Phase 0–8 model:
 - Phase 5 — Registry
 - Phase 6 — Compiler
 - Phase 7 — Runtime
-- Phase 8 — AI Runtime
+- Phase 8 — AI Runtime: IN PROGRESS; single-prompt slice integrated/offline-accepted, UNRELEASED
 
 Bounded Alpha closure does not mean that a phase's complete long-term scope is
 finished. See the current phase statuses and deferred work in
@@ -676,6 +693,8 @@ Current public entry points are:
 - [`CHANGELOG.md`](CHANGELOG.md) — release and historical change notes.
 - [`docs/ALPHA_WORKFLOW.md`](docs/ALPHA_WORKFLOW.md) — canonical external
   First Alpha walkthrough.
+- [`docs/AI_PROMPT_WORKFLOW.md`](docs/AI_PROMPT_WORKFLOW.md) — current main,
+  unreleased single-prompt contract and offline/live acceptance boundary.
 - [`examples/alpha-app/`](examples/alpha-app/) — canonical example, including
   [`forge.yaml`](examples/alpha-app/forge.yaml) and
   [`main.go`](examples/alpha-app/main.go).
@@ -750,7 +769,8 @@ Phase 6 compiler/package/runnable pipeline CLOSED / PASS for the bounded
 Pre-Alpha / First Alpha scope
 
 AI Runtime
-░░░░░░░░░░░░░░░░░░░░ 0%
+IN PROGRESS — bounded single-prompt slice integrated into main / offline PASS;
+UNRELEASED, with tool calling, agents, memory, and workflow engine still future
 ```
 > Progress percentages represent the completed foundation scope for each
 > engineering area. They do not imply that the entire long-term platform
@@ -760,8 +780,9 @@ AI Runtime
 
 ## Project Status
 
-Forge is currently **First Alpha — 0.3.0-alpha.1**, a non-production technical
-preview.
+The published release remains **First Alpha — v0.3.0-alpha.1**, a non-production
+technical preview. Current main includes the offline-accepted single-prompt
+slice as **UNRELEASED** work; Phase 8 remains **IN PROGRESS**.
 
 The core, local exact-identity registry, and trusted local runtime scopes are
 Alpha-bounded closed. Phase 6 — Compiler / Package Pipeline Hardening is

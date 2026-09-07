@@ -5,7 +5,34 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 ## Unreleased
 
-No changes recorded for a subsequent release.
+These changes are integrated into main and remain **UNRELEASED**. Published
+`v0.3.0-alpha.1` is unchanged and does not include `forge ai prompt`.
+Live provider acceptance is **NOT AUTHORIZED / NOT RUN**.
+
+### Added
+
+- Bounded single-prompt execution core: one explicit text request to one provider
+  yields one complete validated text response or classified error.
+- One OpenAI Responses HTTP adapter and the `forge ai prompt` CLI command with
+  explicit provider/model/text inputs, no default model, and no retries or fallback.
+- Explicit `--allow-network` consent, invocation-local `FORGE_OPENAI_API_KEY`
+  input, bounded request/response sizes and output tokens, context cancellation,
+  timeouts, classified errors, and terminal-safe output. Model output remains
+  text data and is never executed.
+
+### Fixed
+
+- Unknown failures remain represented as `ErrProvider` during error sanitization,
+  including siblings in joined/nested errors; raw sensitive messages and causes
+  are not forwarded.
+- Mixed cancellation remains a failure with exit 1; pure cancellation retains
+  exit 130. Repeated sanitization preserves these classifications.
+
+### Changed
+
+- Extended the existing focused Ubuntu race step to cover `pkg/ai` and
+  `internal/aiprovider/openai` alongside `pkg/compiler`, `runtime`, and
+  `internal/cli`.
 
 ## 0.3.0-alpha.1 - 2026-09-05
 

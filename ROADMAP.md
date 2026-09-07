@@ -2,7 +2,9 @@
 
 > Engineering roadmap for the Forge platform.
 
-**Project Status:** First Alpha — 0.3.0-alpha.1
+**Published release:** First Alpha — v0.3.0-alpha.1 (unchanged).
+**Current main:** single-prompt execution integrated / offline contract PASS,
+**UNRELEASED**; Phase 8 overall **IN PROGRESS**.
 
 ---
 
@@ -112,11 +114,11 @@ Commands:
 - forge fmt
 - forge version
 
-These are long-term Phase 2 command targets. The currently implemented
-top-level commands are `forge version`, `forge doctor`, `forge config`,
-`forge validate`, `forge build`, `forge build-runnable`, `forge inspect`, and
-`forge run`. The historical `forge init` and `forge fmt` targets remain
-deferred.
+These are long-term Phase 2 command targets. Published `v0.3.0-alpha.1`
+provides `forge version`, `forge doctor`, `forge config`, `forge validate`,
+`forge build`, `forge build-runnable`, `forge inspect`, and `forge run`.
+Current main additionally provides the unreleased `forge ai prompt` command.
+The historical `forge init` and `forge fmt` targets remain deferred.
 
 Status:
 
@@ -239,15 +241,33 @@ Provide AI-native capabilities.
 
 Capabilities:
 
-- Prompt Execution
-- Tool Calling
-- Agent Runtime
-- Memory
-- Workflow Engine
+- Prompt Execution — bounded single-prompt slice integrated into main, UNRELEASED
+- Tool Calling — future; not implemented by this slice
+- Agent Runtime — future; not implemented by this slice
+- Memory — future; not implemented by this slice
+- Workflow Engine — future; not implemented by this slice
 
 Status:
 
-Not Started
+**IN PROGRESS.** The single-prompt core, one OpenAI Responses adapter, and
+`forge ai prompt` are integrated into main through
+[PR #1](https://github.com/kaizenforyou91/forge/pull/1), including the accepted
+error-sanitization remediation. Code review is **ACCEPTED** and the offline
+contract is **PASS**. Main Ubuntu/Windows acceptance and focused race, including
+`pkg/ai` and `internal/aiprovider/openai`, are **PASS** at
+`bef4874020403e154680f0e682c1b79aed0b937d` in
+[workflow 34099866050](https://github.com/kaizenforyou91/forge/actions/runs/34099866050).
+
+This slice remains **UNRELEASED** and is absent from published
+`v0.3.0-alpha.1`. Live provider acceptance is pending separate owner approval:
+**NOT AUTHORIZED / NOT RUN**. External pilot is
+**DEFERRED / NON-BLOCKING / NOT RUN** and is not a dependency blocker.
+The earlier local Windows focused race remains **NOT RUN** because that session
+lacked CGO/compiler support; hosted race PASS does not change that history.
+
+See the [single-prompt workflow](docs/AI_PROMPT_WORKFLOW.md) for the bounded
+contract and offline/live distinction. This acceptance does not complete all
+of Phase 8, reopen Phase 6, or imply Beta readiness.
 
 ---
 
@@ -342,7 +362,9 @@ AI Runtime
 
 Status:
 
-Not Started
+IN PROGRESS — bounded single-prompt core, OpenAI adapter, and CLI integrated
+into main / offline contract accepted, UNRELEASED. Tool calling, agents,
+memory, and workflow engine remain future work.
 
 ---
 
@@ -376,7 +398,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 5 — Registry | ✅ Alpha-Bounded Closed; local exact-identity boundary |
 | Phase 6 — Compiler | ✅ CLOSED / PASS — bounded Pre-Alpha compiler/package/runnable pipeline |
 | Phase 7 — Runtime | ✅ Alpha-Bounded Closed; trusted local direct-child boundary |
-| Phase 8 — AI Runtime | ⏳ Not Started |
+| Phase 8 — AI Runtime | IN PROGRESS — single-prompt slice integrated / offline PASS; UNRELEASED |
 
 ## Engineering Milestones
 
@@ -570,6 +592,15 @@ assigning new milestone or task identifiers:
   artifact, integrity, and exact signature-state evidence without execution.
 - Bounded Phase 1 / 5 / 7 Closure Review accepts those three First Alpha
   scopes as Alpha-Bounded Closed while preserving their long-term work.
+- Single-Prompt Execution integrates the bounded core, OpenAI Responses adapter,
+  and CLI into main, with offline contract acceptance and explicit network/
+  credential boundaries. Model output remains data, never executed instructions.
+- Error-sanitization remediation preserves unknown joined failures as safe
+  `ErrProvider` categories, so mixed cancellation remains exit 1 and pure
+  cancellation remains exit 130 without exposing raw messages or causes.
+- Main acceptance for this unreleased slice passes on Ubuntu and Windows;
+  the existing Ubuntu race gate also covers the AI core and OpenAI adapter.
+  Live provider acceptance remains NOT AUTHORIZED / NOT RUN.
 
 ## Current Implemented Foundation
 
@@ -660,7 +691,10 @@ Forge currently provides:
 - Shared-application repeated deterministic builds
 - Continuous Ubuntu and Windows acceptance with dependency-cleanliness, list,
   vet, full-test, and full-build gates, plus a focused Ubuntu race gate for the
-  compiler/runtime/CLI boundary
+  `pkg/compiler`, `runtime`, `internal/cli`, `pkg/ai`, and
+  `internal/aiprovider/openai` boundaries
+- Bounded single-prompt core, OpenAI Responses adapter, and `forge ai prompt`,
+  integrated into main and offline-accepted, UNRELEASED
 
 ## Phase 5 — Registry Alpha-Bounded Scope
 
@@ -814,12 +848,14 @@ Future capabilities (do not keep Phase 6 open):
 - Sandboxing and CPU, memory, process-count, filesystem, network, syscall, and
   privilege controls.
 - Compiler optimization, remote registry negotiation and package acquisition,
-  scheduler work, and AI runtime capabilities.
+  scheduler work, and AI runtime capabilities beyond the bounded single-prompt
+  slice (tool calling, agents, memory, and workflow engine).
 
 ## Evidence-Based Current Roadmap Position
 
 ```text
-First Alpha — 0.3.0-alpha.1
+Published release: First Alpha — v0.3.0-alpha.1 (unchanged)
+Current main: single-prompt execution integrated, UNRELEASED
 → Phase 1 — Core Foundation: Alpha-Bounded Closed
 → Phase 2 — Alpha workflow implemented; long-term expansion planned
 → Phase 3 — Manifest Engine: Complete for current contract
@@ -827,7 +863,11 @@ First Alpha — 0.3.0-alpha.1
 → Phase 5 — Registry: Alpha-Bounded Closed
 → Phase 6 — Compiler / Package Pipeline: CLOSED / PASS
 → Phase 7 — Runtime: Alpha-Bounded Closed
-→ Phase 8 — AI Runtime: Not Started
+→ Phase 8 — AI Runtime: IN PROGRESS
+→ Single-Prompt Core / OpenAI Adapter / CLI: Integrated / offline contract PASS
+→ Main Ubuntu / Windows Acceptance and Focused AI Race: PASS
+→ Live Provider: NOT AUTHORIZED / NOT RUN
+→ Tool Calling / Agents / Memory / Workflow Engine: Future, not implemented
 → Package Pipeline Hardening checkpoints
 → Package Format Stabilization: Completed
 → Runnable Package Contract R1A: Completed
@@ -934,7 +974,10 @@ The following capabilities remain future work:
 - Dynamic plugin discovery/loading
 - Remote package resolution
 - Advanced dependency and version resolution
-- AI Runtime
+- AI runtime expansion beyond single-prompt execution: tool calling, agents,
+  memory, and workflow engine
+- Live provider acceptance for the single-prompt slice, pending separate owner
+  approval; NOT AUTHORIZED / NOT RUN
 
 # Long-Term Goal
 
