@@ -1,17 +1,46 @@
-# Single-Prompt Execution — Development Workflow
+# Single-Prompt Execution — Main / Unreleased Workflow
 
-This feature belongs to the development branch `phase8/single-prompt`.
-It is **not included in published release `v0.3.0-alpha.1`**, whose tag and
-version remain unchanged. This implements one small Phase 8 slice, not all of
-the AI Runtime roadmap.
+This feature is integrated into current main at merge commit
+`bef4874020403e154680f0e682c1b79aed0b937d` and remains **UNRELEASED**.
+It is **not included in published release `v0.3.0-alpha.1`**, whose tag,
+release commit `5d836931216203aeea0737fc54de9e95091a62ef`, and version remain
+unchanged. Phase 8 overall is **IN PROGRESS**: this is one bounded slice, not
+the full AI Runtime roadmap. Tool Calling, Agent Runtime, Memory, and Workflow
+Engine remain future work and are not implemented by this slice. Phase 6
+remains **CLOSED / PASS** for its accepted bounded scope.
 
 External pilot: **DEFERRED / NON-BLOCKING / NOT RUN**.
-Live provider acceptance: **NOT RUN; separate owner approval required**.
-The tests described below exercise offline contracts only.
+Live provider acceptance: **NOT AUTHORIZED / NOT RUN**; separate owner approval
+is required. No real API key is requested, read, or printed for offline acceptance.
+
+## Acceptance evidence
+
+[PR #1](https://github.com/kaizenforyou91/forge/pull/1) merged the accepted
+implementation and error-sanitization remediation into main. The actual merge
+commit above differs from the earlier synthetic PR merge, with an identical
+tree. [Main workflow 34099866050](https://github.com/kaizenforyou91/forge/actions/runs/34099866050)
+was triggered by a push to `refs/heads/main`; all three jobs checked out
+`main` from `refs/remotes/origin/main` at the actual merge SHA above.
+
+| Evidence | Status |
+|---|---|
+| Implementation and remediation code review | ACCEPTED |
+| Offline contract | PASS |
+| Main acceptance (ubuntu-latest) | PASS |
+| Main acceptance (windows-latest) | PASS |
+| Main focused race (ubuntu-latest) | PASS; `pkg/compiler`, `runtime`, `internal/cli`, `pkg/ai`, `internal/aiprovider/openai` |
+| Historical local Windows focused race | NOT RUN in the session without CGO/compiler support |
+| Live provider acceptance | NOT AUTHORIZED / NOT RUN |
+
+These are accepted source-baseline results, not tests rerun as part of this
+documentation alignment. The historical local NOT RUN remains unchanged.
+Here **offline** means no request to a real AI provider API. Go and CI may
+still download normal dependencies; it does not mean the entire engineering
+workflow runs without network access.
 
 ## One explicit prompt
 
-From a binary built from this development checkout, the command grammar is:
+From a binary built from current main, the unreleased command grammar is:
 
 ```text
 forge ai prompt --provider openai --model <model-id> --text "<prompt>" --allow-network [--timeout 30s] [--max-output-tokens 1024]
@@ -163,6 +192,11 @@ Errors support `errors.Is`:
 - `ErrRefused`, `ErrProvider`.
 - `context.Canceled` and `context.DeadlineExceeded`.
 
+Sanitization preserves unknown siblings in joined/nested errors as `ErrProvider`
+without retaining raw messages or causes. Pure cancellation remains exit 130;
+mixed cancellation remains failure exit 1. Ordinary wrappers do not invent an
+extra failure, and repeated sanitization preserves the safe categories.
+
 HTTP 401 maps to authentication; 403 to authorization. For 429, the exact
 structured `error.code` values `insufficient_quota`,
 `credit_balance_exhausted`, `organization_spend_limit_exceeded`,
@@ -190,8 +224,10 @@ cleanliness, list, vet, full tests and build checks for implementation acceptanc
 
 **OFFLINE CONTRACT PASS** means these offline checks have corresponding recorded
 evidence. **LIVE PROVIDER ACCEPTANCE PASS** requires a separately approved real
-request. Neither fake output nor prior CI establishes live acceptance, hosted
-Linux/Windows acceptance, or completion of all Phase 8.
+request. Fake output alone does not establish live or hosted acceptance.
+The specific main CI evidence above establishes hosted offline acceptance for
+that source revision; it does not establish live acceptance or completion of
+all Phase 8.
 
 ## References and follow-up
 
@@ -205,5 +241,6 @@ Official documentation checked for this implementation on 2026-09-07:
 
 `forge build`, `build-runnable`, `inspect` and `run` retain their existing
 contracts and package formats. The published First Alpha is preserved.
-A later explicitly scoped change should synchronize ROADMAP/CHANGELOG with
-accepted development status; neither file is changed by this slice.
+The current main/offline status is aligned in the [README](../README.md),
+[ROADMAP](../ROADMAP.md), and [Unreleased changelog](../CHANGELOG.md#unreleased).
+A future release and live provider acceptance require separate decisions.
