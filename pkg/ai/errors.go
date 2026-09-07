@@ -21,27 +21,63 @@ var (
 )
 
 // SafeError retains known classifications but discards untrusted error messages
-// and causes. Joined failures remain joined (e.g. cancellation plus cleanup).
+// and causes. Every unknown failure branch contributes ErrProvider, so a mixed
+// failure cannot become pure cancellation. Categories have a stable order.
 func SafeError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var categories []error
-	for _, category := range []error{
+	known := []error{
 		context.Canceled, context.DeadlineExceeded,
 		ErrInvalidRequest, ErrAuthentication, ErrAuthorization, ErrRateLimited,
 		ErrQuotaExceeded, ErrTransport, ErrMalformedResponse, ErrResponseTooLarge,
 		ErrIncompleteResponse, ErrRefused, ErrProvider,
-	} {
-		if errors.Is(err, category) {
+	}
+	found := make(map[error]bool)
+	collectSafeCategories(err, known, found)
+	var categories []error
+	for _, category := range known {
+		if found[category] {
 			categories = append(categories, category)
 		}
-	}
-	if len(categories) == 0 {
-		return ErrProvider
 	}
 	if len(categories) == 1 {
 		return categories[0]
 	}
 	return errors.Join(categories...)
+}
+
+func collectSafeCategories(err error, known []error, found map[error]bool) {
+	if err == nil {
+		return
+	}
+	// Match this node only. A match elsewhere in the tree must not hide an
+	// unknown sibling. Retain custom Is classifications without retaining err.
+	matcher, _ := err.(interface{ Is(error) bool })
+	matched := false
+	for _, category := range known {
+		if err == category || matcher != nil && matcher.Is(category) {
+			found[category] = true
+			matched = true
+		}
+	}
+	var children []error
+	switch wrapped := err.(type) {
+	case interface{ Unwrap() []error }:
+		children = wrapped.Unwrap()
+	case interface{ Unwrap() error }:
+		children = []error{wrapped.Unwrap()}
+	}
+	hasChild := false
+	for _, child := range children {
+		if child != nil {
+			hasChild = true
+			collectSafeCategories(child, known, found)
+		}
+	}
+	// A wrapper with a cause is context, not an extra failure. An unclassified
+	// leaf (including a wrapper without a cause) represents an unknown failure.
+	if !hasChild && !matched {
+		found[ErrProvider] = true
+	}
 }

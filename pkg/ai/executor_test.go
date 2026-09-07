@@ -291,3 +291,109 @@ func TestConcurrentExecutorRequestContexts(t *testing.T) {
 		}
 	})
 }
+
+func TestSafeErrorPreservesUnknownFailures(t *testing.T) {
+	const secret = "dummy-UNKNOWN-FAILURE-CANARY"
+	unknown := errors.New(secret)
+	wrapped := func(err error) error { return fmt.Errorf("%s: %w", secret, err) }
+	cases := []struct {
+		name string
+		err  error
+		want []error
+	}{
+		{"nil", nil, nil},
+		{"pure cancellation", context.Canceled, []error{context.Canceled}},
+		{"wrapped cancellation", wrapped(context.Canceled), []error{context.Canceled}},
+		{"unknown", unknown, []error{ErrProvider}},
+		{"wrapped unknown", wrapped(unknown), []error{ErrProvider}},
+		{"typed mixed", errors.Join(context.Canceled, ErrTransport), []error{context.Canceled, ErrTransport}},
+		{"unknown sibling", errors.Join(context.Canceled, unknown), []error{context.Canceled, ErrProvider}},
+		{"reversed siblings", errors.Join(unknown, context.Canceled), []error{context.Canceled, ErrProvider}},
+		{"outer wrapper", wrapped(errors.Join(context.Canceled, unknown)), []error{context.Canceled, ErrProvider}},
+		{"nested joins", errors.Join(wrapped(context.Canceled), errors.Join(ErrTransport, wrapped(unknown))), []error{context.Canceled, ErrTransport, ErrProvider}},
+		{"nested reversed", errors.Join(errors.Join(wrapped(unknown), ErrTransport), wrapped(context.Canceled)), []error{context.Canceled, ErrTransport, ErrProvider}},
+		{"known non-cancellation", errors.Join(ErrAuthentication, unknown), []error{ErrAuthentication, ErrProvider}},
+		{"multiple percent w", fmt.Errorf("%s: %w / %w", secret, context.Canceled, unknown), []error{context.Canceled, ErrProvider}},
+		{"duplicate categories", errors.Join(context.Canceled, context.Canceled, unknown, unknown), []error{context.Canceled, ErrProvider}},
+	}
+	for _, category := range []error{context.DeadlineExceeded, ErrInvalidRequest, ErrAuthentication, ErrAuthorization, ErrRateLimited, ErrQuotaExceeded, ErrTransport, ErrMalformedResponse, ErrResponseTooLarge, ErrIncompleteResponse, ErrRefused, ErrProvider} {
+		cases = append(cases, struct {
+			name string
+			err  error
+			want []error
+		}{"wrapped " + category.Error(), wrapped(category), []error{category}})
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.err
+			for pass := 1; pass <= 2; pass++ {
+				got = SafeError(got)
+				if len(tc.want) == 0 {
+					if got != nil {
+						t.Fatal("nil became failure")
+					}
+					continue
+				}
+				if got == nil {
+					t.Fatal("failure disappeared")
+				}
+				for _, category := range tc.want {
+					if !errors.Is(got, category) {
+						t.Errorf("pass %d: lost category %v", pass, category)
+					}
+				}
+				if got.Error() != errors.Join(tc.want...).Error() {
+					t.Errorf("pass %d: unexpected sanitized categories or ordering", pass)
+				}
+				if errors.Is(got, unknown) {
+					t.Error("raw cause retained")
+				}
+				assertSanitizedTree(t, got, secret)
+			}
+		})
+	}
+}
+
+func assertSanitizedTree(t *testing.T, err error, secret string) {
+	t.Helper()
+	if err == nil {
+		return
+	}
+	if strings.Contains(fmt.Sprintf("%v %+v %#v", err, err, err), secret) {
+		t.Fatal("secret in sanitized error tree")
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, child := range joined.Unwrap() {
+			assertSanitizedTree(t, child, secret)
+		}
+		return
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		assertSanitizedTree(t, wrapped.Unwrap(), secret)
+	}
+}
+
+func TestExecutorPreservesUnknownFailure(t *testing.T) {
+	const secret = "dummy-EXECUTOR-UNKNOWN-CANARY"
+	unknown := errors.New(secret)
+	calls := 0
+	executor, err := NewExecutor(fakeProvider(func(context.Context, Request) (Result, error) {
+		calls++
+		return validResult(), errors.Join(context.Canceled, unknown)
+	}), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := executor.Execute(context.Background(), validRequest())
+	requireFailure(t, result, err, context.Canceled)
+	if !errors.Is(err, ErrProvider) {
+		t.Error("unknown failure lost its safe category")
+	}
+	if calls != 1 {
+		t.Error("provider call count changed")
+	}
+	if errors.Is(err, unknown) {
+		t.Error("raw provider cause retained")
+	}
+	assertSanitizedTree(t, err, secret)
+}

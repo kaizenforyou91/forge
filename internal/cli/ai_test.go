@@ -362,3 +362,55 @@ func TestAIFactoryErrorsAndMixedCancellationAreSafe(t *testing.T) {
 	}
 	aiCheckSecret(t, err, stderr)
 }
+
+func TestAIMixedUnknownFailureExitCode(t *testing.T) {
+	unknown := errors.New(aiCanary)
+	for _, tc := range []struct {
+		name     string
+		failure  error
+		category error
+		wantExit int
+	}{
+		{"pure cancellation", context.Canceled, nil, 130},
+		{"wrapped cancellation", fmt.Errorf("%s: %w", aiCanary, context.Canceled), nil, 130},
+		{"typed mixed", errors.Join(context.Canceled, ai.ErrTransport), ai.ErrTransport, 1},
+		{"unknown mixed", errors.Join(context.Canceled, unknown), ai.ErrProvider, 1},
+		{"reversed mixed", errors.Join(unknown, context.Canceled), ai.ErrProvider, 1},
+		{"wrapped mixed", fmt.Errorf("%s: %w", aiCanary, errors.Join(context.Canceled, unknown)), ai.ErrProvider, 1},
+		{"nested mixed", errors.Join(context.Canceled, errors.Join(unknown)), ai.ErrProvider, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			deps := aiDependencies{
+				lookupKey: func() string { return aiCanary },
+				newProvider: func(string) (ai.Provider, error) {
+					return aiFakeProvider(func(context.Context, ai.Request) (ai.Result, error) {
+						calls++
+						return ai.Result{Text: "partial", Model: "m"}, tc.failure
+					}), nil
+				},
+			}
+			var out bytes.Buffer
+			err, stderr := aiTestExecute(t, deps, aiArgs(), context.Background(), &out)
+			if got := ExitCode(err); got != tc.wantExit {
+				t.Errorf("ExitCode = %d; want %d", got, tc.wantExit)
+			}
+			if !errors.Is(err, context.Canceled) {
+				t.Error("cancellation category lost")
+			}
+			if tc.category != nil && !errors.Is(err, tc.category) {
+				t.Error("mixed failure category lost")
+			}
+			if out.Len() != 0 || calls != 1 {
+				t.Error("partial stdout or incorrect provider call count")
+			}
+			if errors.Is(err, unknown) {
+				t.Error("raw cause retained")
+			}
+			aiCheckSecret(t, err, out.String(), stderr)
+			if ExitCode(ai.SafeError(err)) != tc.wantExit {
+				t.Error("repeated sanitization changed exit status")
+			}
+		})
+	}
+}
