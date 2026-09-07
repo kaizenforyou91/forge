@@ -39,6 +39,7 @@ func NewRootCommandWithApplication(
 		newBuildRunnableCmd(),
 		newInspectCmd(),
 		newRunCmd(),
+		newAICmd(defaultAIDependencies()),
 	)
 
 	return cmd

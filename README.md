@@ -234,6 +234,24 @@ This bounded closure does not make Forge Beta or production-ready, and it does
 not complete all future compiler, runtime, trust, provenance, isolation, or
 security-hardening work.
 
+## Development branch: single-prompt AI execution
+
+The `phase8/single-prompt` development branch adds `forge ai prompt` for one
+explicit text request to OpenAI and one complete text response or classified
+error. **This command is not present in published `v0.3.0-alpha.1`.** The
+release tag, version and existing package/runtime contracts remain unchanged.
+
+The [development workflow](docs/AI_PROMPT_WORKFLOW.md) documents required
+provider/model/text flags, explicit network permission, bounded request/response
+handling, invocation-local credentials and offline tests. There is no automatic
+tool, file, shell or model-output execution. Use dummy/non-sensitive text because
+command arguments can appear in terminal history.
+
+External pilot is DEFERRED / NON-BLOCKING / NOT RUN. This development slice uses
+offline contract tests only; **live provider acceptance is NOT RUN and requires
+separate approval**. It does not complete all of Phase 8.
+
+
 ## Quick Start: External Alpha Workflow
 
 Requirements are Git, Go 1.26 or newer, and a temporary directory outside the
