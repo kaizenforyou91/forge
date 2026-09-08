@@ -6,6 +6,7 @@ import (
 )
 
 func TestSave(t *testing.T) {
+	isolateConfigTest(t)
 
 	file := "test_save.yaml"
 	defer os.Remove(file)

@@ -3,6 +3,7 @@ package config
 import "testing"
 
 func TestEncryptDecryptConfig(t *testing.T) {
+	isolateConfigTest(t)
 
 	cfg := Default()
 

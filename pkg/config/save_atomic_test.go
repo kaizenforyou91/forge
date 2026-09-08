@@ -6,6 +6,7 @@ import (
 )
 
 func TestAtomicSave(t *testing.T) {
+	isolateConfigTest(t)
 
 	file := "atomic.yaml"
 	defer os.Remove(file)
