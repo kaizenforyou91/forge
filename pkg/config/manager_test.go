@@ -45,6 +45,7 @@ plugins:
 	}
 }
 func TestManagerSave(t *testing.T) {
+	isolateConfigTest(t)
 
 	cfg := Default()
 
@@ -59,6 +60,7 @@ func TestManagerSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer mgr.Close()
 
 	if err := mgr.Save(); err != nil {
 		t.Fatal(err)

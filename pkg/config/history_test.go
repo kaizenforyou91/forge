@@ -6,6 +6,7 @@ import (
 )
 
 func TestSaveHistory(t *testing.T) {
+	isolateConfigTest(t)
 
 	cfg := Default()
 
@@ -18,6 +19,7 @@ func TestSaveHistory(t *testing.T) {
 	}
 }
 func TestListHistory(t *testing.T) {
+	isolateConfigTest(t)
 
 	cfg := Default()
 

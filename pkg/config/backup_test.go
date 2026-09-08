@@ -6,6 +6,7 @@ import (
 )
 
 func TestBackup(t *testing.T) {
+	isolateConfigTest(t)
 
 	file := "backup.yaml"
 
@@ -27,6 +28,7 @@ func TestBackup(t *testing.T) {
 	}
 }
 func TestRestore(t *testing.T) {
+	isolateConfigTest(t)
 
 	file := "restore.yaml"
 

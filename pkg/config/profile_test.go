@@ -21,6 +21,7 @@ func TestProfilePath(t *testing.T) {
 }
 
 func TestSaveLoadProfile(t *testing.T) {
+	isolateConfigTest(t)
 
 	cfg := Default()
 

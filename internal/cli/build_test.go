@@ -3,6 +3,7 @@ package cli
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +24,64 @@ import (
 type buildCommandRegistrySnapshot struct {
 	packages []registry.Package
 	sources  []compiler.PackageSource
+}
+
+type isolatedBuildCommandRunner struct {
+	runner     compiler.CommandRunner
+	moduleRoot string
+	outputPath string
+}
+
+func (r isolatedBuildCommandRunner) Run(ctx context.Context, command compiler.Command) (compiler.CommandResult, error) {
+	if command.Name == "go" && len(command.Args) == 2 &&
+		command.Args[0] == "build" &&
+		command.Args[1] == "github.com/kaizenforyou91/forge/cmd/forge" {
+		command.Args = []string{"build", "-o", r.outputPath, command.Args[1]}
+		command.Dir = r.moduleRoot
+	}
+	return r.runner.Run(ctx, command)
+}
+
+// Call before changing the test cwd so real builds retain the Forge module root.
+func newIsolatedBuildApplication(t *testing.T) *app.App {
+	t.Helper()
+
+	moduleRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(moduleRoot, "go.mod")); err != nil {
+		t.Fatal(err)
+	}
+	outputPath, err := filepath.Abs(filepath.Join(t.TempDir(), "forge.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	application := bootstrap.NewApplication()
+	sources, err := resolveSourceRegistry(application)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor, err := compiler.NewToolchainExecutor(isolatedBuildCommandRunner{
+		runner:     compiler.NewOSCommandRunner(),
+		moduleRoot: moduleRoot,
+		outputPath: outputPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine, err := compiler.NewEngineWithSourceResolver(executor, sources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := application.Container().RegisterSingleton(executor); err != nil {
+		t.Fatal(err)
+	}
+	if err := application.Container().RegisterSingleton(engine); err != nil {
+		t.Fatal(err)
+	}
+	return application
 }
 
 func buildCommandRegistries(
@@ -231,7 +290,7 @@ modules:
 		t.Fatal(err)
 	}
 
-	application := bootstrap.NewApplication()
+	application := newIsolatedBuildApplication(t)
 
 	cmd := NewRootCommandWithApplication(application)
 
@@ -280,7 +339,7 @@ modules:
     import_path: github.com/kaizenforyou91/forge/cmd/forge
 `)
 	outputPath := filepath.Join(dir, "demo-v1.zip")
-	if err := executeBuildCommand(bootstrap.NewApplication(), manifestPath, outputPath); err != nil {
+	if err := executeBuildCommand(newIsolatedBuildApplication(t), manifestPath, outputPath); err != nil {
 		t.Fatal(err)
 	}
 
@@ -334,7 +393,7 @@ modules:
     import_path: github.com/kaizenforyou91/forge/cmd/forge
 `)
 	outputPath := filepath.Join(directory, "demo-v1-with-entrypoint.zip")
-	if err := executeBuildCommand(bootstrap.NewApplication(), manifestPath, outputPath); err != nil {
+	if err := executeBuildCommand(newIsolatedBuildApplication(t), manifestPath, outputPath); err != nil {
 		t.Fatal(err)
 	}
 
@@ -399,7 +458,7 @@ modules:
 		t.Fatal(err)
 	}
 
-	application := bootstrap.NewApplication()
+	application := newIsolatedBuildApplication(t)
 
 	cmd := NewRootCommandWithApplication(application)
 	cmd.SetArgs([]string{
@@ -602,7 +661,7 @@ modules:
 		t.Fatal(err)
 	}
 
-	application := bootstrap.NewApplication()
+	application := newIsolatedBuildApplication(t)
 
 	firstCommand := NewRootCommandWithApplication(application)
 	firstCommand.SetArgs([]string{
@@ -675,7 +734,7 @@ func TestBuildCommandSupportsJSONManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	application := bootstrap.NewApplication()
+	application := newIsolatedBuildApplication(t)
 
 	cmd := NewRootCommandWithApplication(application)
 	cmd.SetArgs([]string{
@@ -720,7 +779,8 @@ modules:
 		t.Fatal(err)
 	}
 
-	application := bootstrap.NewApplication()
+	application := newIsolatedBuildApplication(t)
+	t.Chdir(dir)
 
 	cmd := NewRootCommandWithApplication(application)
 	cmd.SetArgs([]string{
@@ -1106,7 +1166,7 @@ modules:
 		t.Fatal(err)
 	}
 
-	application := bootstrap.NewApplication()
+	application := newIsolatedBuildApplication(t)
 
 	cmd := NewRootCommandWithApplication(application)
 	cmd.SetArgs([]string{

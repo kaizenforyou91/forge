@@ -1,13 +1,12 @@
 package config
 
 import (
-	"os"
+	"bytes"
 	"testing"
 )
 
 func TestGenerateKey(t *testing.T) {
-
-	os.Remove(keyFile)
+	isolateConfigTest(t)
 
 	key, err := GenerateKey()
 	if err != nil {
@@ -20,6 +19,12 @@ func TestGenerateKey(t *testing.T) {
 }
 
 func TestLoadKey(t *testing.T) {
+	isolateConfigTest(t)
+
+	want, err := GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	key, err := LoadKey()
 	if err != nil {
@@ -28,5 +33,8 @@ func TestLoadKey(t *testing.T) {
 
 	if len(key) != 32 {
 		t.Fatal("invalid key")
+	}
+	if !bytes.Equal(key, want) {
+		t.Fatal("loaded key differs from the test key")
 	}
 }
