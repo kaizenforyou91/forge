@@ -8,12 +8,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/kaizenforyou91/forge/pkg/ai"
+	"github.com/kaizenforyou91/forge/pkg/ai/tool"
 	"github.com/spf13/cobra"
 )
 
@@ -309,7 +311,7 @@ func TestAIHelpDoesNotReadCredential(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(args) == 3 {
-			for _, flag := range []string{"--provider", "--model", "--text", "--allow-network", "--timeout", "--max-output-tokens"} {
+			for _, flag := range []string{"--provider", "--model", "--text", "--allow-network", "--allow-tools", "--timeout", "--max-output-tokens"} {
 				if !strings.Contains(out.String(), flag) {
 					t.Fatal("missing help flag")
 				}
@@ -412,5 +414,317 @@ func TestAIMixedUnknownFailureExitCode(t *testing.T) {
 				t.Error("repeated sanitization changed exit status")
 			}
 		})
+	}
+}
+
+type aiFakeToolProvider func(context.Context, ai.Request, *tool.Authority) (ai.Result, error)
+
+func (f aiFakeToolProvider) ExecuteAuthorizedFunctionRoundTrip(ctx context.Context, request ai.Request, authority *tool.Authority) (ai.Result, error) {
+	return f(ctx, request, authority)
+}
+
+type aiToolFixture struct {
+	deps                 aiDependencies
+	order                []string
+	textCalls, toolCalls int
+	ctx                  context.Context
+	request              ai.Request
+	authority            *tool.Authority
+}
+
+func newAIToolFixture(t *testing.T) *aiToolFixture {
+	t.Helper()
+	f := &aiToolFixture{}
+	f.deps = aiDependencies{
+		lookupKey: func() string { f.order = append(f.order, "key"); return aiCanary },
+		newProvider: func(key string) (ai.Provider, error) {
+			f.order = append(f.order, "text factory")
+			if key != aiCanary {
+				t.Fatal("wrong text key")
+			}
+			return aiFakeProvider(func(_ context.Context, request ai.Request) (ai.Result, error) {
+				f.textCalls++
+				return ai.Result{Text: "provider final text", Model: request.Model}, nil
+			}), nil
+		},
+		newToolAuthority: func() (*tool.Authority, error) {
+			f.order = append(f.order, "authority")
+			return defaultAIRuntimeToolAuthority()
+		},
+		newToolProvider: func(key string) (aiToolProvider, error) {
+			f.order = append(f.order, "tool factory")
+			if key != aiCanary {
+				t.Fatal("wrong tool key")
+			}
+			return aiFakeToolProvider(func(ctx context.Context, request ai.Request, authority *tool.Authority) (ai.Result, error) {
+				f.toolCalls++
+				f.ctx, f.request, f.authority = ctx, request, authority
+				return ai.Result{Text: "provider final text", Model: request.Model}, nil
+			}), nil
+		},
+	}
+	return f
+}
+
+func aiToolArgs() []string { return append(aiArgs(), "--allow-tools") }
+
+func TestAIToolOptInAndDefaultOff(t *testing.T) {
+	for _, mode := range []string{"default", "false", "enabled", "broken tool hooks"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newAIToolFixture(t)
+			args := aiArgs()
+			wantOrder, textCalls, toolCalls := []string{"key", "text factory"}, 1, 0
+			switch mode {
+			case "false":
+				args = append(args, "--allow-tools=false")
+			case "broken tool hooks":
+				f.deps.newToolAuthority, f.deps.newToolProvider = nil, nil
+			case "enabled":
+				args = aiToolArgs()
+				f.deps.newProvider = nil // Tool mode does not require text factory.
+				wantOrder, textCalls, toolCalls = []string{"authority", "key", "tool factory"}, 0, 1
+			}
+			var out bytes.Buffer
+			err, stderr := aiTestExecute(t, f.deps, args, context.Background(), &out)
+			if err != nil || stderr != "" || out.String() != "provider final text\n" || ExitCode(err) != 0 || !reflect.DeepEqual(f.order, wantOrder) || f.textCalls != textCalls || f.toolCalls != toolCalls {
+				t.Fatal("opt-in wiring/counts", err)
+			}
+			if toolCalls == 1 {
+				defs := f.authority.Definitions()
+				if len(defs) != 1 || defs[0].Name != "forge_runtime_info" || len(defs[0].Parameters) != 0 || f.authority.Executor() == nil {
+					t.Fatal("silent capability expansion")
+				}
+				if f.request != (ai.Request{Text: "  Dummy note.\n", Model: "gpt-4.1-mini-2025-04-14", MaxOutputTokens: 1024}) {
+					t.Fatal("tool request rewritten")
+				}
+				if f.ctx.Err() != context.Canceled {
+					t.Fatal("operation context not released")
+				}
+			}
+		})
+	}
+}
+
+func TestAIToolInvalidInputBeforeDependencies(t *testing.T) {
+	for name, suffix := range map[string][]string{
+		"network missing": {"--allow-network=false"},
+		"tool bool":       {"--allow-tools=" + aiCanary},
+		"provider":        {"--provider", aiCanary},
+		"model":           {"--model", "bad model"},
+		"text":            {"--text", ""},
+		"timeout":         {"--timeout", "121s"},
+		"tokens":          {"--max-output-tokens", "0"},
+		"positional":      {aiCanary},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newAIToolFixture(t)
+			var out bytes.Buffer
+			err, stderr := aiTestExecute(t, f.deps, append(aiToolArgs(), suffix...), context.Background(), &out)
+			want := ai.ErrInvalidRequest
+			if name == "network missing" {
+				want = ai.ErrAuthorization
+			}
+			if !errors.Is(err, want) || out.Len() != 0 || len(f.order) != 0 || f.toolCalls != 0 || f.textCalls != 0 {
+				t.Fatal("invalid input reached dependencies", err)
+			}
+			aiCheckSecret(t, err, stderr)
+		})
+	}
+	f := newAIToolFixture(t)
+	args := append(aiArgs()[:len(aiArgs())-1], "--allow-tools")
+	var out bytes.Buffer
+	err, stderr := aiTestExecute(t, f.deps, args, context.Background(), &out)
+	if !errors.Is(err, ai.ErrAuthorization) || len(f.order) != 0 || out.Len() != 0 {
+		t.Fatal("tools bypassed network consent")
+	}
+	aiCheckSecret(t, err, stderr)
+}
+
+func TestAIToolAuthorityAndFactoryFailures(t *testing.T) {
+	for _, mode := range []string{"nil key hook", "nil authority hook", "nil tool hook", "authority error", "nil authority", "zero authority", "empty authority", "invalid key", "factory error", "nil provider", "typed nil provider"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newAIToolFixture(t)
+			want, order := ai.ErrInvalidRequest, []string(nil)
+			switch mode {
+			case "nil key hook":
+				f.deps.lookupKey = nil
+			case "nil authority hook":
+				f.deps.newToolAuthority = nil
+			case "nil tool hook":
+				f.deps.newToolProvider = nil
+			case "authority error", "nil authority", "zero authority", "empty authority":
+				order = []string{"authority"}
+				f.deps.newToolAuthority = func() (*tool.Authority, error) {
+					f.order = append(f.order, "authority")
+					switch mode {
+					case "authority error":
+						return nil, fmt.Errorf("%s: %w", aiCanary, tool.ErrInvalidExecutor)
+					case "zero authority":
+						return &tool.Authority{}, nil
+					case "empty authority":
+						return tool.NewAuthority(nil)
+					default:
+						return nil, nil
+					}
+				}
+				if mode == "authority error" {
+					want = ai.ErrProvider
+				}
+			case "invalid key":
+				order = []string{"authority", "key"}
+				want = ai.ErrAuthentication
+				f.deps.lookupKey = func() string { f.order = append(f.order, "key"); return aiCanary + "\n" }
+			case "factory error", "nil provider", "typed nil provider":
+				order = []string{"authority", "key", "tool factory"}
+				f.deps.newToolProvider = func(string) (aiToolProvider, error) {
+					f.order = append(f.order, "tool factory")
+					if mode == "factory error" {
+						return nil, errors.New(aiCanary)
+					}
+					if mode == "typed nil provider" {
+						return aiFakeToolProvider(nil), nil
+					}
+					return nil, nil
+				}
+				if mode == "factory error" {
+					want = ai.ErrProvider
+				}
+			}
+			var out bytes.Buffer
+			err, stderr := aiTestExecute(t, f.deps, aiToolArgs(), context.Background(), &out)
+			if !errors.Is(err, want) || !reflect.DeepEqual(f.order, order) || f.toolCalls != 0 || f.textCalls != 0 || out.Len() != 0 || ExitCode(err) != 1 {
+				t.Fatal("dependency failure order/classification", err)
+			}
+			aiCheckSecret(t, err, stderr)
+		})
+	}
+}
+
+func TestAIToolOutputAndErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name, text, model string
+		failure, want     error
+		exit              int
+	}{
+		{"plain", "answer", "m", nil, nil, 0},
+		{"newline", "answer\n", "m", nil, nil, 0},
+		{"text reflection", aiCanary, "m", nil, ai.ErrMalformedResponse, 1},
+		{"model reflection", "answer", aiCanary, nil, ai.ErrMalformedResponse, 1},
+		{"invalid text", "\x1b[31m", "m", nil, ai.ErrMalformedResponse, 1},
+		{"authorization", "partial", "m", fmt.Errorf("%s: %w", aiCanary, ai.ErrAuthorization), ai.ErrAuthorization, 1},
+		{"execution denied", "partial", "m", tool.ErrExecutionDenied, ai.ErrProvider, 1},
+		{"handler failed", "partial", "m", tool.ErrHandlerFailed, ai.ErrProvider, 1},
+		{"provider", "partial", "m", fmt.Errorf("%s: %w", aiCanary, ai.ErrTransport), ai.ErrTransport, 1},
+		{"canceled", "partial", "m", fmt.Errorf("%s: %w", aiCanary, context.Canceled), context.Canceled, 130},
+		{"deadline", "partial", "m", context.DeadlineExceeded, context.DeadlineExceeded, 1},
+		{"unknown", "partial", "m", errors.New(aiCanary), ai.ErrProvider, 1},
+		{"mixed", "partial", "m", errors.Join(context.Canceled, errors.New(aiCanary)), ai.ErrProvider, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newAIToolFixture(t)
+			f.deps.newToolProvider = func(string) (aiToolProvider, error) {
+				return aiFakeToolProvider(func(context.Context, ai.Request, *tool.Authority) (ai.Result, error) {
+					f.toolCalls++
+					return ai.Result{Text: tc.text, Model: tc.model, Usage: &ai.Usage{InputTokens: 20, OutputTokens: 2048}}, tc.failure
+				}), nil
+			}
+			var out bytes.Buffer
+			err, stderr := aiTestExecute(t, f.deps, aiToolArgs(), context.Background(), &out)
+			if !errors.Is(err, tc.want) || ExitCode(err) != tc.exit || f.toolCalls != 1 {
+				t.Fatal("tool error category", err)
+			}
+			if err != nil {
+				if out.Len() != 0 {
+					t.Fatal("partial stdout")
+				}
+			} else {
+				want := tc.text
+				if !strings.HasSuffix(want, "\n") {
+					want += "\n"
+				}
+				if out.String() != want || stderr != "" {
+					t.Fatal("stdout not final text only")
+				}
+			}
+			aiCheckSecret(t, err, out.String(), stderr)
+		})
+	}
+	for _, short := range []bool{false, true} {
+		f := newAIToolFixture(t)
+		err, stderr := aiTestExecute(t, f.deps, aiToolArgs(), context.Background(), aiBadWriter{short: short})
+		if !errors.Is(err, io.ErrShortWrite) || ExitCode(err) != 1 || f.toolCalls != 1 {
+			t.Fatal("writer error not redacted")
+		}
+		aiCheckSecret(t, err, stderr)
+	}
+}
+
+func TestAIToolTimeoutAndCancellation(t *testing.T) {
+	for _, budget := range []time.Duration{time.Second, 120 * time.Second} {
+		synctest.Test(t, func(t *testing.T) {
+			f := newAIToolFixture(t)
+			start := time.Now()
+			f.deps.newToolProvider = func(string) (aiToolProvider, error) {
+				return aiFakeToolProvider(func(ctx context.Context, _ ai.Request, _ *tool.Authority) (ai.Result, error) {
+					f.toolCalls++
+					deadline, ok := ctx.Deadline()
+					if !ok || deadline.After(start.Add(budget)) {
+						t.Fatal("CLI timeout lost")
+					}
+					<-ctx.Done()
+					// Even a provider ignoring cancellation on return cannot print output.
+					return ai.Result{Text: "late output", Model: "m"}, nil
+				}), nil
+			}
+			var out bytes.Buffer
+			err, _ := aiTestExecute(t, f.deps, append(aiToolArgs(), "--timeout", budget.String()), context.Background(), &out)
+			if !errors.Is(err, context.DeadlineExceeded) || out.Len() != 0 || f.toolCalls != 1 || time.Since(start) != budget {
+				t.Fatal("CLI whole-call deadline", err)
+			}
+		})
+	}
+	f := newAIToolFixture(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var out bytes.Buffer
+	err, _ := aiTestExecute(t, f.deps, aiToolArgs(), ctx, &out)
+	if !errors.Is(err, context.Canceled) || len(f.order) != 0 || f.toolCalls != 0 || out.Len() != 0 {
+		t.Fatal("pre-cancel reached dependencies")
+	}
+}
+
+func TestAIToolHelpAndDefaultDependencies(t *testing.T) {
+	f := newAIToolFixture(t)
+	var out bytes.Buffer
+	err, _ := aiTestExecute(t, f.deps, []string{"ai", "prompt", "--help"}, context.Background(), &out)
+	if err != nil || len(f.order) != 0 {
+		t.Fatal("help used dependencies")
+	}
+	for _, text := range []string{"--allow-tools", "text-only", "forge_runtime_info", "two provider requests", "one read-only tool execution", "No filesystem, subprocess, or external-network tool handlers", "shell history"} {
+		if !strings.Contains(out.String(), text) {
+			t.Fatal("missing bounded help contract")
+		}
+	}
+	root := aiTestRoot(f.deps)
+	command, _, err := root.Find([]string{"ai", "prompt"})
+	if err != nil || command.Flags().Lookup("allow-tools").DefValue != "false" {
+		t.Fatal("tools default enabled")
+	}
+	deps := defaultAIDependencies()
+	if deps.lookupKey == nil || deps.newProvider == nil || deps.newToolProvider == nil || deps.newToolAuthority == nil {
+		t.Fatal("default hooks missing")
+	}
+	authority, err := deps.newToolAuthority()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defs := authority.Definitions()
+	if len(defs) != 1 || defs[0].Name != "forge_runtime_info" || len(defs[0].Parameters) != 0 {
+		t.Fatal("default capability expanded")
+	}
+	// Constructor-only: validate default tool wiring without Execute or key lookup.
+	p, err := deps.newToolProvider(aiCanary)
+	if err != nil || nilAIToolProvider(p) {
+		t.Fatal("default tool provider unavailable")
 	}
 }
