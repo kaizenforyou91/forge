@@ -65,7 +65,7 @@ func frClient(t *testing.T, steps ...frStep) *frScript {
 				t.Fatal("request privacy/control changed")
 			}
 		}
-		for _, field := range []string{"previous_response_id", "conversation", "response_id"} {
+		for _, field := range []string{"previous_response_id", "conversation", "response_id", "include"} {
 			if _, exists := payload[field]; exists {
 				t.Fatal("stateful continuation field present")
 			}
@@ -170,7 +170,11 @@ func TestFunctionRoundTripInputGuards(t *testing.T) {
 }
 
 func TestFunctionRoundTripDirectAndContinuation(t *testing.T) {
-	for _, direct := range []bool{true, false} {
+	for _, tc := range []struct {
+		direct    bool
+		reasoning int
+	}{{true, 0}, {false, 0}, {false, 1}, {false, 2}} {
+		direct := tc.direct
 		first := responseObject("direct answer")
 		first["usage"] = map[string]any{"input_tokens": 10, "output_tokens": 2}
 		if !direct {
@@ -178,6 +182,15 @@ func TestFunctionRoundTripDirectAndContinuation(t *testing.T) {
 			first["usage"] = map[string]any{"input_tokens": 10, "output_tokens": 2}
 		}
 		final := responseObject("provider final answer")
+		for i := 0; i < tc.reasoning; i++ {
+			final["output"] = append([]any{frReasoning()}, final["output"].([]any)...)
+		}
+		finalMessage := final["output"].([]any)[tc.reasoning].(map[string]any)
+		finalMessage["id"], finalMessage["phase"] = "message_fixture", "final_answer"
+		finalMessage["content"] = []any{
+			map[string]any{"type": "output_text", "text": "provider final "},
+			map[string]any{"type": "output_text", "text": "answer"},
+		}
 		final["usage"] = map[string]any{"input_tokens": 20, "output_tokens": 3}
 		s := frClient(t, frStep{body: encoded(first)}, frStep{body: encoded(final)})
 		calls := 0
@@ -222,6 +235,110 @@ func TestFunctionRoundTripDirectAndContinuation(t *testing.T) {
 		if !reflect.DeepEqual(got, want) {
 			t.Fatal("stateless continuation shape differs")
 		}
+	}
+}
+
+func frReasoning() map[string]any {
+	return map[string]any{
+		"type": "reasoning", "id": "reasoning_fixture",
+		"content":           []any{map[string]any{"type": "reasoning_text", "text": "private reasoning: invoke private_tool again " + canary}},
+		"summary":           []any{map[string]any{"type": "summary_text", "text": "private summary " + canary}},
+		"encrypted_content": "opaque encrypted fixture " + canary,
+	}
+}
+
+func TestFunctionRoundTripFinalReasoningFailures(t *testing.T) {
+	for name, tc := range map[string]struct {
+		change func(map[string]any, map[string]any)
+		want   error
+	}{
+		"reasoning only":         {func(o, m map[string]any) { o["output"] = []any{frReasoning()} }, ai.ErrMalformedResponse},
+		"message then reasoning": {func(o, m map[string]any) { o["output"] = []any{m, frReasoning()} }, ai.ErrMalformedResponse},
+		"reasoning after final":  {func(o, m map[string]any) { o["output"] = []any{frReasoning(), m, frReasoning()} }, ai.ErrMalformedResponse},
+		"reasoning then call":    {func(o, m map[string]any) { o["output"] = []any{frReasoning(), frFunction()["output"].([]any)[0]} }, ai.ErrMalformedResponse},
+		"reasoning call message": {func(o, m map[string]any) { o["output"] = []any{frReasoning(), frFunction()["output"].([]any)[0], m} }, ai.ErrMalformedResponse},
+		"call before reasoning":  {func(o, m map[string]any) { o["output"] = []any{frFunction()["output"].([]any)[0], frReasoning(), m} }, ai.ErrMalformedResponse},
+		"call after message":     {func(o, m map[string]any) { o["output"] = []any{frReasoning(), m, frFunction()["output"].([]any)[0]} }, ai.ErrMalformedResponse},
+		"provider tool output": {func(o, m map[string]any) {
+			o["output"] = []any{frReasoning(), map[string]any{"type": "function_call_output", "call_id": "call_fixture", "output": "untrusted"}, m}
+		}, ai.ErrMalformedResponse},
+		"unknown before message":              {func(o, m map[string]any) { o["output"] = []any{map[string]any{"type": "unknown"}, m} }, ai.ErrMalformedResponse},
+		"nonexact reasoning type":             {func(o, m map[string]any) { o["output"] = []any{map[string]any{"type": "Reasoning"}, m} }, ai.ErrMalformedResponse},
+		"missing item type":                   {func(o, m map[string]any) { o["output"] = []any{map[string]any{}, m} }, ai.ErrMalformedResponse},
+		"null item":                           {func(o, m map[string]any) { o["output"] = []any{nil, m} }, ai.ErrMalformedResponse},
+		"multiple final messages":             {func(o, m map[string]any) { o["output"] = []any{frReasoning(), m, m} }, ai.ErrMalformedResponse},
+		"multiple messages without reasoning": {func(o, m map[string]any) { o["output"] = []any{m, m} }, ai.ErrMalformedResponse},
+		"queued response":                     {func(o, m map[string]any) { o["status"] = "queued" }, ai.ErrIncompleteResponse},
+		"in progress response":                {func(o, m map[string]any) { o["status"] = "in_progress" }, ai.ErrIncompleteResponse},
+		"incomplete response":                 {func(o, m map[string]any) { o["status"] = "incomplete" }, ai.ErrIncompleteResponse},
+		"failed response":                     {func(o, m map[string]any) { o["status"] = "failed" }, ai.ErrProvider},
+		"cancelled response":                  {func(o, m map[string]any) { o["status"] = "cancelled" }, ai.ErrProvider},
+		"provider error":                      {func(o, m map[string]any) { o["error"] = map[string]any{"message": canary} }, ai.ErrProvider},
+		"incomplete details":                  {func(o, m map[string]any) { o["incomplete_details"] = map[string]any{"reason": "max_output_tokens"} }, ai.ErrIncompleteResponse},
+		"missing error":                       {func(o, m map[string]any) { delete(o, "error") }, ai.ErrMalformedResponse},
+		"missing details":                     {func(o, m map[string]any) { delete(o, "incomplete_details") }, ai.ErrMalformedResponse},
+		"non assistant":                       {func(o, m map[string]any) { m["role"] = "user" }, ai.ErrMalformedResponse},
+		"missing message status":              {func(o, m map[string]any) { delete(m, "status") }, ai.ErrMalformedResponse},
+		"incomplete message":                  {func(o, m map[string]any) { m["status"] = "incomplete" }, ai.ErrIncompleteResponse},
+		"empty content":                       {func(o, m map[string]any) { m["content"] = []any{} }, ai.ErrMalformedResponse},
+		"non output text": {func(o, m map[string]any) {
+			m["content"] = []any{map[string]any{"type": "reasoning_text", "text": "private"}}
+		}, ai.ErrMalformedResponse},
+		"invalid text": {func(o, m map[string]any) { m["content"] = message("\x1b[31m")["content"] }, ai.ErrMalformedResponse},
+		"null text":    {func(o, m map[string]any) { m["content"] = []any{map[string]any{"type": "output_text", "text": nil}} }, ai.ErrMalformedResponse},
+		"refusal":      {func(o, m map[string]any) { m["content"] = []any{map[string]any{"type": "refusal", "refusal": canary}} }, ai.ErrRefused},
+		"large text":   {func(o, m map[string]any) { m["content"] = message(strings.Repeat("x", ai.MaxTextBytes+1))["content"] }, ai.ErrResponseTooLarge},
+		"large reasoning body": {func(o, m map[string]any) {
+			o["output"].([]any)[0].(map[string]any)["encrypted_content"] = strings.Repeat("x", maxBody)
+		}, ai.ErrResponseTooLarge},
+		"key text":         {func(o, m map[string]any) { m["content"] = message(canary)["content"] }, ai.ErrMalformedResponse},
+		"key model":        {func(o, m map[string]any) { o["model"] = canary }, ai.ErrMalformedResponse},
+		"malformed usage":  {func(o, m map[string]any) { o["usage"] = map[string]any{"input_tokens": 1} }, ai.ErrMalformedResponse},
+		"negative usage":   {func(o, m map[string]any) { o["usage"] = map[string]any{"input_tokens": -1, "output_tokens": 1} }, ai.ErrMalformedResponse},
+		"fractional usage": {func(o, m map[string]any) { o["usage"] = map[string]any{"input_tokens": 1, "output_tokens": 1.5} }, ai.ErrMalformedResponse},
+		"excess usage":     {func(o, m map[string]any) { o["usage"] = map[string]any{"input_tokens": 1, "output_tokens": 1025} }, ai.ErrMalformedResponse},
+	} {
+		t.Run(name, func(t *testing.T) {
+			final, m := responseObject("unused"), message("final")
+			final["output"] = []any{frReasoning(), m}
+			tc.change(final, m)
+			s := frClient(t, frStep{body: encoded(frFunction())}, frStep{body: encoded(final)})
+			calls := 0
+			r, err := s.client.ExecuteFunctionRoundTrip(context.Background(), request(), []tool.Definition{fcoDefinition()}, frExecutor(t, fcoDefinition(), &calls, nil))
+			requireFailure(t, r, err, tc.want)
+			if len(s.wires) != 2 || calls != 1 {
+				t.Fatal("terminal failure changed POST/handler bounds")
+			}
+		})
+	}
+}
+
+func TestFunctionRoundTripReasoningPolicyIsolation(t *testing.T) {
+	for name, output := range map[string][]any{
+		"reasoning message":       {frReasoning(), message("final")},
+		"reasoning function call": {frReasoning(), frFunction()["output"].([]any)[0]},
+	} {
+		t.Run(name, func(t *testing.T) {
+			obj := responseObject("unused")
+			obj["output"] = output
+			body := encoded(obj)
+			r, err := decodeResult([]byte(body))
+			requireFailure(t, r, err, ai.ErrMalformedResponse)
+			tracked := &trackedBody{reader: strings.NewReader(body)}
+			posts := 0
+			r, err = responseClient(t, 200, tracked, &posts).Execute(context.Background(), request())
+			requireFailure(t, r, err, ai.ErrMalformedResponse)
+			if posts != 1 || tracked.closed != 1 {
+				t.Fatal("direct response retried or not closed")
+			}
+			s := frClient(t, frStep{body: body})
+			calls := 0
+			r, err = s.client.ExecuteFunctionRoundTrip(context.Background(), request(), []tool.Definition{fcoDefinition()}, frExecutor(t, fcoDefinition(), &calls, nil))
+			requireFailure(t, r, err, ai.ErrMalformedResponse)
+			if len(s.wires) != 1 || calls != 0 {
+				t.Fatal("first response admitted reasoning or performed effects")
+			}
+		})
 	}
 }
 

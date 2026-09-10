@@ -214,6 +214,24 @@ func jsonString(data []byte) (string, error) {
 func isNull(data []byte) bool { return bytes.Equal(bytes.TrimSpace(data), []byte("null")) }
 
 func decodeResult(data []byte) (ai.Result, error) {
+	return decodeResultWithPolicy(data, ordinaryResponse)
+}
+
+// decodeFunctionRoundTripFinalResult accepts only leading opaque reasoning
+// metadata followed by exactly one completed assistant message. Reasoning is
+// never returned, replayed, or admitted as a tool proposal.
+func decodeFunctionRoundTripFinalResult(data []byte) (ai.Result, error) {
+	return decodeResultWithPolicy(data, functionRoundTripFinalResponse)
+}
+
+type resultDecodePolicy uint8
+
+const (
+	ordinaryResponse resultDecodePolicy = iota
+	functionRoundTripFinalResponse
+)
+
+func decodeResultWithPolicy(data []byte, policy resultDecodePolicy) (ai.Result, error) {
 	obj, err := jsonObject(data)
 	if err != nil {
 		return ai.Result{}, err
@@ -260,13 +278,22 @@ func decodeResult(data []byte) (ai.Result, error) {
 		return ai.Result{}, ai.ErrMalformedResponse
 	}
 	var text strings.Builder
-	for _, raw := range items {
+	for i, raw := range items {
 		item, err := jsonObject(raw)
 		if err != nil {
 			return ai.Result{}, err
 		}
 		kind, err := jsonString(item["type"])
-		if err != nil || kind != "message" {
+		if err != nil {
+			return ai.Result{}, err
+		}
+		if policy == functionRoundTripFinalResponse && i < len(items)-1 {
+			if kind != "reasoning" {
+				return ai.Result{}, ai.ErrMalformedResponse
+			}
+			continue
+		}
+		if kind != "message" {
 			return ai.Result{}, ai.ErrMalformedResponse
 		}
 		role, err := jsonString(item["role"])
