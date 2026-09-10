@@ -23,6 +23,7 @@ import (
 // Continuation replays owned user/call/output data with store:false, never remote
 // conversation state. Reasoning plus function calls and other mixed output are
 // outside B1's contract. The second response must be final text, not another call.
+// Only that terminal response may contain leading opaque reasoning metadata.
 // Replay protection lasts only for this invocation's coordinator, not across
 // independent invocations or process restarts. Handlers must honor context.
 func (c *Client) ExecuteFunctionRoundTrip(ctx context.Context, request ai.Request, definitions []tool.Definition, executor *tool.Executor) (ai.Result, error) {
@@ -95,7 +96,7 @@ func (c *Client) ExecuteFunctionRoundTrip(ctx context.Context, request ai.Reques
 	if err != nil {
 		return ai.Result{}, err
 	}
-	result, err = decodeResult(second)
+	result, err = decodeFunctionRoundTripFinalResult(second)
 	if err != nil {
 		return ai.Result{}, err
 	}
