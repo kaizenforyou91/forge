@@ -14,12 +14,200 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/kaizenforyou91/forge/internal/aiprovider/openai"
 	"github.com/kaizenforyou91/forge/pkg/ai"
 	"github.com/kaizenforyou91/forge/pkg/ai/tool"
 	"github.com/spf13/cobra"
 )
 
 const aiCanary = "dummy-AI-CREDENTIAL-CANARY"
+
+type aiFakeDiagnosticProvider struct {
+	ordinary   aiFakeToolProvider
+	diagnostic func(context.Context, ai.Request, *tool.Authority) (ai.Result, openai.FunctionRoundTripStage, error)
+}
+
+func (p aiFakeDiagnosticProvider) ExecuteAuthorizedFunctionRoundTrip(ctx context.Context, req ai.Request, a *tool.Authority) (ai.Result, error) {
+	return p.ordinary(ctx, req, a)
+}
+
+func (p aiFakeDiagnosticProvider) ExecuteAuthorizedFunctionRoundTripDiagnostic(ctx context.Context, req ai.Request, a *tool.Authority) (ai.Result, openai.FunctionRoundTripStage, error) {
+	return p.diagnostic(ctx, req, a)
+}
+
+func TestAIToolDiagnosticStageRenderingAndCanaries(t *testing.T) {
+	canaries := []string{aiCanary, "private_prompt_C10", "private_arguments_C10",
+		"private_call_id_C10", "private_item_id_C10", "private_reasoning_C10",
+		"private_encrypted_C10", "private_tool_output_C10", "private_provider_error_C10",
+		"private_response_id_C10", "private_filename_C10", "private_environment_C10",
+		"private_model_output_C10"}
+	labels := []string{"", "request_build", "initial_context", "post1_request",
+		"post1_text_decode", "post1_validate", "post1_map", "post1_admission",
+		"post1_reflection", "post1_usage", "handler_execute", "continuation_build",
+		"post2_request", "post2_decode", "post2_validate", "usage_aggregate",
+		"final_context", "complete"}
+	// Exhaust the numeric type as well as known stages: invalid casts cannot
+	// smuggle a dynamic suffix, arbitrary provider text, or even an integer.
+	for i := 0; i <= 255; i++ {
+		stage := openai.FunctionRoundTripStage(i)
+		label := ""
+		if i < len(labels) {
+			label = labels[i]
+		}
+		if stage.String() != label {
+			t.Fatal("stage rendering escaped closed vocabulary")
+		}
+		for _, enabled := range []bool{false, true} {
+			f := newAIToolFixture(t)
+			ordinary, diagnostic := 0, 0
+			unsafe := errors.Join(ai.ErrMalformedResponse, errors.New(strings.Join(canaries, " ")))
+			f.deps.newToolProvider = func(string) (aiToolProvider, error) {
+				return aiFakeDiagnosticProvider{
+					ordinary: func(context.Context, ai.Request, *tool.Authority) (ai.Result, error) {
+						ordinary++
+						return ai.Result{Text: strings.Join(canaries, " ")}, unsafe
+					},
+					diagnostic: func(_ context.Context, req ai.Request, a *tool.Authority) (ai.Result, openai.FunctionRoundTripStage, error) {
+						diagnostic++
+						if req.Text != "private_prompt_C10" || len(a.Definitions()) != 1 || a.Definitions()[0].Name != "forge_runtime_info" {
+							t.Fatal("request/authority changed")
+						}
+						return ai.Result{Text: strings.Join(canaries, " ")}, stage, unsafe
+					},
+				}, nil
+			}
+			args := append(aiToolArgs(), "--text", "private_prompt_C10")
+			if enabled {
+				args = append(args, "--diagnostic-stage=true")
+			}
+			var out bytes.Buffer
+			err, stderr := aiTestExecute(t, f.deps, args, context.Background(), &out)
+			want := ai.SafeError(unsafe).Error()
+			if enabled && label != "" && stage != openai.StageComplete {
+				want = "AI_TOOL_DIAGNOSTIC_STAGE=" + label + "\n" + want
+			}
+			if stderr != want || out.Len() != 0 || !errors.Is(err, ai.ErrMalformedResponse) || !errors.Is(err, ai.ErrProvider) {
+				t.Fatal("diagnostic output/category changed")
+			}
+			if enabled && (diagnostic != 1 || ordinary != 0) || !enabled && (ordinary != 1 || diagnostic != 0) {
+				t.Fatal("diagnostic repeated execution")
+			}
+			for _, secret := range canaries {
+				for _, observable := range []string{out.String(), stderr, err.Error(), stage.String()} {
+					if strings.Contains(observable, secret) {
+						t.Fatal("diagnostic leaked canary")
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestAIToolDiagnosticOptInGuards(t *testing.T) {
+	for _, suffix := range [][]string{
+		{"--allow-tools=false"}, {"--allow-network=false"},
+		{"--text", ""}, {"--timeout", "0s"}, {"--max-output-tokens", "0"},
+		{"--provider", "other"}, {"--diagnostic-stage=" + aiCanary}, {"unexpected"},
+	} {
+		f := newAIToolFixture(t)
+		var out bytes.Buffer
+		args := append(aiToolArgs(), "--diagnostic-stage")
+		err, stderr := aiTestExecute(t, f.deps, append(args, suffix...), context.Background(), &out)
+		if !errors.Is(err, ai.ErrInvalidRequest) || len(f.order) != 0 || out.Len() != 0 || strings.Contains(stderr, "AI_TOOL_DIAGNOSTIC_STAGE=") {
+			t.Fatal("invalid diagnostic input reached dependencies")
+		}
+		aiCheckSecret(t, err, out.String(), stderr)
+	}
+	for _, suffix := range [][]string{nil, {"--diagnostic-stage=false"}} {
+		for _, args := range [][]string{aiArgs(), aiToolArgs()} {
+			f := newAIToolFixture(t)
+			var out bytes.Buffer
+			err, stderr := aiTestExecute(t, f.deps, append(args, suffix...), context.Background(), &out)
+			if err != nil || stderr != "" || out.String() != "provider final text\n" || f.textCalls+f.toolCalls != 1 {
+				t.Fatal("default/false behavior changed")
+			}
+		}
+	}
+	root := aiTestRoot(aiDependencies{})
+	prompt, _, err := root.Find([]string{"ai", "prompt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	flag := prompt.Flags().Lookup("diagnostic-stage")
+	if flag == nil || flag.DefValue != "false" || !flag.Hidden {
+		t.Fatal("diagnostic flag must be hidden and default off")
+	}
+	root.SetArgs([]string{"ai", "prompt", "--help"})
+	var help bytes.Buffer
+	root.SetOut(&help)
+	if root.Execute() != nil || strings.Contains(help.String(), "diagnostic-stage") {
+		t.Fatal("development flag exposed in help")
+	}
+}
+
+func TestAIToolDiagnosticSuccessAndSetupFailures(t *testing.T) {
+	for _, mode := range []string{"success", "factory", "unsupported", "authority", "credential", "canceled", "writer"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newAIToolFixture(t)
+			calls := 0
+			f.deps.newToolProvider = func(string) (aiToolProvider, error) {
+				if mode == "factory" {
+					return nil, errors.New(aiCanary)
+				}
+				if mode == "unsupported" {
+					return aiFakeToolProvider(func(context.Context, ai.Request, *tool.Authority) (ai.Result, error) {
+						t.Fatal("unsupported diagnostic fell back to ordinary execution")
+						return ai.Result{}, nil
+					}), nil
+				}
+				return aiFakeDiagnosticProvider{diagnostic: func(context.Context, ai.Request, *tool.Authority) (ai.Result, openai.FunctionRoundTripStage, error) {
+					calls++
+					if mode == "writer" {
+						return ai.Result{}, openai.StagePost2Decode, ai.ErrMalformedResponse
+					}
+					return ai.Result{Text: "final text", Model: "model"}, openai.StageComplete, nil
+				}}, nil
+			}
+			if mode == "authority" {
+				f.deps.newToolAuthority = func() (*tool.Authority, error) { return nil, errors.New(aiCanary) }
+			}
+			if mode == "credential" {
+				f.deps.lookupKey = func() string { return "" }
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if mode == "canceled" {
+				cancel()
+			}
+			var out bytes.Buffer
+			args := append(aiToolArgs(), "--diagnostic-stage")
+			if mode == "writer" {
+				root := aiTestRoot(f.deps)
+				root.SetOut(&out)
+				root.SetErr(aiBadWriter{})
+				root.SetArgs(args)
+				err := root.ExecuteContext(ctx)
+				if err != ai.ErrMalformedResponse || calls != 1 || out.Len() != 0 {
+					t.Fatal("writer replaced operation error")
+				}
+				aiCheckSecret(t, err)
+				return
+			}
+			err, stderr := aiTestExecute(t, f.deps, args, ctx, &out)
+			if strings.Contains(stderr, "AI_TOOL_DIAGNOSTIC_STAGE=") {
+				t.Fatal("stage on success/setup error")
+			}
+			if mode == "success" {
+				if err != nil || stderr != "" || out.String() != "final text\n" || calls != 1 {
+					t.Fatal("diagnostic success changed output")
+				}
+			} else if err == nil || out.Len() != 0 || calls != 0 {
+				t.Fatal("setup error executed operation")
+			}
+			aiCheckSecret(t, err, stderr, out.String())
+		})
+	}
+}
 
 type aiFakeProvider func(context.Context, ai.Request) (ai.Result, error)
 
