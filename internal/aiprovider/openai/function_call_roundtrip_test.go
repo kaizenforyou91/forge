@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -16,6 +17,266 @@ import (
 	"github.com/kaizenforyou91/forge/pkg/ai"
 	"github.com/kaizenforyou91/forge/pkg/ai/tool"
 )
+
+// Every fixture uses synthetic secrets; no environment or credential file is read.
+var frDiagnosticCanaries = []string{
+	canary, "private_prompt_C10", "private_argument", "call_fixture", "item_private",
+	"private_reasoning_C10", "private_encrypted_C10", "private_tool_output_C10",
+	"private_provider_error_C10", "private_response_id_C10", "private_model_output_C10",
+}
+
+func frDiagnosticSafe(t *testing.T, result ai.Result, stage FunctionRoundTripStage, err error) {
+	t.Helper()
+	observable := fmt.Sprintf("%+v %#v %s %+v %#v", result, result, stage.String(), err, err)
+	for _, secret := range frDiagnosticCanaries {
+		if strings.Contains(observable, secret) {
+			t.Fatal("diagnostic exposed a canary")
+		}
+	}
+}
+
+func TestFunctionRoundTripDiagnosticFailures(t *testing.T) {
+	for _, name := range []string{
+		"build", "authority", "post1 transport", "post1 provider", "post1 malformed",
+		"map", "B1 reasoning mixed", "admission", "reflection", "usage",
+		"handler", "handler panic", "post2 transport", "post2 provider", "post2 decode",
+		"post2 validate", "post2 reflection", "post1 validate", "aggregate", "second tool",
+	} {
+		t.Run(name, func(t *testing.T) {
+			var ordinaryResult ai.Result
+			var ordinaryError error
+			var ordinaryWires [][]byte
+			for _, diagnostic := range []bool{false, true} {
+				first, second := frFunction(), responseObject("private_model_output_C10")
+				first["id"], second["id"] = "private_response_id_C10", "private_response_id_C10"
+				item := first["output"].([]any)[0].(map[string]any)
+				reasoning := map[string]any{"type": "reasoning", "summary": []any{},
+					"id": "private_reasoning_C10", "encrypted_content": "private_encrypted_C10"}
+				second["output"] = append([]any{reasoning}, second["output"].([]any)...)
+				first["usage"] = map[string]any{"input_tokens": 1, "output_tokens": 1}
+				second["usage"] = map[string]any{"input_tokens": 1, "output_tokens": 1}
+				req := request()
+				req.Text = "private_prompt_C10"
+				wantStage, wantErr := StagePost1Map, ai.ErrMalformedResponse
+				posts, handlers := 1, 0
+				var handler tool.Handler
+				switch name {
+				case "build", "authority":
+					wantStage, wantErr, posts = StageRequestBuild, ai.ErrInvalidRequest, 0
+					if name == "build" {
+						req.MaxOutputTokens = 0
+					}
+				case "post1 transport":
+					wantStage, wantErr = StagePost1Request, ai.ErrTransport
+				case "post1 provider":
+					wantStage, wantErr = StagePost1Request, ai.ErrProvider
+				case "post1 malformed":
+					first["output"] = []any{reasoning}
+					wantStage = StagePost1TextDecode
+				case "map":
+					delete(item, "call_id")
+				case "B1 reasoning mixed":
+					first["output"] = []any{reasoning, item}
+				case "admission":
+					item["name"] = "unknown"
+					wantStage, wantErr = StagePost1Admission, ai.ErrInvalidRequest
+				case "reflection":
+					item["arguments"] = encoded(map[string]any{"value": canary})
+					wantStage = StagePost1Reflection
+				case "usage":
+					first["usage"] = map[string]any{"input_tokens": -1, "output_tokens": 1}
+					wantStage = StagePost1Usage
+				case "handler", "handler panic":
+					wantStage, wantErr, handlers = StageHandlerExecute, ai.ErrProvider, 1
+					handler = func(context.Context, tool.Call) (string, error) {
+						if name == "handler panic" {
+							panic("private_provider_error_C10")
+						}
+						return "private_tool_output_C10", errors.New("private_provider_error_C10")
+					}
+				case "post1 validate":
+					first = responseObject(canary)
+					wantStage = StagePost1Validate
+				default:
+					posts, handlers = 2, 1
+					switch name {
+					case "post2 transport":
+						wantStage, wantErr = StagePost2Request, ai.ErrTransport
+					case "post2 provider":
+						wantStage, wantErr = StagePost2Request, ai.ErrProvider
+					case "post2 decode":
+						second["output"] = []any{reasoning}
+						wantStage = StagePost2Decode
+					case "second tool":
+						second = frFunction()
+						wantStage = StagePost2Decode
+					case "post2 validate":
+						second["usage"] = map[string]any{"input_tokens": 1, "output_tokens": req.MaxOutputTokens + 1}
+						wantStage = StagePost2Validate
+					case "post2 reflection":
+						second["model"] = canary
+						wantStage = StagePost2Validate
+					case "aggregate":
+						first["usage"] = map[string]any{"input_tokens": int64(math.MaxInt64), "output_tokens": 1}
+						wantStage = StageUsageAggregate
+					}
+				}
+				steps := []frStep{{body: encoded(first)}, {body: encoded(second)}}
+				for i, prefix := range []string{"post1", "post2"} {
+					if name == prefix+" transport" {
+						steps[i].err = errors.New(strings.Join(frDiagnosticCanaries, " "))
+					}
+					if name == prefix+" provider" {
+						steps[i].status, steps[i].body = 500, strings.Join(frDiagnosticCanaries, " ")
+					}
+				}
+				s := frClient(t, steps...)
+				calls := 0
+				authority, err := tool.NewAuthority([]tool.Binding{{Definition: fcoDefinition(), Handler: func(ctx context.Context, call tool.Call) (string, error) {
+					calls++
+					if calls > 1 {
+						t.Fatal("handler retried")
+					}
+					if handler != nil {
+						return handler(ctx, call)
+					}
+					return "private_tool_output_C10", nil
+				}}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if name == "authority" {
+					authority = nil
+				}
+				var result ai.Result
+				stage := StageNone
+				if diagnostic {
+					result, stage, err = s.client.ExecuteAuthorizedFunctionRoundTripDiagnostic(context.Background(), req, authority)
+					if stage != wantStage {
+						t.Fatalf("stage = %s; want %s", stage, wantStage)
+					}
+					if !reflect.DeepEqual(result, ordinaryResult) || err.Error() != ai.SafeError(ordinaryError).Error() || !reflect.DeepEqual(s.wires, ordinaryWires) {
+						t.Fatal("diagnostic changed result, classification or wire requests")
+					}
+				} else {
+					result, err = s.client.ExecuteAuthorizedFunctionRoundTrip(context.Background(), req, authority)
+					ordinaryResult, ordinaryError, ordinaryWires = result, err, s.wires
+				}
+				if !errors.Is(ai.SafeError(err), wantErr) || !reflect.DeepEqual(result, ai.Result{}) {
+					t.Fatal("failure classification/result changed")
+				}
+				if len(s.wires) != posts || calls != handlers {
+					t.Fatal("failure crossed effect bound")
+				}
+				frDiagnosticSafe(t, result, stage, err)
+			}
+		})
+	}
+}
+
+func TestFunctionRoundTripDiagnosticSuccess(t *testing.T) {
+	for _, direct := range []bool{false, true} {
+		var baseline ai.Result
+		var wires [][]byte
+		for _, diagnostic := range []bool{false, true} {
+			first, second := frFunction(), responseObject("final text")
+			second["output"] = append([]any{frReasoning()}, second["output"].([]any)...)
+			if direct {
+				first = responseObject("direct text")
+			}
+			s := frClient(t, frStep{body: encoded(first)}, frStep{body: encoded(second)})
+			calls := 0
+			a, err := tool.NewAuthority([]tool.Binding{{Definition: fcoDefinition(), Handler: func(context.Context, tool.Call) (string, error) { calls++; return "local result", nil }}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var result ai.Result
+			if diagnostic {
+				var stage FunctionRoundTripStage
+				result, stage, err = s.client.ExecuteAuthorizedFunctionRoundTripDiagnostic(context.Background(), request(), a)
+				if stage != StageComplete || !reflect.DeepEqual(result, baseline) || !reflect.DeepEqual(wires, s.wires) {
+					t.Fatal("diagnostic changed success")
+				}
+			} else {
+				result, err = s.client.ExecuteAuthorizedFunctionRoundTrip(context.Background(), request(), a)
+				baseline, wires = result, s.wires
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if direct {
+				if len(s.wires) != 1 || calls != 0 {
+					t.Fatal("direct effects")
+				}
+			} else {
+				if len(s.wires) != 2 || calls != 1 {
+					t.Fatal("round-trip effects")
+				}
+				var payload map[string]any
+				json.Unmarshal(s.wires[1], &payload)
+				if payload["tool_choice"] != "none" {
+					t.Fatal("continuation tool choice changed")
+				}
+			}
+		}
+	}
+}
+
+func TestFunctionRoundTripDiagnosticContext(t *testing.T) {
+	for _, deadline := range []bool{false, true} {
+		for _, where := range []string{"initial", "first", "handler", "second"} {
+			t.Run(fmt.Sprintf("%t/%s", deadline, where), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+					defer cancel()
+					stop := func() {
+						if deadline {
+							time.Sleep(time.Second)
+							<-ctx.Done()
+						} else {
+							cancel()
+						}
+					}
+					stage, posts, handlers := StageInitialContext, 0, 0
+					steps := []frStep{{body: encoded(frFunction())}, {body: encoded(responseObject("final"))}}
+					switch where {
+					case "initial":
+						stop()
+					case "first":
+						stage, posts = StagePost1Request, 1
+						steps[0].before = func(*http.Request) { stop() }
+					case "handler":
+						stage, posts, handlers = StageHandlerExecute, 1, 1
+					case "second":
+						stage, posts, handlers = StagePost2Request, 2, 1
+						steps[1].before = func(*http.Request) { stop() }
+					}
+					calls := 0
+					a, err := tool.NewAuthority([]tool.Binding{{Definition: fcoDefinition(), Handler: func(context.Context, tool.Call) (string, error) {
+						calls++
+						if where == "handler" {
+							stop()
+						}
+						return "private_tool_output_C10", nil
+					}}})
+					if err != nil {
+						t.Fatal(err)
+					}
+					s := frClient(t, steps...)
+					result, gotStage, err := s.client.ExecuteAuthorizedFunctionRoundTripDiagnostic(ctx, request(), a)
+					wantErr := context.Canceled
+					if deadline {
+						wantErr = context.DeadlineExceeded
+					}
+					if gotStage != stage || !errors.Is(err, wantErr) || len(s.wires) != posts || calls != handlers {
+						t.Fatal("context stage/category/bounds changed")
+					}
+					frDiagnosticSafe(t, result, gotStage, err)
+				})
+			})
+		}
+	}
+}
 
 type frStep struct {
 	body                   string

@@ -27,14 +27,23 @@ import (
 // Replay protection lasts only for this invocation's coordinator, not across
 // independent invocations or process restarts. Handlers must honor context.
 func (c *Client) ExecuteFunctionRoundTrip(ctx context.Context, request ai.Request, definitions []tool.Definition, executor *tool.Executor) (ai.Result, error) {
+	return c.executeFunctionRoundTrip(ctx, request, definitions, executor, nil)
+}
+
+// The ordinary and diagnostic entry points share every execution decision.
+// A nil stage disables diagnostics; stage updates never inspect operation data.
+func (c *Client) executeFunctionRoundTrip(ctx context.Context, request ai.Request, definitions []tool.Definition, executor *tool.Executor, stage *FunctionRoundTripStage) (ai.Result, error) {
+	stage.set(StageRequestBuild)
 	if c == nil || c.http == nil || c.key == "" || ctx == nil {
 		return ai.Result{}, ai.ErrInvalidRequest
 	}
 	ctx, cancel := context.WithTimeout(ctx, ai.MaxTimeout)
 	defer cancel()
+	stage.set(StageInitialContext)
 	if err := ctx.Err(); err != nil {
 		return ai.Result{}, err
 	}
+	stage.set(StageRequestBuild)
 	functionRequest, err := BuildFunctionCallRequest(request, definitions)
 	if err != nil {
 		return ai.Result{}, err
@@ -49,36 +58,51 @@ func (c *Client) ExecuteFunctionRoundTrip(ctx context.Context, request ai.Reques
 	if json.Unmarshal(initialBody, &initial) != nil {
 		return ai.Result{}, ai.ErrInvalidRequest
 	}
+	stage.set(StagePost1Request)
 	first, err := c.functionRoundTripPost(ctx, initialBody)
 	if err != nil {
 		return ai.Result{}, err
 	}
+	stage.set(StagePost1TextDecode)
 	result, textErr := decodeResult(first)
 	if textErr == nil {
-		return c.functionRoundTripResult(ctx, result, request.MaxOutputTokens)
+		stage.set(StagePost1Validate)
+		result, err = c.functionRoundTripResult(ctx, result, request.MaxOutputTokens)
+		if err == nil {
+			stage.set(StageComplete)
+		}
+		return result, err
 	}
 	if textErr != ai.ErrMalformedResponse || !functionRoundTripCandidate(first) {
 		return ai.Result{}, textErr
 	}
+	// The failed text decode is an expected transition for a function candidate.
+	// Only a terminal failure retains a stage; the hint has no separate error.
+	stage.set(StagePost1Map)
 	decision, err := MapFunctionCallResponse(first, functionRequest.Catalog())
 	if err != nil {
 		return ai.Result{}, err
 	}
+	stage.set(StagePost1Admission)
 	call, admitted := decision.Admission().AdmittedCall()
 	if !admitted {
 		return ai.Result{}, ai.ErrInvalidRequest
 	}
+	stage.set(StagePost1Reflection)
 	if functionRoundTripReflectsKey(call, c.key) {
 		return ai.Result{}, ai.ErrMalformedResponse
 	}
+	stage.set(StagePost1Usage)
 	firstUsage, err := functionRoundTripUsage(first, request.MaxOutputTokens)
 	if err != nil {
 		return ai.Result{}, err
 	}
+	stage.set(StageHandlerExecute)
 	output, err := coordinator.Execute(ctx, decision)
 	if err != nil {
 		return ai.Result{}, err
 	}
+	stage.set(StageContinuationBuild)
 	_, callID, _ := decision.Correlation()
 	continuation, err := json.Marshal(functionRoundTripPayload{
 		Model: initial.Model, MaxOutputTokens: initial.MaxOutputTokens,
@@ -92,25 +116,31 @@ func (c *Client) ExecuteFunctionRoundTrip(ctx context.Context, request ai.Reques
 	if err != nil || len(continuation) > maxBody {
 		return ai.Result{}, ai.ErrInvalidRequest
 	}
+	stage.set(StagePost2Request)
 	second, err := c.functionRoundTripPost(ctx, continuation)
 	if err != nil {
 		return ai.Result{}, err
 	}
+	stage.set(StagePost2Decode)
 	result, err = decodeFunctionRoundTripFinalResult(second)
 	if err != nil {
 		return ai.Result{}, err
 	}
+	stage.set(StagePost2Validate)
 	result, err = c.functionRoundTripResult(ctx, result, request.MaxOutputTokens)
 	if err != nil {
 		return ai.Result{}, err
 	}
+	stage.set(StageUsageAggregate)
 	result.Usage, err = functionRoundTripTotalUsage(firstUsage, result.Usage)
 	if err != nil {
 		return ai.Result{}, err
 	}
+	stage.set(StageFinalContext)
 	if err := ctx.Err(); err != nil {
 		return ai.Result{}, err
 	}
+	stage.set(StageComplete)
 	return result, nil
 }
 

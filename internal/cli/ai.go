@@ -20,6 +20,10 @@ type aiToolProvider interface {
 	ExecuteAuthorizedFunctionRoundTrip(context.Context, ai.Request, *tool.Authority) (ai.Result, error)
 }
 
+type aiToolDiagnosticProvider interface {
+	ExecuteAuthorizedFunctionRoundTripDiagnostic(context.Context, ai.Request, *tool.Authority) (ai.Result, openai.FunctionRoundTripStage, error)
+}
+
 // Dependencies belong to one command tree, never mutable global hooks.
 type aiDependencies struct {
 	lookupKey        func() string
@@ -39,7 +43,7 @@ func defaultAIDependencies() aiDependencies {
 func newAICmd(deps aiDependencies) *cobra.Command {
 	cmd := &cobra.Command{Use: "ai", Short: "AI text operations (development feature)", Args: cobra.NoArgs}
 	var provider, model, text string
-	var allowNetwork, allowTools bool
+	var allowNetwork, allowTools, diagnosticStage bool
 	var timeout time.Duration
 	var tokens int
 	prompt := &cobra.Command{
@@ -60,6 +64,9 @@ func newAICmd(deps aiDependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if diagnosticStage && (!allowTools || !allowNetwork) {
+				return ai.ErrInvalidRequest
+			}
 			req := ai.Request{Text: text, Model: model, MaxOutputTokens: tokens}
 			if err := req.Validate(); err != nil {
 				return err
@@ -116,7 +123,21 @@ func newAICmd(deps aiDependencies) *cobra.Command {
 				if err := operationCtx.Err(); err != nil {
 					return err
 				}
-				result, err = p.ExecuteAuthorizedFunctionRoundTrip(operationCtx, req, authority)
+				if diagnosticStage {
+					diagnostic, ok := p.(aiToolDiagnosticProvider)
+					if !ok {
+						return ai.ErrInvalidRequest
+					}
+					var stage openai.FunctionRoundTripStage
+					result, stage, err = diagnostic.ExecuteAuthorizedFunctionRoundTripDiagnostic(operationCtx, req, authority)
+					if err != nil && stage != openai.StageComplete && stage.String() != "" {
+						// Only the enum's fixed rendering may reach this stream. Keep
+						// the operation's error even if the diagnostic writer fails.
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "AI_TOOL_DIAGNOSTIC_STAGE=%s\n", stage.String())
+					}
+				} else {
+					result, err = p.ExecuteAuthorizedFunctionRoundTrip(operationCtx, req, authority)
+				}
 				if err == nil {
 					err = operationCtx.Err()
 				}
@@ -168,6 +189,8 @@ func newAICmd(deps aiDependencies) *cobra.Command {
 	prompt.Flags().StringVar(&text, "text", "", "required explicit non-sensitive UTF-8 prompt")
 	prompt.Flags().BoolVar(&allowNetwork, "allow-network", false, "allow this invocation to send text to OpenAI")
 	prompt.Flags().BoolVar(&allowTools, "allow-tools", false, "additionally allow the built-in read-only forge_runtime_info metadata tool")
+	prompt.Flags().BoolVar(&diagnosticStage, "diagnostic-stage", false, "report only the fixed tool failure stage (development only)")
+	_ = prompt.Flags().MarkHidden("diagnostic-stage")
 	prompt.Flags().DurationVar(&timeout, "timeout", 30*time.Second, "request timeout, positive and at most 120s")
 	prompt.Flags().IntVar(&tokens, "max-output-tokens", 1024, "output token limit, 16..2048")
 
