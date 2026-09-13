@@ -3,11 +3,10 @@
 ## Status
 
 Accepted architecture decision for P9-A1, 2026-09-13; implemented through P9-B3.
-Phase 9 upon integration of P9-C0:
-**CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE**.
-Until that integration, documentation closure is pending; no further runtime
-implementation package is required. P9-C0 performs offline validation and
-records closure of the existing bounded foundation.
+Phase 9: **CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE**.
+P9-C0: **CLOSED / PASS — INTEGRATED**. No further runtime implementation package
+is required. P9-C0 recorded offline validation and closure of the existing
+bounded foundation; PR #20 merged and strict push-main CI passed as recorded below.
 
 P9-A0 is **CLOSED / PASS**. P9-A1 approved architecture and changed documentation
 only; it did not authorize B1/B2/B3 implementation. Each subsequently received
@@ -254,15 +253,17 @@ its consumers and later composition contracts are demonstrated.
 
 ## Implementation record and bounded architectural outcome
 
-All three implementation packages are **CLOSED / PASS — INTEGRATED**:
+The three runtime implementation packages and P9-C0 documentation closure are
+**CLOSED / PASS — INTEGRATED**:
 
 | Package | Implementation commit | Merge commit |
 |---|---|---|
 | P9-B1 | `e26e72d4986b721af5ebd204061b992e60c88c1e` | `db732b362ac2e6d6c55df6148b67e2c16dbceaed` |
 | P9-B2 | `30e98b320464ce175fa9a60cbb4fc8a8b107d635` | `6c2700ad5a83e03673bdebacd0b5363ce6bc5e38` |
 | P9-B3 | `e711907ddfa6f26fbe01174c271f80c18fd9aa55` | `d7d660f65fc5fc794a545f8b64703562e92b8bc7` |
+| P9-C0 (documentation) | `d1bd8837a3fa45093954d1c948ebfc2a2e9a678e` | `923fba140bc76ef30128b30011955539f3c1ec86` |
 
-The accepted integrated baseline is
+The historical B3 implementation baseline before documentation closure is
 `d7d660f65fc5fc794a545f8b64703562e92b8bc7`, tree
 `3f78b90c337f7e78ba8797967349a9ac91d14bf6`.
 [Push-main CI 34760583942](https://github.com/kaizenforyou91/forge/actions/runs/34760583942)
@@ -270,6 +271,14 @@ is **completed / success** for this exact SHA, with Ubuntu acceptance **PASS**,
 Windows acceptance **PASS**, and Ubuntu race **PASS**, without retry or waiver.
 Acceptance includes dependency metadata/cleanliness, package listing, vet,
 unit tests, and build; hosted race includes `internal/agent` and the OpenAI adapter.
+
+The final Phase 9 closure baseline is the P9-C0 merge in PR #20:
+`923fba140bc76ef30128b30011955539f3c1ec86`, tree
+`4143a413ad106c60261a3bf180045420951bf6cf`.
+[Push-main CI 34761487262](https://github.com/kaizenforyou91/forge/actions/runs/34761487262)
+is **completed / success** for this exact SHA: Ubuntu acceptance **PASS**,
+Windows acceptance **PASS**, and Ubuntu race **PASS**, without retry or waiver.
+Phase 9 closure became effective with that integration and strict CI success.
 
 - **P9-B1:** [`Run`](../../../internal/agent/run.go) is internal/pre-stable with
   an atomic single-use claim shared by copies, Ready / Running / Succeeded /
@@ -329,7 +338,7 @@ attempt 1 passed both acceptance jobs but failed Ubuntu race in unchanged
 One separately authorized targeted retry of race job `103731275343` passed as
 attempt-2 job `103732225210`, and the workflow aggregate became success.
 Acceptance jobs were not rerun. No code remediation occurred; this was not
-classified as a B3 source defect. The strict push-main run above passed all
+classified as a B3 source defect. B3 push-main run 34760583942 passed all
 three canonical jobs without retry or waiver.
 
 ## Package sequence and current authorization/status
@@ -340,12 +349,12 @@ three canonical jobs without retry or waiver.
 | P9-B1 | Single-use AI Run ownership over existing text execution | CLOSED / PASS — INTEGRATED |
 | P9-B2 | Existing authorized tool round-trip with Run lifecycle, preserving Phase 8 bounds and aggregate-usage semantics | CLOSED / PASS — INTEGRATED |
 | P9-B3 | Bounded application-host/shutdown composition | CLOSED / PASS — INTEGRATED |
-| P9-C0 | Offline integration / architecture closure | CLOSURE PACKAGE; Phase 9 closure effective upon integration |
+| P9-C0 | Offline integration / architecture closure | CLOSED / PASS — INTEGRATED |
 
 The separate B1/B2/B3 authorizations do not retroactively broaden P9-A1.
 Memory, workflow, scheduler, tool/provider expansion, and release remain future
-work requiring a new architecture/roadmap gate. P9-C0 authorizes no runtime
-capability and does not define Phase 10.
+work requiring a new architecture/roadmap selection gate. P9-C0 authorized no
+runtime capability. **Phase 10: NOT DEFINED / NOT AUTHORIZED.**
 
 ## Original P9-B1 acceptance intent (now satisfied)
 
@@ -369,11 +378,11 @@ The original P9-A1 acceptance intent required P9-B1 to prove, using offline test
 - Hosted race coverage includes the future package, alongside normal offline
   package listing, full tests, vet, build, and dependency cleanliness checks.
 
-P9-A1 implemented no tests, Go source, or CI changes. P9-C0 also changes only
-documentation; its offline validation covers agent, App, and OpenAI tests plus
-full package listing/tests/vet/build and dependency cleanliness. Local race is
-not required; the normal hosted PR workflow, including agent/OpenAI race
-coverage, remains canonical and must pass before integration.
+P9-A1 implemented no tests, Go source, or CI changes. P9-C0 changed only
+documentation; its offline validation passed agent, App, and OpenAI tests plus
+full package listing/tests/vet/build and dependency cleanliness. Local race was
+not required; the normal hosted PR workflow and strict push-main CI passed,
+including canonical agent/OpenAI race coverage.
 
 ## Non-capabilities and remaining scope boundaries
 
