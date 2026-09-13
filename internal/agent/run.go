@@ -1,4 +1,5 @@
-// Package agent owns one explicit text AI operation, without tools or persistence.
+// Package agent owns one explicit AI operation with caller-supplied authority.
+// It provides no scheduling, provider construction, or persistence.
 package agent
 
 import (
@@ -16,13 +17,15 @@ type Run struct {
 	core *runState
 }
 
+// operation is private: only the two narrow constructors select executable work.
+type operation func(context.Context) (ai.Result, error)
+
 type runState struct {
 	mu          sync.Mutex
 	initialized bool // Set only after successful construction; zero/incomplete state denies all work.
 	state       State
 	done        chan struct{}
-	request     ai.Request
-	executor    *ai.Executor
+	operation   operation
 	cancel      context.CancelFunc
 	canceled    bool
 }
@@ -37,9 +40,15 @@ func NewRun(provider ai.Provider, request ai.Request, timeout time.Duration) (*R
 	if err != nil {
 		return nil, err
 	}
+	return newRunState(func(ctx context.Context) (ai.Result, error) {
+		return executor.Execute(ctx, request)
+	}), nil
+}
+
+func newRunState(op operation) *Run {
 	return &Run{core: &runState{
-		initialized: true, state: StateReady, done: make(chan struct{}), request: request, executor: executor,
-	}}, nil
+		initialized: true, state: StateReady, done: make(chan struct{}), operation: op,
+	}}
 }
 
 // String and GoString redact both pointer and value formatting, without reading
@@ -49,7 +58,7 @@ func (r Run) GoString() string { return r.String() }
 
 // Execute atomically consumes Ready, then delegates once on the caller's
 // goroutine. A nil context does not consume the Run; a pre-canceled non-nil
-// context does, with ai.Executor preventing the provider call.
+// context does, with the selected operation preventing delegated provider work.
 func (r *Run) Execute(ctx context.Context) (ai.Result, error) {
 	if ctx == nil {
 		return ai.Result{}, ai.ErrInvalidRequest
@@ -70,11 +79,11 @@ func (r *Run) Execute(ctx context.Context) (ai.Result, error) {
 	operationCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 	s.state = StateRunning
-	executor, request := s.executor, s.request
+	op := s.operation
 	s.mu.Unlock()
 	defer cancel()
 
-	result, err := executor.Execute(operationCtx, request)
+	result, err := op(operationCtx)
 	return s.complete(operationCtx, result, err)
 }
 
@@ -178,11 +187,11 @@ func (s *runState) validLocked() bool {
 	}
 	switch s.state {
 	case StateReady:
-		return s.executor != nil && s.cancel == nil
+		return s.operation != nil && s.cancel == nil
 	case StateRunning:
-		return s.executor != nil && s.cancel != nil
+		return s.operation != nil && s.cancel != nil
 	case StateSucceeded, StateFailed, StateCanceled:
-		return s.executor == nil && s.cancel == nil && s.request == (ai.Request{})
+		return s.operation == nil && s.cancel == nil
 	default:
 		return false
 	}
@@ -195,8 +204,7 @@ func (s *runState) finishLocked(state State) {
 	if s.cancel != nil {
 		s.cancel()
 	}
-	s.request = ai.Request{}
-	s.executor = nil
+	s.operation = nil
 	s.cancel = nil
 	close(s.done)
 }
