@@ -7,7 +7,15 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 These changes are integrated into main and remain **UNRELEASED**. Published
 `v0.3.0-alpha.1` is unchanged and does not include `forge ai prompt`.
-Live provider acceptance is **NOT AUTHORIZED / NOT RUN**.
+Phase 8 bounded AI/tool foundation is **CLOSED / PASS**, including accepted
+real-provider validation **PASS**. Phase 9 is **CLOSED / PASS — BOUNDED AGENT
+EXECUTION LIFECYCLE**, internal/pre-stable. The initial text-only PR #1 was an
+earlier checkpoint; its then-unrun live validation does not describe current main.
+These additions are not part of the historical alpha.1 release below.
+
+**Phase 10: NOT DEFINED / NOT AUTHORIZED. RELEASE DEFERRED.** RR-001 reconciles
+documentation only; it does not decide release readiness, a new version, binary
+publication, or the next phase. It performs no live provider call.
 
 ### Added
 
@@ -18,7 +26,25 @@ Live provider acceptance is **NOT AUTHORIZED / NOT RUN**.
 - Explicit `--allow-network` consent, invocation-local `FORGE_OPENAI_API_KEY`
   input, bounded request/response sizes and output tokens, context cancellation,
   timeouts, classified errors, and terminal-safe output. Model output remains
-  text data and is never executed.
+  data and never grants execution authority.
+- Bounded function-tool request serialization and fail-closed call admission,
+  explicit immutable execution authority, replay-safe invocation coordination,
+  and stateless function-call output continuation; at most two provider POSTs
+  and one handler attempt, without retry or recursive tool loops.
+- Exactly one read-only built-in `forge_runtime_info` metadata tool, exposed
+  only by explicit `--allow-tools`; no arbitrary CLI tool registration or
+  filesystem/network/subprocess tool handler.
+- Terminal reasoning-item compatibility without reasoning replay, and hidden,
+  default-off development stage diagnostics with fixed labels and no raw responses.
+- Accepted Phase 8 real-provider validation for direct text and the authorized
+  function round trip, including runtime identity 3/3 MATCH. See the
+  [accepted evidence](docs/AI_PROMPT_WORKFLOW.md#acceptance-evidence).
+- Internal/pre-stable single-use Run lifecycle with explicit cancellation,
+  stable Done, safe terminal publication, and no retry or execution worker.
+- Authorized-tool Run composition preserving aggregate two-turn usage, plus
+  RunHost application cancellation/drain/restart composition. These do not
+  migrate the CLI to RunHost or provide a public agent API, autonomous agents,
+  memory/history, persistence, workflow, scheduler, queue, or worker pool.
 
 ### Fixed
 
@@ -30,9 +56,12 @@ Live provider acceptance is **NOT AUTHORIZED / NOT RUN**.
 
 ### Changed
 
-- Extended the existing focused Ubuntu race step to cover `pkg/ai` and
-  `internal/aiprovider/openai` alongside `pkg/compiler`, `runtime`, and
-  `internal/cli`.
+- Extended the focused `race (ubuntu-latest)` gate to cover `pkg/compiler`,
+  `runtime`, `internal/cli`, `pkg/ai`, `internal/aiprovider/openai`, `pkg/ai/tool`,
+  and `internal/agent`. Ubuntu/Windows acceptance retains dependency metadata
+  and cleanliness, listing, vet, full tests, and build checks.
+- Reconciled current-main public documentation with accepted Phase 8/9 closure,
+  while preserving published alpha.1 history and its separate product boundary.
 
 ## 0.3.0-alpha.1 - 2026-09-05
 
