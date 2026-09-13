@@ -1,0 +1,319 @@
+# 0.4.0-alpha.1 — Draft Release Candidate Evidence
+
+- Target: **0.4.0-alpha.1**
+- Status: **PREPARATION ONLY / NOT PUBLISHED**
+- Release authorization: **NOT GRANTED**
+- Tag: **NOT CREATED** (proposed future name: `v0.4.0-alpha.1`)
+- GitHub Release: **NOT CREATED**
+- Assets: **NOT PUBLISHED**
+- Phase 10: **NOT DEFINED / NOT AUTHORIZED**
+- Release state: **RELEASE DEFERRED**
+
+This is RR-003 preparation evidence and draft release-note content, not a
+published release note, an official binary, or permission to publish.
+The Owner selected 0.4.0-alpha.1 after RR-002; 0.3.0-alpha.2 is not the target.
+RR-001 is integrated. Phase 8 and Phase 9 remain CLOSED / PASS.
+
+## Summary
+
+The proposed non-production prerelease adds explicit bounded AI text and
+read-only tool execution to the existing manifest/package/trust/run preview.
+It also includes public pre-stable AI contracts and an internal operation
+lifecycle foundation. No new runtime capability is implemented by RR-003.
+
+## Highlights
+
+- `forge ai prompt` with explicit network permission, bounded text execution,
+  and classified safe failures.
+- Optional authority for one read-only runtime metadata tool.
+- Public pre-stable `pkg/ai` and `pkg/ai/tool` contracts.
+- Internal single-use Run and application-host lifecycle composition.
+- No package migration or dependency change relative to published alpha.1.
+
+## AI text execution
+
+```text
+forge ai prompt --provider openai --model <model-id> --text "<prompt>" --allow-network [--allow-tools] [--timeout 30s] [--max-output-tokens 1024]
+```
+
+This grammar describes capability; it is not an instruction to perform live
+validation. No live provider call is part of RR-003. Without `--allow-tools`,
+the CLI uses `ai.Executor` for one provider turn and enforces the single-turn
+output-token cap. Provider/model/text are explicit; there is no default model,
+fallback, streaming, or retry. Unknown/raw failures are sanitized, and mixed
+provider/cancellation failures remain failures rather than pure cancellation.
+
+## Authorized read-only tool mode
+
+`--allow-network` and explicit `--allow-tools` permit only the prebuilt,
+invocation-local authority for `forge_runtime_info`. Tool access defaults false.
+The tool returns read-only version, commit, and build-time metadata.
+
+The CLI uses the existing direct Phase 8 authorized round trip: at most two
+provider POSTs and one handler attempt, no retry and no recursive tool loop.
+There are no filesystem, shell, subprocess, external-network, or write/mutation
+tool handlers, and no arbitrary CLI tool registration. Admission is distinct
+from execution; provider output never creates authority.
+
+Each turn is independently bounded. Aggregate `Usage.OutputTokens` may exceed
+the per-turn request cap: the 64-cap / 96-aggregate test is valid accounting
+regression evidence, not a guaranteed provider response. The final aggregate
+is not passed through `ai.Executor` for another single-turn cap check.
+
+## Public pre-stable Go APIs
+
+`pkg/ai` adds Request, Result, Usage, Provider, Executor, validation, bounded
+contracts, and SafeError classifications. `pkg/ai/tool` adds declarations,
+catalog/admission, explicit execution bindings, and immutable authority.
+These are externally importable, pre-stable library contracts. Caller-supplied
+library handlers do not expand the production CLI's one-tool authority.
+
+## Internal Phase 9 lifecycle foundation
+
+The OpenAI adapter remains internal. `internal/agent` provides a single-use Run,
+atomic execution claim, cancellation, stable Done, terminal reference release,
+authorized-tool Run composition, and RunHost application cancellation/drain/
+restart composition. Execution is synchronous; Run/RunHost create no worker
+goroutine, queue, scheduler, persistence, or result/error history.
+
+RunHost Register/Start execute zero Runs; Host.Execute is explicit caller action.
+Stop closes admission, cancels active work and waits for cooperative completion.
+`pkg/app` remains application lifecycle owner. The CLI has not migrated to
+Run/RunHost. This is not a public agent API, agent CLI, or autonomous capability.
+
+## Compatibility
+
+Git comparison against `5d836931216203aeea0737fc54de9e95091a62ef` confirms no
+changes to `pkg/manifest`, `pkg/compiler`, `runtime`, `pkg/registry`, `pkg/app`,
+`go.mod`, or `go.sum`. Source inspection confirms unchanged:
+
+- Manifest structure/format.
+- Package format v1/v2 support and bundle schema v1/v2.
+- Integrity schema v2 and signature schema v1.
+- Runnable v2 contract and compiler/runtime compatibility boundary.
+
+No data/package migration is introduced. Existing CLI commands are preserved;
+the AI command tree is additive. APIs and formats remain pre-stable: this is
+not a promise of future format/API stability. Go remains 1.26; dependencies
+are unchanged.
+
+## Security and authority boundaries
+
+Network access requires explicit `--allow-network`; `--allow-tools` is a
+separate default-false opt-in. The one-tool and two-POST/one-handler bounds above
+remain mandatory. Tool requests preserve `store:false`, `stream:false`,
+`background:false`, and `parallel_tool_calls:false`; POST #2 uses
+`tool_choice:"none"`. No provider conversation state or reasoning replay is
+introduced. Terminal reasoning compatibility does not authorize reasoning replay.
+
+The credential name is `FORGE_OPENAI_API_KEY`: process-scoped input, not
+persisted by Forge, and never supplied as a real secret in these examples.
+Prompt arguments can appear in shell history/process listings. `store:false`
+is not a zero-retention guarantee; local cancellation is not a guarantee that
+provider processing or billing stopped. Output-token limits are not hard
+monetary budgets.
+
+`--diagnostic-stage` is development-only, hidden/default-off, with fixed stage
+labels and no raw-response logging; it is not part of normal public grammar.
+
+## Important limitations
+
+This remains a **NON-PRODUCTION PRERELEASE / PRE-STABLE** candidate. Trusted
+native code executes with the invoking user's authority. Forge does not provide:
+
+- Sandboxing, filesystem/network isolation, privilege drop, process-tree
+  containment, or CPU/memory/process quotas.
+- Persistent trust management, key rotation/revocation, or complete provenance/SBOM.
+- Remote registry/distribution or dynamic plugin loading.
+- Scheduler, workflow engine, queues, worker pools, or background agent jobs.
+- AI memory, durable history, autonomous agents, or multi-agent orchestration.
+- Public agent API, Beta readiness, or production readiness.
+
+Existing same-user package mutation, validation-to-execution binding, and
+Windows ACL/reparse/share-mode hardening remain disclosed accepted debt.
+
+## CI / validation evidence
+
+Preparation base: `88c5300e13c92e88b332349943ae17fd91acb501`, tree
+`95b2ee6db9fd07b12eb86c2c4e4ee9ac8755261c`.
+[Canonical push-main CI 34765766554](https://github.com/kaizenforyou91/forge/actions/runs/34765766554)
+is completed/success on that exact head: Ubuntu acceptance, Windows acceptance,
+and Ubuntu race all PASS. Acceptance covers dependency metadata/cleanliness,
+package listing, vet, full tests and build. The unchanged race command is:
+
+```text
+go test -race ./pkg/compiler ./runtime ./internal/cli ./pkg/ai ./internal/aiprovider/openai ./pkg/ai/tool ./internal/agent -count=1
+```
+
+RR-003 local offline validation PASS: `git diff --check`, `go list ./...`,
+`go test ./... -count=1`, `go vet ./...`, `go build ./...`, and
+`go mod tidy -diff`. `go.mod` and `go.sum` remain unchanged. Existing deterministic
+agent, AI, tool, OpenAI, CLI, compiler and runtime tests passed, including the
+aggregate 96 > 64 regression. Markdown local links/anchors resolve and released
+alpha.1 changelog history is unchanged.
+
+Normal exact-head PR CI must pass before later integration; the base run and
+local results do not replace it. Local race was not run and is not required.
+
+Historical accepted live evidence is sufficient for this preparation. Git
+comparison from accepted C8/C10 source baseline
+`ac68a1b3e059f173d9b5c71eadaff9fcffba981f` to preparation HEAD confirms unchanged
+`internal/cli`, `pkg/ai`, `internal/aiprovider/openai`, `go.mod`, and `go.sum`.
+Wire serialization, HTTP behavior, response decoding, authority, round-trip
+execution and diagnostics are unchanged. Accepted text/tool live validation and
+runtime identity 3/3 MATCH remain historical evidence, not a new live result.
+Any future production-path change requires reopening the freshness decision.
+
+## Candidate smoke evidence
+
+The smoke used a clean, isolated local clone of the RR-003 branch head before
+the documentation commit, outside the canonical repository. Source SHA:
+`88c5300e13c92e88b332349943ae17fd91acb501`; source tree:
+`95b2ee6db9fd07b12eb86c2c4e4ee9ac8755261c`. This is preparation evidence, not
+the final publication identity. The documentation commit cannot embed its own
+hash; the draft PR and handoff identify the final RR-003 head separately.
+
+Toolchain: `go version go1.26.5 windows/amd64`. Dependency downloads were disabled
+with `GOPROXY=off`, `GOSUMDB=off`, and `GOTOOLCHAIN=local`, using existing caches.
+All executables, packages and ephemeral test keys were outside the repository.
+
+From that clean clone, the stamped build used the existing linker contract:
+
+```text
+go build -trimpath -ldflags "-X github.com/kaizenforyou91/forge/internal/cli.AppVersion=0.4.0-alpha.1 -X github.com/kaizenforyou91/forge/internal/cli.Commit=88c5300e13c92e88b332349943ae17fd91acb501 -X github.com/kaizenforyou91/forge/internal/cli.BuildTime=2026-09-13T16:04:38Z" -o <temp>/forge.exe ./cmd/forge
+<temp>/forge.exe version
+```
+
+Observed output matched all three supplied fields exactly:
+
+```text
+Forge CLI
+Version : 0.4.0-alpha.1
+Commit  : 88c5300e13c92e88b332349943ae17fd91acb501
+Built   : 2026-09-13T16:04:38Z
+```
+
+Development defaults in `internal/cli/version.go` remain `dev`, `none`, and
+`unknown`. A future exact-publication smoke must substitute the finally selected
+commit and a fresh UTC RFC3339 timestamp. No smoke executable is a release asset.
+
+The same temporary stamped binary passed `--help`, `ai --help`, and
+`ai prompt --help`. All seven public AI flags were present; `--diagnostic-stage`
+was absent. `--allow-tools` remains default false in source and help. This
+offline rejection command exited 1 with the network-authorization category:
+
+```text
+<forge> ai prompt --provider openai --model offline-smoke --text offline-smoke
+ai: authorization denied: --allow-network must be true
+```
+
+The missing permission check precedes credential lookup/provider construction
+in source; no API-key access or network request occurred.
+
+Clean-clone product smoke commands (all output paths under the isolated temp
+directory; the key ID below is test-only):
+
+```text
+<forge> validate examples/alpha-app/forge.yaml --profile structural
+<forge> validate examples/alpha-app/forge.yaml --profile build
+<forge> validate examples/alpha-app/forge.yaml --profile runnable
+<forge> build examples/alpha-app/forge.yaml --output <temp>/identity.zip
+<forge> inspect <temp>/identity.zip
+go build -o <temp>/keygen.exe <temp>/keygen.go
+<temp>/keygen.exe <temp>/test-private.pem <temp>/test-public.pem
+<forge> build-runnable examples/alpha-app/forge.yaml --signing-key <temp>/test-private.pem --key-id rr003-ephemeral-test --output <temp>/runnable.zip
+<forge> inspect <temp>/runnable.zip
+<forge> inspect <temp>/runnable.zip --trusted-key <temp>/test-public.pem --key-id rr003-ephemeral-test
+<forge> run <temp>/runnable.zip --trusted-key <temp>/test-public.pem --key-id rr003-ephemeral-test
+```
+
+`keygen.go` was the standard-library Ed25519 helper from the historical Alpha
+workflow, copied only into the temporary directory. Initial `go run` encountered
+a Windows executable cleanup lock (`unlinkat ... keygen.exe`); its test keys
+were deleted. Building the unchanged helper separately avoids that cleanup
+path. No Forge source remediation or workflow edit was made.
+
+All three validation profiles passed. The identity package reported format 1,
+bundle schema 1, non-runnable, verified integrity and unsigned status. The
+signed package reported format 2, bundle schema 2, `application_executable`,
+`windows/amd64`, and `app@v1`. Inspection first reported signed/unverified;
+explicit trust then reported `Signature: trusted` and verified signer
+`rr003-ephemeral-test`. Trusted execution exited zero with exactly:
+
+```text
+Forge Alpha example: OK
+```
+
+The temporary clone remained clean. Both ephemeral test keys and helper source
+were deleted after the smoke. No repository/user/production key was used.
+Canonical worktree ignored inventory remained 487; all four protected ignored
+artifacts remained metadata-identical. The protected config key was metadata-only.
+
+## Published alpha.1 relationship
+
+Published `v0.3.0-alpha.1` ultimately resolves to
+`5d836931216203aeea0737fc54de9e95091a62ef`. Its GitHub release is published,
+draft=false, prerelease=true, with zero uploaded binary assets. That historical
+First Alpha excludes later Phase 8/9 additions and is unchanged.
+
+RR-003 branch: `rr003/release-candidate-0.4.0-alpha.1`. Its final documentation
+commit is identified by the draft PR head and `git rev-parse HEAD` on this
+branch, not by embedding a self-referential commit hash in its own contents.
+The final implementation SHA/tree/parent are recorded in the RR-003 handoff.
+The smoke source SHA below identifies the branch head at smoke time; subsequent
+RR-003 changes are documentation-only. Neither identifies a future publication
+commit, which must be selected after integration by a separate Owner gate.
+
+## Source-only publication surface
+
+Proposed model: **SOURCE-ONLY GITHUB PRERELEASE**, with zero uploaded binary
+assets. Temporary smoke executables are not official distribution artifacts.
+Checksums, SBOMs and signatures are not mandatory uploaded assets for this model.
+Adding official binary assets would expand platform, provenance, signing and
+support obligations and requires a separate authorization gate.
+
+## Rollback/recovery note
+
+Tags are immutable release identities in normal operation. If a candidate is
+not approved, do not publish it. Supersede a published prerelease with a new
+immutable version rather than moving an old tag. Source rollback may select
+an earlier immutable commit/tag but cannot undo provider processing, provider
+billing, or native-code side effects already performed. Alpha.1 lacks the new
+AI surface. No persistent agent-state migration exists for this candidate.
+
+## Publication checklist — later Owner gate only
+
+- [ ] Exact final candidate main SHA selected.
+- [ ] Exact tree recorded.
+- [ ] Target tag still absent.
+- [ ] Target GitHub Release still absent.
+- [ ] Strict main CI PASS.
+- [ ] Final exact-candidate version smoke PASS.
+- [ ] Final documentation truthful.
+- [ ] CHANGELOG converted/finalized if publication authorized.
+- [ ] Release notes finalized.
+- [ ] Source-only/no-assets policy reconfirmed.
+- [ ] Owner explicitly authorizes tag creation.
+- [ ] Owner explicitly authorizes GitHub prerelease creation.
+
+Before preparation, remote/local target-tag lookup was empty and GitHub's target
+release lookup returned 404. These are time-scoped checks, not reservations of
+the identity; repeat them before any later publication action.
+
+## Owner-only final actions
+
+RR-003 creates no tag, release, official binary, or uploaded asset and grants no
+publication authorization. Publication items above remain unchecked. A later
+gate must reconcile the exact final candidate, documentation, CI and identity
+before requesting specific Owner authorization. Existing tags/releases remain
+untouched. Phase 10 is NOT DEFINED / NOT AUTHORIZED. **RELEASE DEFERRED**.
+
+## Sources
+
+- [Current README](../README.md)
+- [Unreleased changelog](../CHANGELOG.md#unreleased)
+- [Roadmap](../ROADMAP.md)
+- [ADR-002](architecture/adr/ADR-002-agent-run-ownership.md)
+- [AI workflow and accepted evidence](AI_PROMPT_WORKFLOW.md)
+- [Historical First Alpha workflow](ALPHA_WORKFLOW.md)
+- [Version-stamping source](../internal/cli/version.go)
