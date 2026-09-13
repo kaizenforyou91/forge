@@ -70,7 +70,7 @@ func terminal(t *testing.T, r *Run, done <-chan struct{}, state State) {
 		t.Fatalf("state = %s, want %s", r.State(), state)
 	}
 	r.core.mu.Lock()
-	released := r.core.request == (ai.Request{}) && r.core.executor == nil && r.core.cancel == nil
+	released := r.core.operation == nil && r.core.cancel == nil
 	r.core.mu.Unlock()
 	if !released {
 		t.Fatal("terminal references retained")
