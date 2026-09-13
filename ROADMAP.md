@@ -4,8 +4,10 @@
 
 **Published release:** First Alpha — v0.3.0-alpha.1 (unchanged).
 **Current main:** bounded Phase 8 AI/tool runtime **CLOSED / PASS**, including
-real-provider acceptance; **UNRELEASED**. Phase 9 architecture is selected;
-implementation has not started. **RELEASE DEFERRED**.
+real-provider acceptance; **UNRELEASED**. The bounded Phase 9 foundation is
+implemented through P9-B3. P9-C0 records **CLOSED / PASS — BOUNDED AGENT EXECUTION
+LIFECYCLE**, effective upon its integration; until then closure is pending.
+No further Phase 9 runtime implementation is required. **RELEASE DEFERRED**.
 
 ---
 
@@ -317,41 +319,77 @@ reconciliation belongs to separate release-readiness work.
 
 # Phase 9 — Bounded Agent Execution Lifecycle
 
-Status: **ARCHITECTURE SELECTED / IMPLEMENTATION NOT STARTED**.
-P9-A0 is **CLOSED / PASS**. P9-A1 records the decision in
+Status upon integration of P9-C0: **CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE**.
+P9-C0 is the documentation/offline closure package; closure remains pending
+until it is integrated. No additional runtime package is required.
+P9-A0 is **CLOSED / PASS**. P9-A1 approved the architecture in
 [ADR-002: Bounded Agent Run Ownership](docs/architecture/adr/ADR-002-agent-run-ownership.md).
 
-Primary objective: give one explicitly requested AI operation one execution
+Delivered objective: give one explicitly requested AI operation one execution
 owner, observable lifecycle state, explicit cancellation coordination, and
-deterministic terminal completion. This is an operation/run lifecycle, not a
-replacement for `pkg/app` application lifecycle; the existing application
-lifecycle model must be preserved.
+deterministic terminal completion, including explicit application-host shutdown
+composition. `pkg/app.Runtime` remains the application lifecycle owner;
+`internal/agent.Run` owns one operation and `RunHost` composes the two.
+App startup, module registration, shutdown, and restart semantics are unchanged.
+No lower `pkg` package depends on `internal/agent`.
 
-Agent Runtime is unfinished roadmap work. Prompt execution, bounded tool
-execution, and real-provider acceptance are already delivered. Memory,
-Workflow Engine, and scheduler contracts remain undefined; no next provider
-requirement has been identified, and tool authority expansion would enlarge
-side effects prematurely. Phase 9 therefore starts with ownership of one
-explicitly requested operation, not autonomous agents or recursive execution.
+Accepted integrated source baseline:
+`d7d660f65fc5fc794a545f8b64703562e92b8bc7`, tree
+`3f78b90c337f7e78ba8797967349a9ac91d14bf6`.
+[Push-main CI 34760583942](https://github.com/kaizenforyou91/forge/actions/runs/34760583942)
+is **completed / success** on that exact SHA: Ubuntu acceptance **PASS**,
+Windows acceptance **PASS**, and Ubuntu race **PASS**, without retry or waiver.
 
 | Package | Scope | Authorization/status |
 |---|---|---|
-| P9-A1 | Architecture decision + roadmap reconciliation | Documentation/governance only |
-| P9-B1 | Single-use AI Run ownership over existing text execution | Architecture intent; implementation not started or authorized by P9-A1 |
-| P9-B2 | Existing authorized tool round-trip composed with Run lifecycle, preserving Phase 8 bounds | PROVISIONAL; separate gate required |
-| P9-B3 | Bounded application-host/shutdown composition | PROVISIONAL; separate gate required |
-| P9-C0 | Offline integration / architecture closure | PROVISIONAL; separate gate required |
+| P9-A1 | Architecture decision + roadmap reconciliation | CLOSED / PASS — INTEGRATED |
+| P9-B1 | Single-use AI Run ownership over existing text execution | CLOSED / PASS — INTEGRATED |
+| P9-B2 | Existing authorized tool round-trip composed with Run lifecycle, preserving Phase 8 bounds | CLOSED / PASS — INTEGRATED |
+| P9-B3 | Bounded application-host/shutdown composition | CLOSED / PASS — INTEGRATED |
+| P9-C0 | Offline integration / architecture closure | CLOSURE PACKAGE; Phase 9 closure effective upon integration |
 
-P9-B1 is intended for `internal/agent`, not `pkg/agent`. It reuses the unchanged
-`pkg/ai.Provider` and existing `pkg/ai.Executor`, creates no worker goroutine,
-and permits one execution attempt per Run. There is no persistence, tool
-execution, CLI command, or application startup/shutdown wiring in P9-B1.
-Memory, workflow, scheduler, autonomous planning, multi-agent systems, and
-recursive tool loops remain outside this Phase 9 foundation.
+P9-A1 approved architecture only. B1, B2, and B3 each received separate Control
+Room implementation/integration authorization; P9-A1 did not pre-authorize them.
 
-Release status: **RELEASE DEFERRED**. Phase 8 is accepted, but current release
-documentation needs broader synchronization before a publication decision.
-P9-A1 does not change README, CHANGELOG, or release identity. Published
+Accepted bounded capabilities (internal/pre-stable, UNRELEASED):
+
+- Run ownership: Ready / Running / Succeeded / Failed / Canceled; atomic single
+  execution claim shared by copies; stable Done; explicit Cancel; fixed/redacted
+  state and errors; terminal reference release; no retry, Run-created worker
+  goroutine, or persistence. Unknown is the fail-closed invalid state.
+- Text execution: caller-supplied `ai.Provider`, unchanged `ai.Executor`, explicit
+  timeout/context, and at most one delegated operation per Run.
+- Authorized tool composition: caller-supplied `AuthorizedToolRoundTripper` and
+  immutable `tool.Authority`; existing C5/C4 execution remains authoritative.
+  One Run delegates at most one round trip, with at most two provider POSTs and
+  one handler attempt inside it. Two-turn Usage is preserved: aggregate
+  `Usage.OutputTokens` may exceed per-turn `MaxOutputTokens` (96 > 64 regression
+  PASS). `ai.Result.Validate()` and defensive Usage copying apply; no second
+  `ai.Executor` aggregate token check is added.
+- Application-host composition: internal `RunHost` implements `app.Module`;
+  explicit `App.Add` registration and caller `Host.Execute` only. Register/Start
+  execute zero Runs; admission requires a fully Running App and healthy current
+  context. App cancellation reaches active Runs; Stop closes admission, cancels,
+  and drains hosted work. Restart captures a fresh application context. Shutdown
+  is cooperative, with no forced termination or result/error history.
+
+Phase 9 changes lifecycle composition only; it does not enlarge the Phase 8
+authority described above. CLI `--allow-tools` remains explicit/default false,
+the single built-in remains `forge_runtime_info`, and C10 diagnostics stay safe
+and separate from RunHost. No CLI migration or diagnostic composition occurred.
+
+This closure does not deliver autonomous planning/loops, multi-agent execution,
+recursive tool conversations, AI memory, durable jobs, persistence, workflow
+engine, scheduler, queue, worker pool, background execution, arbitrary tool
+catalog, additional built-in tools, filesystem/network/subprocess agent tools,
+provider routing, multi-provider compatibility, public `pkg/agent` API, or Beta
+readiness. Future memory, workflow, scheduler, tool/provider expansion, and
+release work require a new architecture/roadmap gate. P9-C0 does not define
+Phase 10.
+
+Release status: **RELEASE DEFERRED**. README/CHANGELOG/release-identity
+synchronization remains separate release-readiness work. P9-C0 does not update
+those files, the historical AI workflow, or release identity. Published
 `v0.3.0-alpha.1` remains at `5d836931216203aeea0737fc54de9e95091a62ef`.
 
 ---
@@ -450,8 +488,9 @@ Status:
 The historical Milestone 9 label covers the broader AI Runtime family; it is
 not the new Phase 9 number. The bounded Phase 8 AI/tool foundation is
 **CLOSED / PASS**, including real-provider acceptance, and remains UNRELEASED.
-Agent execution ownership is selected for Phase 9; implementation has not
-started. Autonomous agents, memory, and Workflow Engine remain future work.
+Bounded agent Run and application-host ownership are integrated through P9-B3;
+Phase 9 is CLOSED / PASS upon P9-C0 integration. Autonomous agents, memory,
+and Workflow Engine remain future, separately gated work.
 
 ---
 
@@ -486,7 +525,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 6 — Compiler | ✅ CLOSED / PASS — bounded Pre-Alpha compiler/package/runnable pipeline |
 | Phase 7 — Runtime | ✅ Alpha-Bounded Closed; trusted local direct-child boundary |
 | Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; UNRELEASED |
-| Phase 9 — Bounded Agent Execution Lifecycle | ARCHITECTURE SELECTED / IMPLEMENTATION NOT STARTED |
+| Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE upon P9-C0 integration |
 
 ## Engineering Milestones
 
@@ -963,8 +1002,8 @@ Current main: bounded Phase 8 AI/tool runtime integrated, UNRELEASED
 → Single-Prompt Core / OpenAI Adapter / CLI: Integrated / offline contract PASS
 → Main Ubuntu / Windows Acceptance and Focused AI Race: PASS
 → Bounded Tool Calling / Real Provider Acceptance: PASS
-→ Phase 9 — Bounded Agent Execution Lifecycle: ARCHITECTURE SELECTED
-→ Phase 9 Implementation: NOT STARTED
+→ Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS upon P9-C0 integration
+→ Phase 9 Implementation: B1/B2/B3 INTEGRATED; no further runtime package required
 → Autonomous Agents / Memory / Workflow Engine / Scheduler: Future
 → Release: DEFERRED
 → Package Pipeline Hardening checkpoints
@@ -1073,8 +1112,6 @@ The following capabilities remain future work:
 - Dynamic plugin discovery/loading
 - Remote package resolution
 - Advanced dependency and version resolution
-- Phase 9 bounded agent execution lifecycle: architecture selected,
-  implementation not started
 - AI runtime expansion beyond the accepted bounded foundation: autonomous
   agents, memory, and workflow engine, each requiring separate scope decisions
 - Release-readiness documentation synchronization; Phase 8 real-provider
