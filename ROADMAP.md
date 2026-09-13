@@ -3,8 +3,9 @@
 > Engineering roadmap for the Forge platform.
 
 **Published release:** First Alpha — v0.3.0-alpha.1 (unchanged).
-**Current main:** single-prompt execution integrated / offline contract PASS,
-**UNRELEASED**; Phase 8 overall **IN PROGRESS**.
+**Current main:** bounded Phase 8 AI/tool runtime **CLOSED / PASS**, including
+real-provider acceptance; **UNRELEASED**. Phase 9 architecture is selected;
+implementation has not started. **RELEASE DEFERRED**.
 
 ---
 
@@ -239,17 +240,56 @@ Objective:
 
 Provide AI-native capabilities.
 
-Capabilities:
+Accepted bounded capabilities (integrated, UNRELEASED):
 
-- Prompt Execution — bounded single-prompt slice integrated into main, UNRELEASED
-- Tool Calling — future; not implemented by this slice
-- Agent Runtime — future; not implemented by this slice
-- Memory — future; not implemented by this slice
-- Workflow Engine — future; not implemented by this slice
+| Stage | Accepted capability |
+|---|---|
+| Prompt Execution | Bounded single-prompt core, one OpenAI adapter, and CLI |
+| B1 | Function-call response mapping/admission |
+| B1-HYG | Test isolation hygiene |
+| B2 | Bounded function-tool request serialization |
+| C1 | Explicit Tool Execution Authority |
+| C2 | `function_call_output` serialization |
+| C3 | Correlation / replay-safe invocation coordination |
+| C4 | Bounded stateless single function round-trip |
+| C5 | Immutable tool authority bundle |
+| C6 | One built-in read-only CLI tool: `forge_runtime_info` |
+| C7 | Explicit CLI `--allow-tools` opt-in |
+| C8 | Real-provider acceptance — PASS; validation gate, not a code package |
+| C9 | Terminal reasoning-item compatibility |
+| C10 | Safe stage-local diagnostics |
 
-Status:
+Status: **CLOSED / PASS** for this bounded Phase 8 scope.
+Real-provider acceptance: **PASS**.
 
-**IN PROGRESS.** The single-prompt core, one OpenAI Responses adapter, and
+The accepted source baseline is
+`ac68a1b3e059f173d9b5c71eadaff9fcffba981f`, tree
+`e4147daf4e0312e4622266dff5284c95c06ac811`.
+[Push-main workflow 34559981995](https://github.com/kaizenforyou91/forge/actions/runs/34559981995)
+passed Ubuntu acceptance, Windows acceptance, and Ubuntu race on that exact SHA.
+Owner-provided C8 evidence records authentication, direct text, a real function
+proposal, authorized local execution, `function_call_output`, a stateless second
+provider turn, and final response acceptance. The returned runtime identity
+matched local version, commit, and build time (3/3). No live call is part of
+this documentation reconciliation.
+
+The production tool boundary remains explicit opt-in, exactly one read-only
+built-in tool, at most two provider POSTs and one handler attempt, no retry,
+and no recursive tool loop. Both tool requests preserve `store:false`,
+`stream:false`, `background:false`, and `parallel_tool_calls:false`; POST #2
+uses `tool_choice:"none"`. No stateful response/conversation fields or reasoning
+replay are introduced. Diagnostics remain hidden/default-off and use fixed
+stage labels rather than raw response logging.
+
+This closure does not claim arbitrary tool support, autonomous Agent Runtime,
+AI memory, Workflow Engine, scheduler, multi-provider compatibility, or Beta
+readiness. Agent operation ownership begins in Phase 9; memory, workflow, and
+scheduling require separate future gates. The existing Phase 6 closure remains
+unchanged.
+
+Historical single-prompt evidence (preserved, superseded for current status):
+
+The single-prompt core, one OpenAI Responses adapter, and
 `forge ai prompt` are integrated into main through
 [PR #1](https://github.com/kaizenforyou91/forge/pull/1), including the accepted
 error-sanitization remediation. Code review is **ACCEPTED** and the offline
@@ -258,16 +298,61 @@ contract is **PASS**. Main Ubuntu/Windows acceptance and focused race, including
 `bef4874020403e154680f0e682c1b79aed0b937d` in
 [workflow 34099866050](https://github.com/kaizenforyou91/forge/actions/runs/34099866050).
 
-This slice remains **UNRELEASED** and is absent from published
-`v0.3.0-alpha.1`. Live provider acceptance is pending separate owner approval:
-**NOT AUTHORIZED / NOT RUN**. External pilot is
+At that earlier checkpoint, Phase 8 was **IN PROGRESS**, Tool Calling was
+described as **future**, and live acceptance was **NOT AUTHORIZED / NOT RUN**,
+pending separate Owner approval. Those statements describe the historical
+single-prompt slice; integrated B1/B1-HYG/B2/C1–C7/C9/C10 and C8 evidence supersede
+them for current main. The AI additions remain **UNRELEASED** and absent from
+published `v0.3.0-alpha.1`. External pilot remains
 **DEFERRED / NON-BLOCKING / NOT RUN** and is not a dependency blocker.
 The earlier local Windows focused race remains **NOT RUN** because that session
 lacked CGO/compiler support; hosted race PASS does not change that history.
 
-See the [single-prompt workflow](docs/AI_PROMPT_WORKFLOW.md) for the bounded
-contract and offline/live distinction. This acceptance does not complete all
-of Phase 8, reopen Phase 6, or imply Beta readiness.
+The [single-prompt workflow](docs/AI_PROMPT_WORKFLOW.md) preserves the earlier
+text-only contract and offline/live distinction; its pending-live/no-tool
+current-status wording is historical. Broader README/CHANGELOG/workflow
+reconciliation belongs to separate release-readiness work.
+
+---
+
+# Phase 9 — Bounded Agent Execution Lifecycle
+
+Status: **ARCHITECTURE SELECTED / IMPLEMENTATION NOT STARTED**.
+P9-A0 is **CLOSED / PASS**. P9-A1 records the decision in
+[ADR-002: Bounded Agent Run Ownership](docs/architecture/adr/ADR-002-agent-run-ownership.md).
+
+Primary objective: give one explicitly requested AI operation one execution
+owner, observable lifecycle state, explicit cancellation coordination, and
+deterministic terminal completion. This is an operation/run lifecycle, not a
+replacement for `pkg/app` application lifecycle; the existing application
+lifecycle model must be preserved.
+
+Agent Runtime is unfinished roadmap work. Prompt execution, bounded tool
+execution, and real-provider acceptance are already delivered. Memory,
+Workflow Engine, and scheduler contracts remain undefined; no next provider
+requirement has been identified, and tool authority expansion would enlarge
+side effects prematurely. Phase 9 therefore starts with ownership of one
+explicitly requested operation, not autonomous agents or recursive execution.
+
+| Package | Scope | Authorization/status |
+|---|---|---|
+| P9-A1 | Architecture decision + roadmap reconciliation | Documentation/governance only |
+| P9-B1 | Single-use AI Run ownership over existing text execution | Architecture intent; implementation not started or authorized by P9-A1 |
+| P9-B2 | Existing authorized tool round-trip composed with Run lifecycle, preserving Phase 8 bounds | PROVISIONAL; separate gate required |
+| P9-B3 | Bounded application-host/shutdown composition | PROVISIONAL; separate gate required |
+| P9-C0 | Offline integration / architecture closure | PROVISIONAL; separate gate required |
+
+P9-B1 is intended for `internal/agent`, not `pkg/agent`. It reuses the unchanged
+`pkg/ai.Provider` and existing `pkg/ai.Executor`, creates no worker goroutine,
+and permits one execution attempt per Run. There is no persistence, tool
+execution, CLI command, or application startup/shutdown wiring in P9-B1.
+Memory, workflow, scheduler, autonomous planning, multi-agent systems, and
+recursive tool loops remain outside this Phase 9 foundation.
+
+Release status: **RELEASE DEFERRED**. Phase 8 is accepted, but current release
+documentation needs broader synchronization before a publication decision.
+P9-A1 does not change README, CHANGELOG, or release identity. Published
+`v0.3.0-alpha.1` remains at `5d836931216203aeea0737fc54de9e95091a62ef`.
 
 ---
 
@@ -362,9 +447,11 @@ AI Runtime
 
 Status:
 
-IN PROGRESS — bounded single-prompt core, OpenAI adapter, and CLI integrated
-into main / offline contract accepted, UNRELEASED. Tool calling, agents,
-memory, and workflow engine remain future work.
+The historical Milestone 9 label covers the broader AI Runtime family; it is
+not the new Phase 9 number. The bounded Phase 8 AI/tool foundation is
+**CLOSED / PASS**, including real-provider acceptance, and remains UNRELEASED.
+Agent execution ownership is selected for Phase 9; implementation has not
+started. Autonomous agents, memory, and Workflow Engine remain future work.
 
 ---
 
@@ -398,7 +485,8 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 5 — Registry | ✅ Alpha-Bounded Closed; local exact-identity boundary |
 | Phase 6 — Compiler | ✅ CLOSED / PASS — bounded Pre-Alpha compiler/package/runnable pipeline |
 | Phase 7 — Runtime | ✅ Alpha-Bounded Closed; trusted local direct-child boundary |
-| Phase 8 — AI Runtime | IN PROGRESS — single-prompt slice integrated / offline PASS; UNRELEASED |
+| Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; UNRELEASED |
+| Phase 9 — Bounded Agent Execution Lifecycle | ARCHITECTURE SELECTED / IMPLEMENTATION NOT STARTED |
 
 ## Engineering Milestones
 
@@ -600,7 +688,11 @@ assigning new milestone or task identifiers:
   cancellation remains exit 130 without exposing raw messages or causes.
 - Main acceptance for this unreleased slice passes on Ubuntu and Windows;
   the existing Ubuntu race gate also covers the AI core and OpenAI adapter.
-  Live provider acceptance remains NOT AUTHORIZED / NOT RUN.
+  At that historical checkpoint live acceptance was NOT AUTHORIZED / NOT RUN;
+  the accepted C8 evidence in the Phase 8 section supersedes that status.
+- B1/B1-HYG/B2 and C1–C7/C9/C10 integrate the bounded tool foundation;
+  C8 closes the real-provider validation gate. See the Phase 8 stage inventory
+  above; these additions remain UNRELEASED.
 
 ## Current Implemented Foundation
 
@@ -691,10 +783,14 @@ Forge currently provides:
 - Shared-application repeated deterministic builds
 - Continuous Ubuntu and Windows acceptance with dependency-cleanliness, list,
   vet, full-test, and full-build gates, plus a focused Ubuntu race gate for the
-  `pkg/compiler`, `runtime`, `internal/cli`, `pkg/ai`, and
-  `internal/aiprovider/openai` boundaries
+  `pkg/compiler`, `runtime`, `internal/cli`, `pkg/ai`,
+  `internal/aiprovider/openai`, and `pkg/ai/tool` boundaries
 - Bounded single-prompt core, OpenAI Responses adapter, and `forge ai prompt`,
   integrated into main and offline-accepted, UNRELEASED
+- Bounded function-tool admission, explicit immutable execution authority,
+  invocation-local replay coordination, stateless continuation, one read-only
+  CLI tool with explicit opt-in, terminal reasoning compatibility, and safe
+  stage diagnostics; Phase 8 CLOSED / PASS with real-provider acceptance PASS
 
 ## Phase 5 — Registry Alpha-Bounded Scope
 
@@ -848,14 +944,14 @@ Future capabilities (do not keep Phase 6 open):
 - Sandboxing and CPU, memory, process-count, filesystem, network, syscall, and
   privilege controls.
 - Compiler optimization, remote registry negotiation and package acquisition,
-  scheduler work, and AI runtime capabilities beyond the bounded single-prompt
-  slice (tool calling, agents, memory, and workflow engine).
+  scheduler work, and AI runtime capabilities beyond the closed bounded
+  Phase 8 foundation (agent lifecycle, memory, and workflow engine).
 
 ## Evidence-Based Current Roadmap Position
 
 ```text
 Published release: First Alpha — v0.3.0-alpha.1 (unchanged)
-Current main: single-prompt execution integrated, UNRELEASED
+Current main: bounded Phase 8 AI/tool runtime integrated, UNRELEASED
 → Phase 1 — Core Foundation: Alpha-Bounded Closed
 → Phase 2 — Alpha workflow implemented; long-term expansion planned
 → Phase 3 — Manifest Engine: Complete for current contract
@@ -863,11 +959,14 @@ Current main: single-prompt execution integrated, UNRELEASED
 → Phase 5 — Registry: Alpha-Bounded Closed
 → Phase 6 — Compiler / Package Pipeline: CLOSED / PASS
 → Phase 7 — Runtime: Alpha-Bounded Closed
-→ Phase 8 — AI Runtime: IN PROGRESS
+→ Phase 8 — AI Runtime: CLOSED / PASS (bounded foundation)
 → Single-Prompt Core / OpenAI Adapter / CLI: Integrated / offline contract PASS
 → Main Ubuntu / Windows Acceptance and Focused AI Race: PASS
-→ Live Provider: NOT AUTHORIZED / NOT RUN
-→ Tool Calling / Agents / Memory / Workflow Engine: Future, not implemented
+→ Bounded Tool Calling / Real Provider Acceptance: PASS
+→ Phase 9 — Bounded Agent Execution Lifecycle: ARCHITECTURE SELECTED
+→ Phase 9 Implementation: NOT STARTED
+→ Autonomous Agents / Memory / Workflow Engine / Scheduler: Future
+→ Release: DEFERRED
 → Package Pipeline Hardening checkpoints
 → Package Format Stabilization: Completed
 → Runnable Package Contract R1A: Completed
@@ -974,10 +1073,12 @@ The following capabilities remain future work:
 - Dynamic plugin discovery/loading
 - Remote package resolution
 - Advanced dependency and version resolution
-- AI runtime expansion beyond single-prompt execution: tool calling, agents,
-  memory, and workflow engine
-- Live provider acceptance for the single-prompt slice, pending separate owner
-  approval; NOT AUTHORIZED / NOT RUN
+- Phase 9 bounded agent execution lifecycle: architecture selected,
+  implementation not started
+- AI runtime expansion beyond the accepted bounded foundation: autonomous
+  agents, memory, and workflow engine, each requiring separate scope decisions
+- Release-readiness documentation synchronization; Phase 8 real-provider
+  acceptance is already PASS and is not an outstanding implementation task
 
 # Long-Term Goal
 
