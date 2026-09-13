@@ -4,9 +4,8 @@
 
 **Published release:** First Alpha — v0.3.0-alpha.1 (unchanged).
 **Current main:** bounded Phase 8 AI/tool runtime **CLOSED / PASS**, including
-real-provider acceptance; **UNRELEASED**. The bounded Phase 9 foundation is
-implemented through P9-B3. P9-C0 records **CLOSED / PASS — BOUNDED AGENT EXECUTION
-LIFECYCLE**, effective upon its integration; until then closure is pending.
+real-provider acceptance; **UNRELEASED**. Phase 9 is **CLOSED / PASS — BOUNDED
+AGENT EXECUTION LIFECYCLE**. P9-A1/B1/B2/B3/C0 are **CLOSED / PASS — INTEGRATED**.
 No further Phase 9 runtime implementation is required. **RELEASE DEFERRED**.
 
 ---
@@ -319,9 +318,10 @@ reconciliation belongs to separate release-readiness work.
 
 # Phase 9 — Bounded Agent Execution Lifecycle
 
-Status upon integration of P9-C0: **CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE**.
-P9-C0 is the documentation/offline closure package; closure remains pending
-until it is integrated. No additional runtime package is required.
+Status: **CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE**.
+P9-C0: **CLOSED / PASS — INTEGRATED**. The documentation/offline closure package
+merged in PR #20 and passed strict push-main CI. No additional runtime package
+is required.
 P9-A0 is **CLOSED / PASS**. P9-A1 approved the architecture in
 [ADR-002: Bounded Agent Run Ownership](docs/architecture/adr/ADR-002-agent-run-ownership.md).
 
@@ -333,10 +333,14 @@ composition. `pkg/app.Runtime` remains the application lifecycle owner;
 App startup, module registration, shutdown, and restart semantics are unchanged.
 No lower `pkg` package depends on `internal/agent`.
 
-Accepted integrated source baseline:
+Historical B3 implementation baseline before documentation closure:
 `d7d660f65fc5fc794a545f8b64703562e92b8bc7`, tree
 `3f78b90c337f7e78ba8797967349a9ac91d14bf6`.
-[Push-main CI 34760583942](https://github.com/kaizenforyou91/forge/actions/runs/34760583942)
+
+Final Phase 9 closure baseline (P9-C0 merge):
+`923fba140bc76ef30128b30011955539f3c1ec86`, tree
+`4143a413ad106c60261a3bf180045420951bf6cf`.
+[Push-main CI 34761487262](https://github.com/kaizenforyou91/forge/actions/runs/34761487262)
 is **completed / success** on that exact SHA: Ubuntu acceptance **PASS**,
 Windows acceptance **PASS**, and Ubuntu race **PASS**, without retry or waiver.
 
@@ -346,7 +350,7 @@ Windows acceptance **PASS**, and Ubuntu race **PASS**, without retry or waiver.
 | P9-B1 | Single-use AI Run ownership over existing text execution | CLOSED / PASS — INTEGRATED |
 | P9-B2 | Existing authorized tool round-trip composed with Run lifecycle, preserving Phase 8 bounds | CLOSED / PASS — INTEGRATED |
 | P9-B3 | Bounded application-host/shutdown composition | CLOSED / PASS — INTEGRATED |
-| P9-C0 | Offline integration / architecture closure | CLOSURE PACKAGE; Phase 9 closure effective upon integration |
+| P9-C0 | Offline integration / architecture closure | CLOSED / PASS — INTEGRATED |
 
 P9-A1 approved architecture only. B1, B2, and B3 each received separate Control
 Room implementation/integration authorization; P9-A1 did not pre-authorize them.
@@ -384,8 +388,8 @@ engine, scheduler, queue, worker pool, background execution, arbitrary tool
 catalog, additional built-in tools, filesystem/network/subprocess agent tools,
 provider routing, multi-provider compatibility, public `pkg/agent` API, or Beta
 readiness. Future memory, workflow, scheduler, tool/provider expansion, and
-release work require a new architecture/roadmap gate. P9-C0 does not define
-Phase 10.
+release work require a new architecture/roadmap selection gate.
+**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
 
 Release status: **RELEASE DEFERRED**. README/CHANGELOG/release-identity
 synchronization remains separate release-readiness work. P9-C0 does not update
@@ -489,7 +493,7 @@ The historical Milestone 9 label covers the broader AI Runtime family; it is
 not the new Phase 9 number. The bounded Phase 8 AI/tool foundation is
 **CLOSED / PASS**, including real-provider acceptance, and remains UNRELEASED.
 Bounded agent Run and application-host ownership are integrated through P9-B3;
-Phase 9 is CLOSED / PASS upon P9-C0 integration. Autonomous agents, memory,
+P9-C0 is CLOSED / PASS — INTEGRATED and Phase 9 is CLOSED / PASS. Autonomous agents, memory,
 and Workflow Engine remain future, separately gated work.
 
 ---
@@ -525,7 +529,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 6 — Compiler | ✅ CLOSED / PASS — bounded Pre-Alpha compiler/package/runnable pipeline |
 | Phase 7 — Runtime | ✅ Alpha-Bounded Closed; trusted local direct-child boundary |
 | Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; UNRELEASED |
-| Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE upon P9-C0 integration |
+| Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE |
 
 ## Engineering Milestones
 
@@ -823,13 +827,15 @@ Forge currently provides:
 - Continuous Ubuntu and Windows acceptance with dependency-cleanliness, list,
   vet, full-test, and full-build gates, plus a focused Ubuntu race gate for the
   `pkg/compiler`, `runtime`, `internal/cli`, `pkg/ai`,
-  `internal/aiprovider/openai`, and `pkg/ai/tool` boundaries
+  `internal/aiprovider/openai`, `pkg/ai/tool`, and `internal/agent` boundaries
 - Bounded single-prompt core, OpenAI Responses adapter, and `forge ai prompt`,
   integrated into main and offline-accepted, UNRELEASED
 - Bounded function-tool admission, explicit immutable execution authority,
   invocation-local replay coordination, stateless continuation, one read-only
   CLI tool with explicit opt-in, terminal reasoning compatibility, and safe
   stage diagnostics; Phase 8 CLOSED / PASS with real-provider acceptance PASS
+- Single-use text and authorized-tool Run lifecycles with explicit application-host
+  cancellation/drain/restart composition; Phase 9 CLOSED / PASS, internal/pre-stable
 
 ## Phase 5 — Registry Alpha-Bounded Scope
 
@@ -984,7 +990,7 @@ Future capabilities (do not keep Phase 6 open):
   privilege controls.
 - Compiler optimization, remote registry negotiation and package acquisition,
   scheduler work, and AI runtime capabilities beyond the closed bounded
-  Phase 8 foundation (agent lifecycle, memory, and workflow engine).
+  Phase 8/9 foundations (autonomous agents, memory, and workflow engine).
 
 ## Evidence-Based Current Roadmap Position
 
@@ -1002,8 +1008,9 @@ Current main: bounded Phase 8 AI/tool runtime integrated, UNRELEASED
 → Single-Prompt Core / OpenAI Adapter / CLI: Integrated / offline contract PASS
 → Main Ubuntu / Windows Acceptance and Focused AI Race: PASS
 → Bounded Tool Calling / Real Provider Acceptance: PASS
-→ Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS upon P9-C0 integration
-→ Phase 9 Implementation: B1/B2/B3 INTEGRATED; no further runtime package required
+→ Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS
+→ Phase 9 Packages: A1/B1/B2/B3/C0 CLOSED / PASS — INTEGRATED; no further runtime package required
+→ Phase 10: NOT DEFINED / NOT AUTHORIZED
 → Autonomous Agents / Memory / Workflow Engine / Scheduler: Future
 → Release: DEFERRED
 → Package Pipeline Hardening checkpoints
