@@ -2,12 +2,20 @@
 
 ## Status
 
-Accepted architecture decision for P9-A1, 2026-09-13.
-Phase 9: **ARCHITECTURE SELECTED / IMPLEMENTATION NOT STARTED**.
-P9-A0: **CLOSED / PASS**. This ADR authorizes no P9-B1 implementation.
-P9-A1 changes documentation only.
+Accepted architecture decision for P9-A1, 2026-09-13; implemented through P9-B3.
+Phase 9 upon integration of P9-C0:
+**CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE**.
+Until that integration, documentation closure is pending; no further runtime
+implementation package is required. P9-C0 performs offline validation and
+records closure of the existing bounded foundation.
 
-## Context and evidence
+P9-A0 is **CLOSED / PASS**. P9-A1 approved architecture and changed documentation
+only; it did not authorize B1/B2/B3 implementation. Each subsequently received
+separate Control Room authorization and is now integrated. The original
+decision and B1-specific boundaries below are preserved as historical scope;
+the implementation record describes the separately authorized B2/B3 composition.
+
+## Original P9-A1 context and evidence
 
 The [roadmap](../../../ROADMAP.md) names Agent Runtime as unfinished work.
 Phase 8 is **CLOSED / PASS** for the bounded AI/tool foundation at
@@ -36,7 +44,11 @@ its application lifecycle or require a replacement architecture version.
 This ADR belongs to `docs/architecture/adr/`. The separate historical
 repository-layout ADR series in `docs/adr/` is not moved or renumbered.
 
-## Decision
+## Original P9-A1 decision and B1 contract
+
+The following decision, lifecycle rules, and alternatives record the P9-A1
+architecture as approved. References to future B1/B2/B3 work in this original
+record describe that checkpoint, not the current implementation status.
 
 Select **Phase 9 — Bounded Agent Execution Lifecycle**. One explicitly requested
 AI operation receives one execution owner, observable lifecycle state, explicit
@@ -240,22 +252,104 @@ It intentionally provides neither a complete autonomous agent runtime nor a
 hard-stop guarantee for a broken custom provider. Keep the API internal until
 its consumers and later composition contracts are demonstrated.
 
-## Package sequence and authorization
+## Implementation record and bounded architectural outcome
+
+All three implementation packages are **CLOSED / PASS — INTEGRATED**:
+
+| Package | Implementation commit | Merge commit |
+|---|---|---|
+| P9-B1 | `e26e72d4986b721af5ebd204061b992e60c88c1e` | `db732b362ac2e6d6c55df6148b67e2c16dbceaed` |
+| P9-B2 | `30e98b320464ce175fa9a60cbb4fc8a8b107d635` | `6c2700ad5a83e03673bdebacd0b5363ce6bc5e38` |
+| P9-B3 | `e711907ddfa6f26fbe01174c271f80c18fd9aa55` | `d7d660f65fc5fc794a545f8b64703562e92b8bc7` |
+
+The accepted integrated baseline is
+`d7d660f65fc5fc794a545f8b64703562e92b8bc7`, tree
+`3f78b90c337f7e78ba8797967349a9ac91d14bf6`.
+[Push-main CI 34760583942](https://github.com/kaizenforyou91/forge/actions/runs/34760583942)
+is **completed / success** for this exact SHA, with Ubuntu acceptance **PASS**,
+Windows acceptance **PASS**, and Ubuntu race **PASS**, without retry or waiver.
+Acceptance includes dependency metadata/cleanliness, package listing, vet,
+unit tests, and build; hosted race includes `internal/agent` and the OpenAI adapter.
+
+- **P9-B1:** [`Run`](../../../internal/agent/run.go) is internal/pre-stable with
+  an atomic single-use claim shared by copies, Ready / Running / Succeeded /
+  Failed / Canceled states, stable Done, explicit Cancel, fixed/redacted
+  state/errors, and terminal reference release. Unknown is fail-closed.
+  `NewRun` still uses caller-supplied `ai.Provider` and unchanged `ai.Executor`
+  with explicit context/timeout. At most one operation is delegated; no retry,
+  Run-created worker goroutine, or persistence exists.
+- **P9-B2:** [`NewAuthorizedToolRun`](../../../internal/agent/tool_run.go) accepts
+  a caller-supplied `AuthorizedToolRoundTripper` and immutable `tool.Authority`.
+  It delegates directly to the existing C5/C4 path, never through `ai.Executor`.
+  The private operation closure shares the B1 lifecycle and classifier; there
+  is no exported generic operation constructor. Each Run delegates at most one
+  round trip, with the existing maximum two provider POSTs and one handler.
+  `ai.Result.Validate()` and defensive Usage copying remain; aggregate two-turn
+  `Usage.OutputTokens` may exceed per-turn `MaxOutputTokens`. The 96 > 64
+  regression passes, while the text executor's single-turn limit remains
+  enforced. No second aggregate token-limit check, new tool authority, retry,
+  or recursive loop is introduced.
+- **P9-B3:** [`RunHost`](../../../internal/agent/host.go) implements `app.Module`
+  with explicit `App.Add` registration and one-App binding. Register/Start
+  execute zero Runs. Caller `Host.Execute` requires a fully Running App and a
+  healthy current lifecycle context, then calls Run synchronously. Caller
+  context remains the parent; `context.AfterFunc` bridges application
+  cancellation only, with no execution worker. Unique per-call active entries
+  prevent a losing duplicate Run claim from untracking the winner. Stop closes
+  admission, cancels active Runs, and drains admitted calls; entry removal
+  precedes WaitGroup completion. Restart snapshots a fresh app context;
+  consumed Runs remain consumed. Old contexts and active entries are released,
+  with no result/error history. Shutdown is cooperative; work is never forcibly
+  terminated or abandoned merely to report completion.
+
+`pkg/app.Runtime` remains the application lifecycle owner, Run owns one
+operation, and RunHost composes them. Phase 9 did not replace or fork App
+startup, module registration, shutdown, or restart. No lower `pkg` package
+depends on `internal/agent`; B3 changed no `pkg/app` or OpenAI production source.
+There is no persisted Run/Host state, agent global registry, or CLI migration.
+Only `NewRun` and `NewAuthorizedToolRun` expose executable Run construction;
+the shared operation factory remains private.
+
+Phase 8 authority remains unchanged: exactly one read-only built-in
+`forge_runtime_info`; explicit/default-false `--allow-tools`; at most two POSTs
+and one handler; no retry or recursive tool loop; `store:false`, `stream:false`,
+`background:false`, `parallel_tool_calls:false`; POST #2 `tool_choice:"none"`;
+no provider conversation state or reasoning replay. C9 terminal compatibility
+and safe, fixed-vocabulary C10 diagnostics remain intact. Phase 9 adds no C10
+diagnostic composition and does not enlarge tool authority.
+
+### B3 race retry history
+
+[PR #19 CI 34760085814](https://github.com/kaizenforyou91/forge/actions/runs/34760085814)
+attempt 1 passed both acceptance jobs but failed Ubuntu race in unchanged
+`internal/aiprovider/openai`, test
+`TestFunctionRoundTripDiagnosticContext/true/second`, with
+`context stage/category/bounds changed`. The test blob at base and head was
+`1ca17deb4118cb8d8e76a616224c44eb938f2366`; `internal/agent` passed.
+One separately authorized targeted retry of race job `103731275343` passed as
+attempt-2 job `103732225210`, and the workflow aggregate became success.
+Acceptance jobs were not rerun. No code remediation occurred; this was not
+classified as a B3 source defect. The strict push-main run above passed all
+three canonical jobs without retry or waiver.
+
+## Package sequence and current authorization/status
 
 | Package | Intended scope | Status |
 |---|---|---|
-| P9-A1 | Architecture decision + roadmap reconciliation | Documentation/governance only |
-| P9-B1 | Single-use AI Run ownership over existing text execution | Architecture intent; separate implementation authorization required |
-| P9-B2 | Existing authorized tool round-trip with Run lifecycle, preserving Phase 8 bounds and aggregate-usage semantics | PROVISIONAL; no implementation authorization |
-| P9-B3 | Bounded application-host/shutdown composition | PROVISIONAL; separate gate, no implementation authorization |
-| P9-C0 | Offline integration / architecture closure | PROVISIONAL; no implementation authorization |
+| P9-A1 | Architecture decision + roadmap reconciliation | CLOSED / PASS — INTEGRATED |
+| P9-B1 | Single-use AI Run ownership over existing text execution | CLOSED / PASS — INTEGRATED |
+| P9-B2 | Existing authorized tool round-trip with Run lifecycle, preserving Phase 8 bounds and aggregate-usage semantics | CLOSED / PASS — INTEGRATED |
+| P9-B3 | Bounded application-host/shutdown composition | CLOSED / PASS — INTEGRATED |
+| P9-C0 | Offline integration / architecture closure | CLOSURE PACKAGE; Phase 9 closure effective upon integration |
 
-Memory, workflow, and scheduler remain separate future gates. This ADR does
-not authorize any implementation package or broaden the Phase 8 boundary.
+The separate B1/B2/B3 authorizations do not retroactively broaden P9-A1.
+Memory, workflow, scheduler, tool/provider expansion, and release remain future
+work requiring a new architecture/roadmap gate. P9-C0 authorizes no runtime
+capability and does not define Phase 10.
 
-## P9-B1 acceptance intent
+## Original P9-B1 acceptance intent (now satisfied)
 
-Future P9-B1 must prove, using deterministic offline tests:
+The original P9-A1 acceptance intent required P9-B1 to prove, using offline tests:
 
 - Existing AI construction contracts are validated with zero provider I/O.
 - At most one delegated provider execution exists per Run lifetime.
@@ -275,26 +369,30 @@ Future P9-B1 must prove, using deterministic offline tests:
 - Hosted race coverage includes the future package, alongside normal offline
   package listing, full tests, vet, build, and dependency cleanliness checks.
 
-No tests, Go source, or CI changes are implemented in P9-A1. Local race is not
-required for this documentation-only package; hosted PR CI remains canonical.
+P9-A1 implemented no tests, Go source, or CI changes. P9-C0 also changes only
+documentation; its offline validation covers agent, App, and OpenAI tests plus
+full package listing/tests/vet/build and dependency cleanliness. Local race is
+not required; the normal hosted PR workflow, including agent/OpenAI race
+coverage, remains canonical and must pass before integration.
 
-## Out of scope
+## Non-capabilities and remaining scope boundaries
 
 - Autonomous planning or autonomous loops.
 - Multi-agent execution or recursive provider conversations.
 - Memory/history, durable jobs, or persistence.
-- Workflow engine, scheduler, queues, or worker pools.
-- New provider or provider routing.
+- Workflow engine, scheduler, queues, worker pools, or automatic/background execution.
+- New provider, provider routing, or multi-provider compatibility.
 - Arbitrary tools, new built-in tools, or filesystem/network/subprocess agent handlers.
-- CLI agent command or application lifecycle wiring.
+- CLI agent command, CLI migration, or application lifecycle behavior changes
+  beyond the separately authorized, integrated RunHost composition.
+- Public `pkg/agent` API or Beta readiness.
 - Native-process expansion.
 - Release or tag creation.
 
 ## Release status
 
-**RELEASE DEFERRED.** Phase 8 is accepted, but current release documentation
-requires broader synchronization before a publication decision. README and
-CHANGELOG reconciliation remain a separate release-readiness package.
-P9-A1 does not change them, release identity, or the Architecture Freeze.
+**RELEASE DEFERRED.** README/CHANGELOG/release-identity synchronization remains
+separate release-readiness work before a publication decision. P9-C0 changes
+none of those files, the historical AI workflow, or the Architecture Freeze.
 Published `v0.3.0-alpha.1` remains at
 `5d836931216203aeea0737fc54de9e95091a62ef`; no tag is created or moved.
