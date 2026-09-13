@@ -5,16 +5,27 @@
 This document is the canonical, reproducible workflow for exercising Forge's
 bounded First Alpha product path from a clean repository checkout. It covers
 manifest validation, package creation and inspection, explicit trust, and
-native application execution.
+native application execution for published `v0.3.0-alpha.1`. It does not add
+current-main AI commands to that historical release's workflow.
+
+Current main is ahead of alpha.1 and **UNRELEASED**: Phase 8 bounded AI/tool
+foundation is **CLOSED / PASS**, including accepted real-provider validation **PASS**;
+Phase 9 is **CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE**,
+internal/pre-stable. See the separate [current-main AI workflow](AI_PROMPT_WORKFLOW.md)
+and [roadmap](../ROADMAP.md). The original text-only implementation checkpoint
+is historical evidence, not the full current-main capability set.
+**Phase 10: NOT DEFINED / NOT AUTHORIZED. RELEASE DEFERRED.**
 
 ## Current maturity: First Alpha — 0.3.0-alpha.1
 
 Forge First Alpha is a local, manifest-driven, non-production technical
 preview. Formal readiness is approved with non-blocking accepted debt. This
 workflow demonstrates the bounded product path; it is not a stable-format or
-production-readiness claim. The approved Git tag is `v0.3.0-alpha.1`, but the
-tag and GitHub prerelease are created only by the later release stage. No
-official prebuilt binary assets are part of the approved release surface.
+production-readiness claim. Annotated tag `v0.3.0-alpha.1` exists and resolves
+to `5d836931216203aeea0737fc54de9e95091a62ef`. The
+[GitHub prerelease](https://github.com/kaizenforyou91/forge/releases/tag/v0.3.0-alpha.1)
+is published, not draft, with zero uploaded prebuilt binary assets. Its release
+notes correctly exclude AI Runtime; later Phase 8/9 work is not part of alpha.1.
 
 ## Prerequisites
 
@@ -49,8 +60,12 @@ github.com/kaizenforyou91/forge/internal/cli.Commit
 github.com/kaizenforyou91/forge/internal/cli.BuildTime
 ```
 
-For the approved First Alpha identity, use version `0.3.0-alpha.1`, the exact
-release commit, and a UTC RFC3339 timestamp:
+To build with the published First Alpha identity, use a checkout of annotated
+tag `v0.3.0-alpha.1` at commit `5d836931216203aeea0737fc54de9e95091a62ef`, version
+`0.3.0-alpha.1`, that exact release commit, and a UTC RFC3339 build timestamp.
+Do not stamp later current-main additions as though they were published alpha.1.
+This reproduces the source/version identity, not a byte-identical official
+binary (no binaries were uploaded):
 
 ```text
 go build -trimpath -ldflags "-X github.com/kaizenforyou91/forge/internal/cli.AppVersion=0.3.0-alpha.1 -X github.com/kaizenforyou91/forge/internal/cli.Commit=<commit> -X github.com/kaizenforyou91/forge/internal/cli.BuildTime=<UTC-RFC3339>" -o <forge> ./cmd/forge
@@ -66,10 +81,9 @@ Commit  : <commit>
 Built   : <UTC-RFC3339>
 ```
 
-The approved release identity is AppVersion `0.3.0-alpha.1` and annotated Git
-tag `v0.3.0-alpha.1`. Documentation of that identity does not mean the tag or
-GitHub prerelease already exists. The earlier value `alpha-acceptance` was a
-TEST-ONLY WP7 acceptance label and must never be treated as a published
+The published release identity is AppVersion `0.3.0-alpha.1` and annotated Git
+tag `v0.3.0-alpha.1`; the published prerelease exists. The earlier value
+`alpha-acceptance` was a TEST-ONLY WP7 acceptance label and must never be treated as a published
 version.
 
 ## Example application
@@ -337,7 +351,7 @@ drop, CPU/memory/process quotas, process-tree containment, or production-safety
 guarantee. Persistent trust, multiple configured keys, rotation, and revocation
 are not implemented. Package formats remain First Alpha and pre-stable.
 
-## Deferred capabilities
+## Capabilities excluded from published alpha.1
 
 Deferred work includes `forge init`, `forge fmt`, machine-readable validation
 and inspection output, remote and persistent registries, package acquisition
@@ -345,7 +359,9 @@ and indexing, version ranges, complete provenance/SBOM, persistent trust and
 revocation, arguments/environment/stdin/caller working directory, live output
 streaming, descendant lifecycle and graceful shutdown, sandboxing and resource
 controls, dynamic plugin loading, scheduling/orchestration, cross-toolchain
-reproducibility, build isolation, and the AI Runtime.
+reproducibility, build isolation, and the AI Runtime. That last exclusion
+describes alpha.1: current-main bounded Phase 8/9 additions are separately
+documented and remain unreleased.
 
 Security debt also remains around same-user in-place modification of an opened
 package, materialized validation-to-path-execution binding, and deeper Windows
@@ -360,3 +376,14 @@ distribution, persistent trust, sandboxing, orchestration, or AI-native
 execution. Passing it means the bounded local First Alpha workflow is
 reproducible; it does not strengthen Forge beyond a non-production technical
 preview with pre-stable APIs and package formats.
+
+## Publication boundary
+
+**RELEASE DEFERRED.** RR-001 changes documentation only and performs no live
+provider call. It does not decide another release, a version number, current-main
+release readiness, binary publication, or whether Phase 10 should open.
+Autonomous agents, AI memory/durable history, persistence, workflows, schedulers,
+queues/workers, multi-agent orchestration, arbitrary side-effect tools, provider
+routing, and public agent APIs remain outside the delivered Phase 8/9 boundary.
+No Beta/production, sandboxing, process-tree containment, or persistent trust
+rotation/revocation claim is added. Phase 10 remains **NOT DEFINED / NOT AUTHORIZED**.
