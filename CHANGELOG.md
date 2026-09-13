@@ -5,6 +5,13 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 ## Unreleased
 
+Target prerelease candidate: **0.4.0-alpha.1**. Owner-selected: **YES**.
+Status: **PREPARATION / NOT PUBLISHED**. Publication: **NOT AUTHORIZED**.
+Release state: **DEFERRED**. See the
+[draft candidate evidence](docs/RELEASE_CANDIDATE_0.4.0-alpha.1.md).
+Only a later Owner-authorized publication preparation step may convert the
+relevant Unreleased content into a finalized, dated version section.
+
 These changes are integrated into main and remain **UNRELEASED**. Published
 `v0.3.0-alpha.1` is unchanged and does not include `forge ai prompt`.
 Phase 8 bounded AI/tool foundation is **CLOSED / PASS**, including accepted
