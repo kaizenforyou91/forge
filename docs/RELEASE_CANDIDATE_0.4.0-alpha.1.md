@@ -347,7 +347,8 @@ AI surface. No persistent agent-state migration exists for this release.
 
 This checklist records the completed publication transaction and RR-005's
 subsequent documentation reconciliation. RR-005 did not precede tag creation;
-its documentation changes remain subject to normal PR integration.
+its documentation changes were integrated through PR #24 and passed strict
+push-main CI.
 
 - [x] Exact final candidate main SHA selected.
 - [x] Exact tree recorded.
