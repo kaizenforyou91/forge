@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"sync"
@@ -411,7 +412,7 @@ func TestSequenceTransitionAndPublicationCancellation(t *testing.T) {
 		defer cancel()
 		s.core.state, s.core.cancel = StateRunning, cancel
 		done := s.Done()
-		first, err := s.core.nextRun(ctx, 0)
+		first, err := s.core.nextRun(ctx, 0, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -422,7 +423,7 @@ func TestSequenceTransitionAndPublicationCancellation(t *testing.T) {
 		s.core.active = nil
 		s.Cancel()
 		if beforeNext {
-			next, err := s.core.nextRun(ctx, 1)
+			next, err := s.core.nextRun(ctx, 1, got.Text)
 			if next != nil || err != context.Canceled || s.core.active != nil {
 				t.Fatal("post-cancel child constructed")
 			}
@@ -615,4 +616,361 @@ func TestSequenceRedaction(t *testing.T) {
 	}
 	s.Cancel()
 	sequenceTerminal(t, s, s.Done(), StateCanceled)
+}
+
+func TestSequencePreviousConstruction(t *testing.T) {
+	var calls atomic.Int32
+	p := providerFunc(func(context.Context, ai.Request) (ai.Result, error) { calls.Add(1); return result(), nil })
+	rt := roundTripperFunc(func(context.Context, ai.Request, *tool.Authority) (ai.Result, error) {
+		calls.Add(1)
+		return result(), nil
+	})
+	a := testAuthority(t)
+	literal := sequenceTextStep(t, p)
+	if literal.inputMode != sequenceLiteralText || sequenceToolStep(t, rt, a).inputMode != sequenceLiteralText {
+		t.Fatal("B1 constructor mode changed")
+	}
+	text, err := NewTextSequenceStepFromPrevious(p, request().Model, 64, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	toolStep, err := NewAuthorizedToolSequenceStepFromPrevious(rt, request().Model, 64, a, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range []SequenceStep{text, toolStep} {
+		if step.inputMode != sequencePreviousStepText || step.request.Text != "" {
+			t.Fatal("probe retained or wrong mode")
+		}
+		if s, err := NewSequence([]SequenceStep{step}, time.Second); s != nil || err != ErrInvalidSequence {
+			t.Fatal("first previous accepted")
+		}
+		newSequence(t, literal, step).Cancel()
+		for _, format := range []string{"%v", "%+v", "%#v"} {
+			if strings.Contains(fmt.Sprintf(format, step), "sequence validation") {
+				t.Fatal("probe exposed")
+			}
+		}
+	}
+	var typedProvider *nilProvider
+	var typedTrip *nilRoundTrip
+	var nilProviderFn providerFunc
+	var nilTripFn roundTripperFunc
+	for _, invalid := range []ai.Provider{nil, typedProvider, nilProviderFn} {
+		if _, err := NewTextSequenceStepFromPrevious(invalid, request().Model, 64, time.Second); !errors.Is(err, ai.ErrInvalidRequest) {
+			t.Fatal("nil previous provider accepted")
+		}
+	}
+	for _, invalid := range []AuthorizedToolRoundTripper{nil, typedTrip, nilTripFn} {
+		if _, err := NewAuthorizedToolSequenceStepFromPrevious(invalid, request().Model, 64, a, time.Second); !errors.Is(err, ai.ErrInvalidRequest) {
+			t.Fatal("nil previous round trip accepted")
+		}
+	}
+	empty, err := tool.NewAuthority(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, invalid := range []*tool.Authority{nil, {}, empty} {
+		if _, err := NewAuthorizedToolSequenceStepFromPrevious(rt, request().Model, 64, invalid, time.Second); !errors.Is(err, ai.ErrInvalidRequest) {
+			t.Fatal("invalid previous authority accepted")
+		}
+	}
+	for _, tc := range []struct {
+		model   string
+		tokens  int
+		timeout time.Duration
+	}{
+		{"", 64, time.Second}, {"bad model", 64, time.Second}, {strings.Repeat("m", ai.MaxModelBytes+1), 64, time.Second},
+		{"m", ai.MinOutputTokens - 1, time.Second}, {"m", ai.MaxOutputTokens + 1, time.Second},
+		{"m", 64, 0}, {"m", 64, -1}, {"m", 64, ai.MaxTimeout + 1},
+	} {
+		if _, err := NewTextSequenceStepFromPrevious(p, tc.model, tc.tokens, tc.timeout); !errors.Is(err, ai.ErrInvalidRequest) {
+			t.Fatal("invalid previous text spec accepted")
+		}
+		if _, err := NewAuthorizedToolSequenceStepFromPrevious(rt, tc.model, tc.tokens, a, tc.timeout); !errors.Is(err, ai.ErrInvalidRequest) {
+			t.Fatal("invalid previous tool spec accepted")
+		}
+	}
+	for _, change := range []func(*SequenceStep){
+		func(s *SequenceStep) { s.inputMode = 0 }, func(s *SequenceStep) { s.inputMode = 255 },
+		func(s *SequenceStep) { s.request.Text = "must not be retained" },
+		func(s *SequenceStep) { s.request.Model = "" }, func(s *SequenceStep) { s.request.MaxOutputTokens = 0 },
+		func(s *SequenceStep) { s.timeout = 0 }, func(s *SequenceStep) { s.kind = 255 },
+		func(s *SequenceStep) { s.provider = nil },
+		func(s *SequenceStep) { *s = toolStep; s.authority = nil },
+	} {
+		bad := text
+		change(&bad)
+		if s, err := NewSequence([]SequenceStep{literal, bad}, time.Second); s != nil || err == nil {
+			t.Fatal("malformed previous spec accepted")
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatal("constructor performed work")
+	}
+}
+
+func TestSequencePreviousHandoffAndAuthority(t *testing.T) {
+	for _, kinds := range []string{"TT", "TU", "UT", "UU", "TUTUT"} {
+		t.Run(kinds, func(t *testing.T) {
+			a := testAuthority(t)
+			definitions := a.Definitions()
+			steps := make([]SequenceStep, len(kinds))
+			calls := 0
+			var expectedFinal ai.Result
+			for i, kind := range kinds {
+				// The third node is literal even after output; subsequent nodes
+				// must receive only their immediate predecessor's output.
+				literal := i == 0 || i == 2
+				wantText := fmt.Sprintf(" \tprevious-%d\nline\n\u00e9 ", i-1)
+				if literal {
+					wantText = fmt.Sprintf("literal-%d", i)
+				}
+				model := fmt.Sprintf("caller-model-%d", i)
+				tokens := 64 + i
+				out := result()
+				out.Text = fmt.Sprintf(" \tprevious-%d\nline\n\u00e9 ", i)
+				if i == len(kinds)-1 {
+					expectedFinal = out
+				}
+				execute := func(ctx context.Context, req ai.Request) (ai.Result, error) {
+					if calls != i || req.Text != wantText || req.Model != model || req.MaxOutputTokens != tokens || ctx.Err() != nil {
+						t.Fatal("handoff/order/caller authority changed")
+					}
+					calls++
+					return out, nil
+				}
+				var err error
+				if kind == 'T' {
+					p := providerFunc(execute)
+					if literal {
+						steps[i], err = NewTextSequenceStep(p, ai.Request{Text: wantText, Model: model, MaxOutputTokens: tokens}, time.Second)
+					} else {
+						steps[i], err = NewTextSequenceStepFromPrevious(p, model, tokens, time.Second)
+					}
+				} else {
+					rt := roundTripperFunc(func(ctx context.Context, req ai.Request, authority *tool.Authority) (ai.Result, error) {
+						if authority != a || !reflect.DeepEqual(authority.Definitions(), definitions) {
+							t.Fatal("tool authority changed")
+						}
+						return execute(ctx, req)
+					})
+					if literal {
+						steps[i], err = NewAuthorizedToolSequenceStep(rt, ai.Request{Text: wantText, Model: model, MaxOutputTokens: tokens}, a, time.Second)
+					} else {
+						steps[i], err = NewAuthorizedToolSequenceStepFromPrevious(rt, model, tokens, a, time.Second)
+					}
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			s := newSequence(t, steps...)
+			done := s.Done()
+			got, err := s.Execute(context.Background())
+			if err != nil || calls != len(kinds) || got.CompletedSteps != calls || !reflect.DeepEqual(got.Final, expectedFinal) {
+				t.Fatal("handoff result or call count changed")
+			}
+			if got.AggregateUsage == nil || got.AggregateUsage.InputTokens != int64(calls) || got.AggregateUsage.OutputTokens != int64(2*calls) {
+				t.Fatal("known mixed usage sum changed")
+			}
+			sequenceTerminal(t, s, done, StateSucceeded)
+		})
+	}
+}
+
+func TestSequenceHandoffBoundsAndInvalidResults(t *testing.T) {
+	for _, tc := range []struct {
+		name, text string
+		want       error
+	}{
+		{"exact input bound", strings.Repeat("x", ai.MaxInputBytes), nil},
+		{"over input bound", strings.Repeat("x", ai.MaxInputBytes+1), ai.ErrInvalidRequest},
+		{"blank child", " \t\n", ai.ErrMalformedResponse},
+		{"invalid utf8 child", "\xff", ai.ErrMalformedResponse},
+		{"malformed child", "\x1bunsafe", ai.ErrMalformedResponse},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, toolMode := range []bool{false, true} {
+				firstCalls, nextCalls := 0, 0
+				first := sequenceTextStep(t, providerFunc(func(context.Context, ai.Request) (ai.Result, error) {
+					firstCalls++
+					r := result()
+					r.Text = tc.text
+					return r, nil
+				}))
+				nextExecute := func(_ context.Context, r ai.Request) (ai.Result, error) {
+					nextCalls++
+					if r.Text != tc.text {
+						t.Fatal("handoff truncated or rewritten")
+					}
+					return result(), nil
+				}
+				next, err := NewTextSequenceStepFromPrevious(providerFunc(nextExecute), request().Model, 64, time.Second)
+				if toolMode {
+					next, err = NewAuthorizedToolSequenceStepFromPrevious(roundTripperFunc(func(ctx context.Context, r ai.Request, _ *tool.Authority) (ai.Result, error) {
+						return nextExecute(ctx, r)
+					}), request().Model, 64, testAuthority(t), time.Second)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				s := newSequence(t, first, next)
+				done := s.Done()
+				got, err := s.Execute(context.Background())
+				if firstCalls != 1 || !errors.Is(err, tc.want) {
+					t.Fatal("result validation or retry behavior changed")
+				}
+				if tc.want != nil {
+					if got != (SequenceResult{}) || nextCalls != 0 || strings.Contains(err.Error(), tc.text) {
+						t.Fatal("invalid handoff exposed data or executed next work")
+					}
+					sequenceTerminal(t, s, done, StateFailed)
+				} else {
+					if got.CompletedSteps != 2 || nextCalls != 1 {
+						t.Fatal("boundary rejected or extra call")
+					}
+					sequenceTerminal(t, s, done, StateSucceeded)
+				}
+			}
+		})
+	}
+	// Isolate resolution before child construction using valid >16 KiB Result
+	// text. This does not bypass child Result validation in the end-to-end test.
+	first := sequenceTextStep(t, providerFunc(func(context.Context, ai.Request) (ai.Result, error) { return result(), nil }))
+	next, err := NewTextSequenceStepFromPrevious(first.provider, request().Model, 64, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := newSequence(t, first, next)
+	child, err := s.core.nextRun(context.Background(), 1, strings.Repeat("x", ai.MaxInputBytes+1))
+	if child != nil || s.core.active != nil || !errors.Is(err, ai.ErrInvalidRequest) {
+		t.Fatal("bad handoff constructed a child")
+	}
+	s.Cancel()
+}
+
+func TestSequenceAggregateUsage(t *testing.T) {
+	for _, tc := range []struct {
+		name, kinds string
+		usage       []*ai.Usage
+		want        *ai.Usage
+		failAt      int
+	}{
+		{"known text", "TT", []*ai.Usage{{InputTokens: 3, OutputTokens: 5}, {InputTokens: 7, OutputTokens: 11}}, &ai.Usage{InputTokens: 10, OutputTokens: 16}, 0},
+		{"known tool", "UU", []*ai.Usage{{InputTokens: 3, OutputTokens: 96}, {InputTokens: 7, OutputTokens: 96}}, &ai.Usage{InputTokens: 10, OutputTokens: 192}, 0},
+		{"mixed 64-96", "UT", []*ai.Usage{{InputTokens: 3, OutputTokens: 96}, {InputTokens: 7, OutputTokens: 11}}, &ai.Usage{InputTokens: 10, OutputTokens: 107}, 0},
+		{"first unknown", "TTT", []*ai.Usage{nil, {InputTokens: 7}, {OutputTokens: 9}}, nil, 0},
+		{"middle unknown", "TTT", []*ai.Usage{{InputTokens: 7}, nil, {OutputTokens: 9}}, nil, 0},
+		{"final unknown", "TTT", []*ai.Usage{{InputTokens: 7}, {OutputTokens: 9}, nil}, nil, 0},
+		{"unknown before large", "UUU", []*ai.Usage{nil, {InputTokens: math.MaxInt64, OutputTokens: math.MaxInt64}, {InputTokens: math.MaxInt64, OutputTokens: math.MaxInt64}}, nil, 0},
+		{"unknown after large", "UUUU", []*ai.Usage{{InputTokens: math.MaxInt64, OutputTokens: math.MaxInt64}, nil, {InputTokens: math.MaxInt64, OutputTokens: math.MaxInt64}, {InputTokens: 1, OutputTokens: 1}}, nil, 0},
+		{"exact max", "UU", []*ai.Usage{{InputTokens: math.MaxInt64 - 1, OutputTokens: math.MaxInt64 - 1}, {InputTokens: 1, OutputTokens: 1}}, &ai.Usage{InputTokens: math.MaxInt64, OutputTokens: math.MaxInt64}, 0},
+		{"input overflow before nil", "TTT", []*ai.Usage{{InputTokens: math.MaxInt64}, {InputTokens: 1}, nil}, nil, 2},
+		{"output overflow before nil", "UUU", []*ai.Usage{{OutputTokens: math.MaxInt64}, {OutputTokens: 1}, nil}, nil, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			var steps []SequenceStep
+			for i, kind := range tc.kinds {
+				execute := func(context.Context, ai.Request) (ai.Result, error) {
+					if calls != i {
+						t.Fatal("usage step order changed")
+					}
+					calls++
+					out := result()
+					out.Usage = tc.usage[i]
+					return out, nil
+				}
+				step := sequenceTextStep(t, providerFunc(execute))
+				if kind == 'U' {
+					step = sequenceToolStep(t, roundTripperFunc(func(ctx context.Context, r ai.Request, _ *tool.Authority) (ai.Result, error) {
+						if r.MaxOutputTokens != 64 {
+							t.Fatal("tool cap changed")
+						}
+						return execute(ctx, r)
+					}), testAuthority(t))
+				}
+				steps = append(steps, step)
+			}
+			s := newSequence(t, steps...)
+			done := s.Done()
+			got, err := s.Execute(context.Background())
+			if tc.failAt != 0 {
+				if got != (SequenceResult{}) || err != ai.ErrMalformedResponse || calls != tc.failAt {
+					t.Fatal("overflow classification, partial result, or later work")
+				}
+				sequenceTerminal(t, s, done, StateFailed)
+				return
+			}
+			if err != nil || calls != len(steps) || got.CompletedSteps != calls || !reflect.DeepEqual(got.AggregateUsage, tc.want) || !reflect.DeepEqual(got.Final.Usage, tc.usage[len(steps)-1]) {
+				t.Fatal("aggregate/final usage semantics changed")
+			}
+			if got.AggregateUsage != nil {
+				if got.AggregateUsage == got.Final.Usage {
+					t.Fatal("aggregate aliases final")
+				}
+				for _, usage := range tc.usage {
+					if usage == got.AggregateUsage {
+						t.Fatal("aggregate aliases child")
+					}
+				}
+				finalBefore := *got.Final.Usage
+				got.AggregateUsage.OutputTokens = 0
+				if *got.Final.Usage != finalBefore {
+					t.Fatal("aggregate mutation changed final usage")
+				}
+			}
+			sequenceTerminal(t, s, done, StateSucceeded)
+		})
+	}
+}
+
+func TestSequencePreviousPanicAndCancellationAfterAccounting(t *testing.T) {
+	for _, panicChild := range []bool{false, true} {
+		first := sequenceTextStep(t, providerFunc(func(context.Context, ai.Request) (ai.Result, error) { return result(), nil }))
+		marker := &struct{}{}
+		calls := 0
+		var s *Sequence
+		next, err := NewTextSequenceStepFromPrevious(providerFunc(func(ctx context.Context, r ai.Request) (ai.Result, error) {
+			calls++
+			if r.Text != result().Text {
+				t.Fatal("wrong predecessor")
+			}
+			if panicChild {
+				panic(marker)
+			}
+			s.Cancel()
+			if ctx.Err() != context.Canceled {
+				t.Fatal("previous child cancellation lost")
+			}
+			return result(), nil
+		}), request().Model, 64, time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s = newSequence(t, first, next, first)
+		done := s.Done()
+		if panicChild {
+			func() {
+				defer func() {
+					if recover() != marker {
+						t.Error("panic replaced")
+					}
+				}()
+				_, _ = s.Execute(context.Background())
+				t.Error("panic returned")
+			}()
+			sequenceTerminal(t, s, done, StateFailed)
+		} else {
+			got, err := s.Execute(context.Background())
+			if got != (SequenceResult{}) || err != context.Canceled {
+				t.Fatal("cancellation returned partial accounting")
+			}
+			sequenceTerminal(t, s, done, StateCanceled)
+		}
+		if calls != 1 {
+			t.Fatal("previous child repeated")
+		}
+	}
 }

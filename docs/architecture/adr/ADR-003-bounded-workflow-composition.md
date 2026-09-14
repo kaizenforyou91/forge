@@ -6,10 +6,11 @@
 
 P10-A0-R1 is CLOSED / PASS — OUTCOME A ACCEPTED BY CONTROL ROOM.
 P10-A1 is CLOSED / PASS — INTEGRATED after strict push-main CI. That architecture
-decision did not authorize implementation. P10-B1 has separate implementation
-authorization for the literal-only slice recorded below. Integration plus strict
-push-main CI establishes B1's CLOSED / PASS — INTEGRATED status.
-P10-B2/B3/C0 remain NOT AUTHORIZED / NOT STARTED.
+decision did not authorize implementation. P10-B1 is CLOSED / PASS — INTEGRATED
+under separate authorization. P10-B2 has separate implementation authorization
+for the handoff/accounting slice recorded below. Integration plus strict
+push-main CI establishes B2's CLOSED / PASS — INTEGRATED status.
+P10-B3/C0 remain NOT AUTHORIZED / NOT STARTED.
 
 Phase 10 — Bounded Workflow Composition (Synchronous Sequences) has the objective:
 compose a finite, explicit sequence of already-authorized AI operations
@@ -26,7 +27,7 @@ Historical P10-A1 preparation base: `217be79f938b6f913c08ae86e1c918896e66fd68`, 
 is push/main on that exact SHA, attempt 1, completed/success: Ubuntu acceptance,
 Windows acceptance, and Ubuntu race PASS.
 
-P10-A1 integrated main / P10-B1 preparation base:
+Historical P10-A1 integrated main / P10-B1 preparation base:
 `18e7e51cf366519db5521d7237c218ffd54c6fe6`, tree
 `2eb9336df00ca52a479fd9ada72eaf16b2d22ffa`; parents
 `217be79f938b6f913c08ae86e1c918896e66fd68` and
@@ -36,6 +37,15 @@ is push/main on that exact SHA, attempt 1, completed/success for Ubuntu acceptan
 Windows acceptance, and Ubuntu race. The earlier P10-A1 PR had a separately
 authorized targeted race retry; this main run passed attempt 1. No retry is
 pre-authorized for B1.
+
+P10-B1 integrated main / P10-B2 preparation base:
+`9e0c38b70d63446440328aca3fa5c5574ae68df8`, tree
+`c0bbdbc747823c87d30c059e574ad93697bafaca`; parents
+`18e7e51cf366519db5521d7237c218ffd54c6fe6` and
+`2f1a053b879808219f14ecef768aed1f113b26d2`.
+[Strict main CI 34818568107](https://github.com/kaizenforyou91/forge/actions/runs/34818568107)
+is push/main on that exact SHA, attempt 1, completed/success for Ubuntu acceptance,
+Windows acceptance, and Ubuntu race. No B2 CI retry is pre-authorized.
 
 Published [v0.4.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1)
 remains source-only, non-production, and pre-stable. Annotated tag object
@@ -70,8 +80,8 @@ and historical separate implementation authorizations.
 ## Sequence shape and immutable specifications
 
 The following sections define the selected full Phase 10 architecture.
-The B1 implementation record below limits the delivered slice; handoff,
-aggregate accounting, and whole-sequence host ownership are not delivered by B1.
+The B1 and B2 implementation records below distinguish their delivered slices.
+Whole-sequence host ownership remains unauthorized B3 scope.
 
 Define one single-use Sequence with Ready, Running, Succeeded, Failed, and
 Canceled states. Execute runs on the caller goroutine; Forge starts ZERO
@@ -283,6 +293,10 @@ not folded into P10 or automatically authorized. No Beta readiness is claimed.
 
 ## P10-B1 implementation record — literal steps only
 
+Historical B1 slice, now CLOSED / PASS — INTEGRATED. Its literal constructors
+and lifecycle remain compatible; the separate B2 extension below adds input modes
+and aggregate accounting to the current Sequence.
+
 The separately authorized B1 slice is internal/agent/sequence.go and
 sequence_test.go, with ErrInvalidSequence/ErrSequenceConsumed in errors.go.
 The errors have fixed, redacted text. No existing Run, tool Run, host, State,
@@ -315,21 +329,66 @@ provider, CLI, or app production file changes.
 
 No PREVIOUS_STEP_TEXT, aggregate accounting, host/app admission, public API,
 CLI, persistence, background work, or authority expansion is implemented by B1.
-B2 and B3 remain separate authorizations, not implicit extensions of this slice.
+B2 received separate authorization; B3 remains NOT AUTHORIZED / NOT STARTED.
+
+## P10-B2 implementation record — handoff and aggregate accounting
+
+B2 modifies only sequence.go / sequence_test.go and its three governance
+documents. No errors.go, Run, tool Run, host, app, provider, or public product
+surface changes. B1's single claim/shared core, synchronous lifecycle, deadlines,
+cancellation, fail-fast, panic propagation/cleanup, and redaction are preserved.
+
+- Unexported sequenceLiteralText / sequencePreviousStepText modes are explicit.
+  Existing constructors still select literal input with unchanged signatures.
+  NewTextSequenceStepFromPrevious(provider, model, maxOutputTokens, timeout) and
+  NewAuthorizedToolSequenceStepFromPrevious(roundTripper, model, maxOutputTokens,
+  authority, timeout) validate fixed configuration without I/O. A fixed probe is
+  used only in a local Request copy for canonical model/token validation; it is
+  never retained as prompt text or passed to a provider.
+- NewSequence revalidates modes/specifications and requires step 1 literal.
+  A previous-text specification retains no literal Text. The actual request
+  copies only the immediate preceding successful Result.Text unchanged; model,
+  token limit, timeout, operation kind, provider, and immutable authority remain
+  caller-fixed. Literal steps ignore preceding output.
+- Request.Validate runs before child Run construction. Exactly 16 KiB valid text
+  can pass; 16 KiB + 1 fails before next provider/handler work. Blank/invalid UTF-8
+  or malformed child results still fail existing child Result validation first.
+  There is no truncation, rewriting, repair, summarization, or extra call.
+- Only the preceding transition value is retained, not history. After the fresh
+  Run captures needed text, the preceding Result reference is dropped. Terminal
+  cleanup retains no intermediate text/specification; this is not secure erasure.
+- SequenceResult contains Final ai.Result, CompletedSteps int, and
+  AggregateUsage *ai.Usage. Final.Usage belongs only to the final child.
+  AggregateUsage is a fresh, non-aliasing checked sum of both int64 counters
+  when all completed children report usage. Zero known usage remains known.
+- Any nil child Usage permanently makes the aggregate UNKNOWN/nil and disables
+  further arithmetic. While still known, overflow of either counter fails
+  immediately with sanitized ai.ErrMalformedResponse, Failed state, zero result,
+  and zero later work. A hypothetical later nil cannot undo an earlier overflow.
+- Tool 64-cap / 96-output usage remains valid and contributes to the sum. No
+  child request cap is imposed on aggregate usage. Any failure or cancellation
+  returns zero SequenceResult, never partial text or accounting. A panic still
+  propagates unchanged with consumed/Failed state, released references, and Done
+  closed after unwind; no usage is fabricated for the panicking child.
+
+B2 adds no automatic provider calls or authority. For T+U<=8, accepted paths
+retain T+2U POSTs / U handler attempts at most (16 / 8 worst case). No host/app
+admission, public API, CLI, persistence, or background execution is delivered.
+P10-B3/C0 remain NOT AUTHORIZED / NOT STARTED.
 
 ## Package plan and separate authorization
 
 | Package | Purpose / future family | Proof obligation | Authorization / dependency |
 |---|---|---|---|
 | P10-A1 | Architecture / ADR / roadmap only | Accurate bounded decision, historical truth, links, offline checks | CLOSED / PASS — INTEGRATED; architecture only |
-| P10-B1 | Internal sequence lifecycle and static literal steps; sequence.go / sequence_test.go / errors.go | Single claim, order, bounds, fail-fast, cancellation, redaction, reference release | IMPLEMENTATION SEPARATELY AUTHORIZED; integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED |
-| P10-B2 | Previous-text handoff and aggregate accounting; sequence*.go and tests | No next call on bad input, immutable authority, known/unknown/overflow usage | NOT AUTHORIZED / NOT STARTED; requires B1 integration and separate approval |
+| P10-B1 | Internal sequence lifecycle and static literal steps; sequence.go / sequence_test.go / errors.go | Single claim, order, bounds, fail-fast, cancellation, redaction, reference release | CLOSED / PASS — INTEGRATED |
+| P10-B2 | Previous-text handoff and aggregate accounting; sequence.go / sequence_test.go | No next call on bad input, immutable authority, known/unknown/overflow usage | IMPLEMENTATION SEPARATELY AUTHORIZED; integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED |
 | P10-B3 | Whole-sequence host composition; host.go / host_test.go | Admission, inter-step cancellation/drain, restart, panic bookkeeping | NOT AUTHORIZED / NOT STARTED; requires B2 integration and separate approval |
 | P10-C0 | Offline integration / architecture closure | Integrated scope and invariant audit, strict main CI | NOT AUTHORIZED / NOT STARTED; requires B1/B2/B3 integration and separate approval |
 
-B1's separate implementation approval does not establish integration or closure.
+B2's separate implementation approval does not establish integration or closure.
 Control Room review, guarded integration, and strict exact push-main CI are its
-closure gates. It does not authorize B2/B3/C0.
+closure gates. It does not authorize B3/C0.
 
 ## Future tests and acceptance evidence
 

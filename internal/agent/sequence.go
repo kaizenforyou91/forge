@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -18,11 +19,19 @@ const (
 	sequenceAuthorizedTool
 )
 
-// SequenceStep is an immutable literal request with caller-fixed authority.
+type sequenceInputMode uint8
+
+const (
+	sequenceLiteralText sequenceInputMode = iota + 1
+	sequencePreviousStepText
+)
+
+// SequenceStep is an immutable input specification with caller-fixed authority.
 // Provider implementations remain trusted caller-owned references. No Run is
-// constructed until execution, and output never becomes another step's input.
+// constructed until execution. Previous-step input transfers only text data.
 type SequenceStep struct {
 	kind         sequenceStepKind
+	inputMode    sequenceInputMode
 	request      ai.Request
 	timeout      time.Duration
 	provider     ai.Provider
@@ -35,7 +44,7 @@ func (s SequenceStep) GoString() string { return s.String() }
 
 // NewTextSequenceStep validates without executing or retaining an executor.
 func NewTextSequenceStep(provider ai.Provider, request ai.Request, timeout time.Duration) (SequenceStep, error) {
-	step := SequenceStep{kind: sequenceText, request: request, timeout: timeout, provider: provider}
+	step := SequenceStep{kind: sequenceText, inputMode: sequenceLiteralText, request: request, timeout: timeout, provider: provider}
 	if err := step.validate(); err != nil {
 		return SequenceStep{}, err
 	}
@@ -45,7 +54,29 @@ func NewTextSequenceStep(provider ai.Provider, request ai.Request, timeout time.
 // NewAuthorizedToolSequenceStep preserves the existing immutable authority.
 // Construction performs no provider or handler work.
 func NewAuthorizedToolSequenceStep(roundTripper AuthorizedToolRoundTripper, request ai.Request, authority *tool.Authority, timeout time.Duration) (SequenceStep, error) {
-	step := SequenceStep{kind: sequenceAuthorizedTool, request: request, timeout: timeout, roundTripper: roundTripper, authority: authority}
+	step := SequenceStep{kind: sequenceAuthorizedTool, inputMode: sequenceLiteralText, request: request, timeout: timeout, roundTripper: roundTripper, authority: authority}
+	if err := step.validate(); err != nil {
+		return SequenceStep{}, err
+	}
+	return step, nil
+}
+
+// NewTextSequenceStepFromPrevious uses the immediately preceding successful
+// child's text, unchanged. All other request fields remain caller-fixed.
+func NewTextSequenceStepFromPrevious(provider ai.Provider, model string, maxOutputTokens int, timeout time.Duration) (SequenceStep, error) {
+	step := SequenceStep{kind: sequenceText, inputMode: sequencePreviousStepText,
+		request: ai.Request{Model: model, MaxOutputTokens: maxOutputTokens}, timeout: timeout, provider: provider}
+	if err := step.validate(); err != nil {
+		return SequenceStep{}, err
+	}
+	return step, nil
+}
+
+// NewAuthorizedToolSequenceStepFromPrevious changes text only; it does not
+// select tools or create authority. Construction performs no provider/handler I/O.
+func NewAuthorizedToolSequenceStepFromPrevious(roundTripper AuthorizedToolRoundTripper, model string, maxOutputTokens int, authority *tool.Authority, timeout time.Duration) (SequenceStep, error) {
+	step := SequenceStep{kind: sequenceAuthorizedTool, inputMode: sequencePreviousStepText,
+		request: ai.Request{Model: model, MaxOutputTokens: maxOutputTokens}, timeout: timeout, roundTripper: roundTripper, authority: authority}
 	if err := step.validate(); err != nil {
 		return SequenceStep{}, err
 	}
@@ -53,7 +84,19 @@ func NewAuthorizedToolSequenceStep(roundTripper AuthorizedToolRoundTripper, requ
 }
 
 func (s SequenceStep) validate() error {
-	if err := s.request.Validate(); err != nil {
+	request := s.request
+	switch s.inputMode {
+	case sequenceLiteralText:
+	case sequencePreviousStepText:
+		if request.Text != "" {
+			return ErrInvalidSequence
+		}
+		// Validation-only probe in a local copy: never retained or executed.
+		request.Text = "sequence validation"
+	default:
+		return ErrInvalidSequence
+	}
+	if err := request.Validate(); err != nil {
 		return err
 	}
 	if err := ai.ValidateTimeout(s.timeout); err != nil {
@@ -76,16 +119,18 @@ func (s SequenceStep) validate() error {
 	}
 }
 
-// SequenceResult exposes only the final child result and bounded completion
-// metadata. Final.Usage is not sequence aggregate usage. Failure returns zero.
+// SequenceResult separates final child usage from checked sequence usage.
+// AggregateUsage is nil if any successful child reported unknown usage.
+// Failure/cancellation returns zero, never partial text or partial accounting.
 type SequenceResult struct {
 	Final          ai.Result
 	CompletedSteps int
+	AggregateUsage *ai.Usage
 }
 
-// Sequence owns 1..8 literal steps synchronously on the caller goroutine.
-// Copies share one single-use claim. It has no host admission, workers, handoff,
-// persistence, or aggregate usage. Providers must finish owned work on return.
+// Sequence owns 1..8 static steps synchronously on the caller goroutine.
+// Copies share one single-use claim. It has no host admission, workers, or
+// persistence. Providers must finish owned work on return.
 type Sequence struct {
 	core *sequenceState
 }
@@ -105,6 +150,9 @@ type sequenceState struct {
 // NewSequence snapshots the declaration slice and request values without I/O.
 func NewSequence(steps []SequenceStep, overallTimeout time.Duration) (*Sequence, error) {
 	if len(steps) < 1 || len(steps) > maxSequenceSteps {
+		return nil, ErrInvalidSequence
+	}
+	if steps[0].inputMode != sequenceLiteralText {
 		return nil, ErrInvalidSequence
 	}
 	if err := ai.ValidateTimeout(overallTimeout); err != nil {
@@ -167,10 +215,12 @@ func (s *Sequence) Execute(ctx context.Context) (SequenceResult, error) {
 
 func (c *sequenceState) executeSteps(ctx context.Context, count int) (SequenceResult, error) {
 	var final ai.Result
+	var aggregate ai.Usage
+	known := true
 	for i := range count {
-		// Discard the previous result before constructing another literal Run.
+		run, err := c.nextRun(ctx, i, final.Text)
+		// The fresh Run has captured any needed text; retain no prior Result.
 		final = ai.Result{}
-		run, err := c.nextRun(ctx, i)
 		if err != nil {
 			return SequenceResult{}, err
 		}
@@ -181,14 +231,31 @@ func (c *sequenceState) executeSteps(ctx context.Context, count int) (SequenceRe
 		if err != nil {
 			return SequenceResult{}, err
 		}
+		if final.Usage == nil {
+			known = false
+			aggregate = ai.Usage{}
+		} else if known {
+			// Child Run validation guarantees nonnegative int64 counters. Check
+			// both before adding; unknown usage permanently disables arithmetic.
+			usage := final.Usage
+			if aggregate.InputTokens > math.MaxInt64-usage.InputTokens || aggregate.OutputTokens > math.MaxInt64-usage.OutputTokens {
+				return SequenceResult{}, ai.ErrMalformedResponse
+			}
+			aggregate.InputTokens += usage.InputTokens
+			aggregate.OutputTokens += usage.OutputTokens
+		}
 	}
-	return SequenceResult{Final: final, CompletedSteps: count}, nil
+	result := SequenceResult{Final: final, CompletedSteps: count}
+	if known {
+		result.AggregateUsage = &aggregate // Fresh value, never a child's pointer.
+	}
+	return result, nil
 }
 
 // nextRun linearizes cancellation and step admission under one lock. The
 // constructors perform validation only. Cancellation after admission propagates
 // through ctx before child provider work; no independent host entry is used.
-func (c *sequenceState) nextRun(ctx context.Context, index int) (*Run, error) {
+func (c *sequenceState) nextRun(ctx context.Context, index int, previousText string) (*Run, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -198,13 +265,27 @@ func (c *sequenceState) nextRun(ctx context.Context, index int) (*Run, error) {
 		return nil, context.Canceled
 	}
 	step := c.steps[index]
+	request := step.request
+	switch step.inputMode {
+	case sequenceLiteralText:
+	case sequencePreviousStepText:
+		if index == 0 {
+			return nil, ErrInvalidSequence
+		}
+		request.Text = previousText
+	default:
+		return nil, ErrInvalidSequence
+	}
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
 	var run *Run
 	var err error
 	switch step.kind {
 	case sequenceText:
-		run, err = NewRun(step.provider, step.request, step.timeout)
+		run, err = NewRun(step.provider, request, step.timeout)
 	case sequenceAuthorizedTool:
-		run, err = NewAuthorizedToolRun(step.roundTripper, step.request, step.authority, step.timeout)
+		run, err = NewAuthorizedToolRun(step.roundTripper, request, step.authority, step.timeout)
 	default:
 		return nil, ErrInvalidSequence
 	}
