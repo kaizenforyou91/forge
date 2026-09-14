@@ -7,10 +7,16 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 - Documentation-only post-publication reconciliation (RR-005); no runtime changes.
 - Defined the Phase 10 bounded synchronous-sequence architecture (P10-A1);
-  no runtime implementation or public API change. Implementation packages remain
-  NOT AUTHORIZED; P10-A1 integration and strict push-main CI establish the
-  canonical definition. Phase 10 statements in released sections below record
-  their historical publication checkpoints.
+  architecture integrated with strict push-main CI. P10-A1 itself introduced
+  no runtime implementation or public API change. Phase 10 statements in released
+  sections below record their historical publication checkpoints.
+- Implemented the separately authorized internal P10-B1 Sequence lifecycle and
+  static literal-step execution: 1..8 synchronous text/authorized-tool steps,
+  single-use ownership, fail-fast cancellation, bounded deadlines, and terminal
+  cleanup including panic unwind. No public API, CLI, persistence, background
+  worker, previous-text handoff, aggregate Sequence usage, or host integration.
+  B1 integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED;
+  P10-B2/B3/C0 remain NOT AUTHORIZED / NOT STARTED.
 
 ## 0.4.0-alpha.1 - 2026-09-14
 
