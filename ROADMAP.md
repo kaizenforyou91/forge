@@ -2,11 +2,18 @@
 
 > Engineering roadmap for the Forge platform.
 
-**Published release:** First Alpha — v0.3.0-alpha.1 (unchanged).
-**Current main:** bounded Phase 8 AI/tool runtime **CLOSED / PASS**, including
-real-provider acceptance; **UNRELEASED**. Phase 9 is **CLOSED / PASS — BOUNDED
-AGENT EXECUTION LIFECYCLE**. P9-A1/B1/B2/B3/C0 are **CLOSED / PASS — INTEGRATED**.
-No further Phase 9 runtime implementation is required. **RELEASE DEFERRED**.
+**Latest published prerelease:** [v0.4.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1).
+Publication source: `85d78143db1b8bcf2f96b79d681895b1a0492642`, tree
+`e58a864eb6617811cca1dcb8d2d30bbd72e19298`; source-only, zero uploaded assets.
+**RR-004-PUB: CLOSED / PASS — PUBLISHED.**
+Phase 8 bounded AI/tool foundation is **CLOSED / PASS**, including real-provider
+acceptance, and published in 0.4.0-alpha.1. Phase 9 is **CLOSED / PASS — BOUNDED
+AGENT EXECUTION LIFECYCLE**, included as internal/pre-stable infrastructure.
+P9-A1/B1/B2/B3/C0 are **CLOSED / PASS — INTEGRATED**; no further Phase 9 runtime
+implementation is required. RR-005 is the documentation-only post-publication
+reconciliation package; it adds no runtime capability. PR #24 integration and
+strict push-main CI are the closure gate.
+**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
 
 ---
 
@@ -119,7 +126,7 @@ Commands:
 These are long-term Phase 2 command targets. Published `v0.3.0-alpha.1`
 provides `forge version`, `forge doctor`, `forge config`, `forge validate`,
 `forge build`, `forge build-runnable`, `forge inspect`, and `forge run`.
-Current main additionally provides the unreleased `forge ai prompt` command.
+Published `v0.4.0-alpha.1` additionally provides `forge ai prompt`.
 The historical `forge init` and `forge fmt` targets remain deferred.
 
 Status:
@@ -241,7 +248,7 @@ Objective:
 
 Provide AI-native capabilities.
 
-Accepted bounded capabilities (integrated, UNRELEASED):
+Accepted bounded capabilities (published in v0.4.0-alpha.1):
 
 | Stage | Accepted capability |
 |---|---|
@@ -303,16 +310,16 @@ At that earlier checkpoint, Phase 8 was **IN PROGRESS**, Tool Calling was
 described as **future**, and live acceptance was **NOT AUTHORIZED / NOT RUN**,
 pending separate Owner approval. Those statements describe the historical
 single-prompt slice; integrated B1/B1-HYG/B2/C1–C7/C9/C10 and C8 evidence supersede
-them for current main. The AI additions remain **UNRELEASED** and absent from
-published `v0.3.0-alpha.1`. External pilot remains
+them for current main. The AI additions are published in **v0.4.0-alpha.1**
+and absent from historical `v0.3.0-alpha.1`. External pilot remains
 **DEFERRED / NON-BLOCKING / NOT RUN** and is not a dependency blocker.
 The earlier local Windows focused race remains **NOT RUN** because that session
 lacked CGO/compiler support; hosted race PASS does not change that history.
 
 The [single-prompt workflow](docs/AI_PROMPT_WORKFLOW.md) preserves the earlier
-text-only contract and offline/live distinction; its pending-live/no-tool
-current-status wording is historical. Broader README/CHANGELOG/workflow
-reconciliation belongs to separate release-readiness work.
+text-only contract and offline/live distinction, with old pending-live/no-tool
+wording explicitly historical. RR-001 reconciled current-main documentation;
+RR-005 reconciles publication status after the separate RR-004-PUB authorization.
 
 ---
 
@@ -355,7 +362,7 @@ Windows acceptance **PASS**, and Ubuntu race **PASS**, without retry or waiver.
 P9-A1 approved architecture only. B1, B2, and B3 each received separate Control
 Room implementation/integration authorization; P9-A1 did not pre-authorize them.
 
-Accepted bounded capabilities (internal/pre-stable, UNRELEASED):
+Accepted bounded capabilities (internal/pre-stable, included in v0.4.0-alpha.1):
 
 - Run ownership: Ready / Running / Succeeded / Failed / Canceled; atomic single
   execution claim shared by copies; stable Done; explicit Cancel; fixed/redacted
@@ -387,14 +394,19 @@ recursive tool conversations, AI memory, durable jobs, persistence, workflow
 engine, scheduler, queue, worker pool, background execution, arbitrary tool
 catalog, additional built-in tools, filesystem/network/subprocess agent tools,
 provider routing, multi-provider compatibility, public `pkg/agent` API, or Beta
-readiness. Future memory, workflow, scheduler, tool/provider expansion, and
-release work require a new architecture/roadmap selection gate.
+readiness. Future memory, workflow, scheduler, and tool/provider expansion
+require a new architecture/roadmap selection gate. Publication required separate
+release governance and did not broaden Phase 9 authority.
 **Phase 10: NOT DEFINED / NOT AUTHORIZED.**
 
-Release status: **RELEASE DEFERRED**. README/CHANGELOG/release-identity
-synchronization remains separate release-readiness work. P9-C0 does not update
-those files, the historical AI workflow, or release identity. Published
-`v0.3.0-alpha.1` remains at `5d836931216203aeea0737fc54de9e95091a62ef`.
+Release status: **0.4.0-alpha.1 PUBLISHED**. Separate governance through RR-001
+to RR-004-PUB authorized the source-only prerelease (zero assets) at
+`85d78143db1b8bcf2f96b79d681895b1a0492642`.
+[Publication-source CI 34786373253](https://github.com/kaizenforyou91/forge/actions/runs/34786373253)
+passed Ubuntu/Windows acceptance and Ubuntu race. P9-C0 itself did not authorize
+publication. RR-005 reconciles documentation afterward, without moving tags.
+Historical `v0.3.0-alpha.1` remains at
+`5d836931216203aeea0737fc54de9e95091a62ef`.
 
 ---
 
@@ -491,7 +503,7 @@ Status:
 
 The historical Milestone 9 label covers the broader AI Runtime family; it is
 not the new Phase 9 number. The bounded Phase 8 AI/tool foundation is
-**CLOSED / PASS**, including real-provider acceptance, and remains UNRELEASED.
+**CLOSED / PASS**, including real-provider acceptance, and is published in v0.4.0-alpha.1.
 Bounded agent Run and application-host ownership are integrated through P9-B3;
 P9-C0 is CLOSED / PASS — INTEGRATED and Phase 9 is CLOSED / PASS. Autonomous agents, memory,
 and Workflow Engine remain future, separately gated work.
@@ -528,7 +540,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 5 — Registry | ✅ Alpha-Bounded Closed; local exact-identity boundary |
 | Phase 6 — Compiler | ✅ CLOSED / PASS — bounded Pre-Alpha compiler/package/runnable pipeline |
 | Phase 7 — Runtime | ✅ Alpha-Bounded Closed; trusted local direct-child boundary |
-| Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; UNRELEASED |
+| Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; published in v0.4.0-alpha.1 |
 | Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE |
 
 ## Engineering Milestones
@@ -729,13 +741,14 @@ assigning new milestone or task identifiers:
 - Error-sanitization remediation preserves unknown joined failures as safe
   `ErrProvider` categories, so mixed cancellation remains exit 1 and pure
   cancellation remains exit 130 without exposing raw messages or causes.
-- Main acceptance for this unreleased slice passes on Ubuntu and Windows;
+- Historical single-prompt checkpoint: main acceptance for the then-unreleased
+  slice passed on Ubuntu and Windows;
   the existing Ubuntu race gate also covers the AI core and OpenAI adapter.
   At that historical checkpoint live acceptance was NOT AUTHORIZED / NOT RUN;
   the accepted C8 evidence in the Phase 8 section supersedes that status.
 - B1/B1-HYG/B2 and C1–C7/C9/C10 integrate the bounded tool foundation;
   C8 closes the real-provider validation gate. See the Phase 8 stage inventory
-  above; these additions remain UNRELEASED.
+  above; these additions are published in v0.4.0-alpha.1.
 
 ## Current Implemented Foundation
 
@@ -829,7 +842,7 @@ Forge currently provides:
   `pkg/compiler`, `runtime`, `internal/cli`, `pkg/ai`,
   `internal/aiprovider/openai`, `pkg/ai/tool`, and `internal/agent` boundaries
 - Bounded single-prompt core, OpenAI Responses adapter, and `forge ai prompt`,
-  integrated into main and offline-accepted, UNRELEASED
+  integrated into main, offline-accepted, and published in v0.4.0-alpha.1
 - Bounded function-tool admission, explicit immutable execution authority,
   invocation-local replay coordination, stateless continuation, one read-only
   CLI tool with explicit opt-in, terminal reasoning compatibility, and safe
@@ -995,8 +1008,8 @@ Future capabilities (do not keep Phase 6 open):
 ## Evidence-Based Current Roadmap Position
 
 ```text
-Published release: First Alpha — v0.3.0-alpha.1 (unchanged)
-Current main: bounded Phase 8 AI/tool runtime integrated, UNRELEASED
+Published release: v0.4.0-alpha.1 — source-only, zero uploaded assets
+Current main: RR-005 documentation-only post-publication reconciliation
 → Phase 1 — Core Foundation: Alpha-Bounded Closed
 → Phase 2 — Alpha workflow implemented; long-term expansion planned
 → Phase 3 — Manifest Engine: Complete for current contract
@@ -1004,15 +1017,16 @@ Current main: bounded Phase 8 AI/tool runtime integrated, UNRELEASED
 → Phase 5 — Registry: Alpha-Bounded Closed
 → Phase 6 — Compiler / Package Pipeline: CLOSED / PASS
 → Phase 7 — Runtime: Alpha-Bounded Closed
-→ Phase 8 — AI Runtime: CLOSED / PASS (bounded foundation)
+→ Phase 8 — AI Runtime: CLOSED / PASS; published in 0.4.0-alpha.1
 → Single-Prompt Core / OpenAI Adapter / CLI: Integrated / offline contract PASS
 → Main Ubuntu / Windows Acceptance and Focused AI Race: PASS
 → Bounded Tool Calling / Real Provider Acceptance: PASS
-→ Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS
+→ Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS; included, internal/pre-stable
 → Phase 9 Packages: A1/B1/B2/B3/C0 CLOSED / PASS — INTEGRATED; no further runtime package required
 → Phase 10: NOT DEFINED / NOT AUTHORIZED
 → Autonomous Agents / Memory / Workflow Engine / Scheduler: Future
-→ Release: DEFERRED
+→ Release: 0.4.0-alpha.1 PUBLISHED; RR-004-PUB CLOSED / PASS
+→ RR-005 — post-publication documentation reconciliation; documentation-only, no runtime changes; PR #24 merge + strict push-main CI are the closure gate
 → Package Pipeline Hardening checkpoints
 → Package Format Stabilization: Completed
 → Runnable Package Contract R1A: Completed
@@ -1121,7 +1135,8 @@ The following capabilities remain future work:
 - Advanced dependency and version resolution
 - AI runtime expansion beyond the accepted bounded foundation: autonomous
   agents, memory, and workflow engine, each requiring separate scope decisions
-- Release-readiness documentation synchronization; Phase 8 real-provider
+- Further publication decisions require separate Owner authorization; RR-005
+  reconciles the completed 0.4.0-alpha.1 publication. Phase 8 real-provider
   acceptance is already PASS and is not an outstanding implementation task
 
 # Long-Term Goal

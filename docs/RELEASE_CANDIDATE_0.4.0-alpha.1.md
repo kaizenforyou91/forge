@@ -1,25 +1,35 @@
-# 0.4.0-alpha.1 — Draft Release Candidate Evidence
+# 0.4.0-alpha.1 — Publication Record and Historical Candidate Evidence
 
 - Target: **0.4.0-alpha.1**
-- Status: **PREPARATION ONLY / NOT PUBLISHED**
-- Release authorization: **NOT GRANTED**
-- Tag: **NOT CREATED** (proposed future name: `v0.4.0-alpha.1`)
-- GitHub Release: **NOT CREATED**
-- Assets: **NOT PUBLISHED**
+- Status: **PUBLISHED**
+- RR-004-PUB: **CLOSED / PASS — PUBLISHED**
+- Release authorization: **GRANTED / EXECUTED**
+- Tag: **v0.4.0-alpha.1 — CREATED / ANNOTATED**
+- Tag object: `c02b81a94c3c7bead6a7fcf4030ce03cc98af52a`
+- Tag target: `85d78143db1b8bcf2f96b79d681895b1a0492642`
+- Publication tree: `e58a864eb6617811cca1dcb8d2d30bbd72e19298`
+- GitHub Release: **PUBLISHED PRERELEASE**
+- Release ID: **388084778**
+- draft: **false**
+- prerelease: **true**
+- assets: **0**
+- created_at: `2026-09-14T00:40:39Z`
+- published_at: `2026-09-14T00:42:10Z`
 - Phase 10: **NOT DEFINED / NOT AUTHORIZED**
-- Release state: **RELEASE DEFERRED**
 
-This is RR-003 preparation evidence and draft release-note content, not a
-published release note, an official binary, or permission to publish.
-The Owner selected 0.4.0-alpha.1 after RR-002; 0.3.0-alpha.2 is not the target.
-RR-001 is integrated. Phase 8 and Phase 9 remain CLOSED / PASS.
+[Published Forge 0.4.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1)
+is a source-only, non-production prerelease. This record reconciles documentation
+after publication in RR-005; it does not change the immutable tag or Release.
+The tagged source intentionally preserves the RR-003 pre-publication snapshot.
+The historical RR-003 preparation and RR-004 validation evidence below remain
+separate from the publication event. Phase 8 and Phase 9 remain CLOSED / PASS.
 
 ## Summary
 
-The proposed non-production prerelease adds explicit bounded AI text and
+The published non-production prerelease adds explicit bounded AI text and
 read-only tool execution to the existing manifest/package/trust/run preview.
 It also includes public pre-stable AI contracts and an internal operation
-lifecycle foundation. No new runtime capability is implemented by RR-003.
+lifecycle foundation. RR-003 prepared evidence and RR-005 reconciles documentation; neither adds runtime capability.
 
 ## Highlights
 
@@ -37,7 +47,7 @@ forge ai prompt --provider openai --model <model-id> --text "<prompt>" --allow-n
 ```
 
 This grammar describes capability; it is not an instruction to perform live
-validation. No live provider call is part of RR-003. Without `--allow-tools`,
+validation. RR-003 made no live provider call; RR-005 also makes none. Without `--allow-tools`,
 the CLI uses `ai.Executor` for one provider turn and enforces the single-turn
 output-token cap. Provider/model/text are explicit; there is no default model,
 fallback, streaming, or retry. Unknown/raw failures are sanitized, and mixed
@@ -118,7 +128,7 @@ labels and no raw-response logging; it is not part of normal public grammar.
 
 ## Important limitations
 
-This remains a **NON-PRODUCTION PRERELEASE / PRE-STABLE** candidate. Trusted
+This remains a **NON-PRODUCTION PRERELEASE / PRE-STABLE** release. Trusted
 native code executes with the invoking user's authority. Forge does not provide:
 
 - Sandboxing, filesystem/network isolation, privilege drop, process-tree
@@ -133,6 +143,15 @@ Existing same-user package mutation, validation-to-execution binding, and
 Windows ACL/reparse/share-mode hardening remain disclosed accepted debt.
 
 ## CI / validation evidence
+
+Publication source: `85d78143db1b8bcf2f96b79d681895b1a0492642`, tree
+`e58a864eb6617811cca1dcb8d2d30bbd72e19298`.
+[Strict main CI 34786373253](https://github.com/kaizenforyou91/forge/actions/runs/34786373253)
+completed successfully on this exact push/main source, attempt 1, without retry
+or waiver. Ubuntu acceptance, Windows acceptance, and Ubuntu race all passed,
+including dependency metadata/cleanliness, listing, vet, full tests, and build.
+
+### Historical RR-003 preparation validation
 
 Preparation base: `88c5300e13c92e88b332349943ae17fd91acb501`, tree
 `95b2ee6db9fd07b12eb86c2c4e4ee9ac8755261c`.
@@ -152,8 +171,8 @@ agent, AI, tool, OpenAI, CLI, compiler and runtime tests passed, including the
 aggregate 96 > 64 regression. Markdown local links/anchors resolve and released
 alpha.1 changelog history is unchanged.
 
-Normal exact-head PR CI must pass before later integration; the base run and
-local results do not replace it. Local race was not run and is not required.
+At the RR-003 checkpoint, exact-head PR CI was required before integration;
+base/local results did not replace it. Local race was not run and was not required.
 
 Historical accepted live evidence is sufficient for this preparation. Git
 comparison from accepted C8/C10 source baseline
@@ -164,7 +183,7 @@ execution and diagnostics are unchanged. Accepted text/tool live validation and
 runtime identity 3/3 MATCH remain historical evidence, not a new live result.
 Any future production-path change requires reopening the freshness decision.
 
-## Candidate smoke evidence
+## Historical RR-003 candidate smoke evidence
 
 The smoke used a clean, isolated local clone of the RR-003 branch head before
 the documentation commit, outside the canonical repository. Source SHA:
@@ -194,8 +213,8 @@ Built   : 2026-09-13T16:04:38Z
 ```
 
 Development defaults in `internal/cli/version.go` remain `dev`, `none`, and
-`unknown`. A future exact-publication smoke must substitute the finally selected
-commit and a fresh UTC RFC3339 timestamp. No smoke executable is a release asset.
+`unknown`. RR-004 later repeated the smoke on the exact publication commit,
+as recorded below. No smoke executable is a release asset.
 
 The same temporary stamped binary passed `--help`, `ai --help`, and
 `ai prompt --help`. All seven public AI flags were present; `--diagnostic-stage`
@@ -256,17 +275,60 @@ Published `v0.3.0-alpha.1` ultimately resolves to
 draft=false, prerelease=true, with zero uploaded binary assets. That historical
 First Alpha excludes later Phase 8/9 additions and is unchanged.
 
-RR-003 branch: `rr003/release-candidate-0.4.0-alpha.1`. Its final documentation
-commit is identified by the draft PR head and `git rev-parse HEAD` on this
-branch, not by embedding a self-referential commit hash in its own contents.
-The final implementation SHA/tree/parent are recorded in the RR-003 handoff.
-The smoke source SHA below identifies the branch head at smoke time; subsequent
-RR-003 changes are documentation-only. Neither identifies a future publication
-commit, which must be selected after integration by a separate Owner gate.
+Historical RR-003 branch: `rr003/release-candidate-0.4.0-alpha.1`.
+Documentation implementation: `548548804d0c80922bd0c7ee6e33373c6a8c1a26`.
+PR #23 merged as `85d78143db1b8bcf2f96b79d681895b1a0492642`, subsequently
+selected for publication. The earlier smoke source above remains historical
+preparation evidence, not the final release identity.
+
+## Exact-publication RR-004 validation record
+
+RR-004 selected publication topology A: tag the exact integrated RR-003 source
+without another pre-publication documentation commit; reconcile documentation
+after publication. GitHub Release metadata records the publication event.
+
+The isolated exact-candidate smoke used Go 1.26.5, windows/amd64. Stamped output:
+
+```text
+Forge CLI
+Version : 0.4.0-alpha.1
+Commit  : 85d78143db1b8bcf2f96b79d681895b1a0492642
+Built   : 2026-09-14T00:19:08Z
+```
+
+CLI help exposed all seven public AI flags, kept diagnostic-stage hidden, and
+preserved default-false tools. Missing network authorization failed before
+credential lookup/provider work. Structural/build/runnable validation, v1
+build/inspect, signed v2 build, untrusted/trusted inspection, and trusted
+execution passed with `Forge Alpha example: OK`. Temporary binaries, packages,
+isolated checkout, and ephemeral test keys were removed.
+
+Comparison from accepted live baseline
+`ac68a1b3e059f173d9b5c71eadaff9fcffba981f` confirmed no production AI path
+change. Historical real-provider validation PASS remained sufficient; no fresh
+live request was required or made for publication readiness. RR-005 performs
+zero live OpenAI calls and no API-key access.
+
+## Final publication record
+
+| Field | Verified value |
+|---|---|
+| Version / tag | 0.4.0-alpha.1 / v0.4.0-alpha.1 |
+| Tag type / object | annotated / `c02b81a94c3c7bead6a7fcf4030ce03cc98af52a` |
+| Source commit | `85d78143db1b8bcf2f96b79d681895b1a0492642` |
+| Release ID | 388084778 |
+| Source-only / assets | YES / 0 |
+| Publication status | SUCCESS |
+| No force/tag movement | YES |
+
+The Owner authorized publication after RR-004. RR-004-PUB created and pushed
+one annotated tag, then created one published prerelease with the approved body.
+There was no force, existing tag movement/deletion, release edit, or asset upload.
+Historical v0.3.0-alpha.1 remained unchanged.
 
 ## Source-only publication surface
 
-Proposed model: **SOURCE-ONLY GITHUB PRERELEASE**, with zero uploaded binary
+Published model: **SOURCE-ONLY GITHUB PRERELEASE**, with zero uploaded binary
 assets. Temporary smoke executables are not official distribution artifacts.
 Checksums, SBOMs and signatures are not mandatory uploaded assets for this model.
 Adding official binary assets would expand platform, provenance, signing and
@@ -279,39 +341,44 @@ not approved, do not publish it. Supersede a published prerelease with a new
 immutable version rather than moving an old tag. Source rollback may select
 an earlier immutable commit/tag but cannot undo provider processing, provider
 billing, or native-code side effects already performed. Alpha.1 lacks the new
-AI surface. No persistent agent-state migration exists for this candidate.
+AI surface. No persistent agent-state migration exists for this release.
 
-## Publication checklist — later Owner gate only
+## PUBLICATION CHECKLIST — COMPLETED
 
-- [ ] Exact final candidate main SHA selected.
-- [ ] Exact tree recorded.
-- [ ] Target tag still absent.
-- [ ] Target GitHub Release still absent.
-- [ ] Strict main CI PASS.
-- [ ] Final exact-candidate version smoke PASS.
-- [ ] Final documentation truthful.
-- [ ] CHANGELOG converted/finalized if publication authorized.
-- [ ] Release notes finalized.
-- [ ] Source-only/no-assets policy reconfirmed.
-- [ ] Owner explicitly authorizes tag creation.
-- [ ] Owner explicitly authorizes GitHub prerelease creation.
+This checklist records the completed publication transaction and RR-005's
+subsequent documentation reconciliation. RR-005 did not precede tag creation;
+its documentation changes remain subject to normal PR integration.
 
-Before preparation, remote/local target-tag lookup was empty and GitHub's target
-release lookup returned 404. These are time-scoped checks, not reservations of
-the identity; repeat them before any later publication action.
+- [x] Exact final candidate main SHA selected.
+- [x] Exact tree recorded.
+- [x] Target tag absence verified immediately before creation.
+- [x] Target GitHub Release absence verified immediately before creation.
+- [x] Strict main CI PASS.
+- [x] Final exact-candidate version smoke PASS.
+- [x] Final documentation reconciled after publication in RR-005.
+- [x] CHANGELOG converted/finalized after publication in RR-005.
+- [x] Release notes finalized and published.
+- [x] Source-only/no-assets policy reconfirmed.
+- [x] Owner explicitly authorized tag creation.
+- [x] Owner explicitly authorized GitHub prerelease creation.
 
-## Owner-only final actions
+Historical RR-003/RR-004 collision evidence: local/remote target tags were absent
+and the target Release lookup returned 404 before publication. RR-004-PUB
+repeated these checks immediately before creating the new identities. They are
+historical absence checks, not assertions that the published identities are absent.
 
-RR-003 creates no tag, release, official binary, or uploaded asset and grants no
-publication authorization. Publication items above remain unchecked. A later
-gate must reconcile the exact final candidate, documentation, CI and identity
-before requesting specific Owner authorization. Existing tags/releases remain
-untouched. Phase 10 is NOT DEFINED / NOT AUTHORIZED. **RELEASE DEFERRED**.
+## Owner-only actions and subsequent work
+
+RR-003 did not grant publication authorization. The Owner subsequently granted
+it explicitly for RR-004-PUB, which completed publication. RR-005 reconciles
+documentation only and does not edit the Release, move the tag, or upload assets.
+Further releases or assets require separate authorization. Phase 10 remains
+**NOT DEFINED / NOT AUTHORIZED**.
 
 ## Sources
 
 - [Current README](../README.md)
-- [Unreleased changelog](../CHANGELOG.md#unreleased)
+- [Published changelog](../CHANGELOG.md#040-alpha1---2026-09-14)
 - [Roadmap](../ROADMAP.md)
 - [ADR-002](architecture/adr/ADR-002-agent-run-ownership.md)
 - [AI workflow and accepted evidence](AI_PROMPT_WORKFLOW.md)

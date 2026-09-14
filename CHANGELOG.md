@@ -5,24 +5,21 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 ## Unreleased
 
-Target prerelease candidate: **0.4.0-alpha.1**. Owner-selected: **YES**.
-Status: **PREPARATION / NOT PUBLISHED**. Publication: **NOT AUTHORIZED**.
-Release state: **DEFERRED**. See the
-[draft candidate evidence](docs/RELEASE_CANDIDATE_0.4.0-alpha.1.md).
-Only a later Owner-authorized publication preparation step may convert the
-relevant Unreleased content into a finalized, dated version section.
+- Documentation-only post-publication reconciliation (RR-005); no runtime changes.
 
-These changes are integrated into main and remain **UNRELEASED**. Published
-`v0.3.0-alpha.1` is unchanged and does not include `forge ai prompt`.
+## 0.4.0-alpha.1 - 2026-09-14
+
+Published as a [source-only GitHub prerelease](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1).
+Uploaded assets: **0**. Non-production; APIs and formats remain pre-stable.
+Publication source: `85d78143db1b8bcf2f96b79d681895b1a0492642`.
+
 Phase 8 bounded AI/tool foundation is **CLOSED / PASS**, including accepted
 real-provider validation **PASS**. Phase 9 is **CLOSED / PASS — BOUNDED AGENT
-EXECUTION LIFECYCLE**, internal/pre-stable. The initial text-only PR #1 was an
-earlier checkpoint; its then-unrun live validation does not describe current main.
-These additions are not part of the historical alpha.1 release below.
+EXECUTION LIFECYCLE**, internal/pre-stable. The original PR #1 text-only slice
+and its then-unrun live validation remain historical evidence. These additions
+are absent from historical v0.3.0-alpha.1 below.
 
-**Phase 10: NOT DEFINED / NOT AUTHORIZED. RELEASE DEFERRED.** RR-001 reconciles
-documentation only; it does not decide release readiness, a new version, binary
-publication, or the next phase. It performs no live provider call.
+**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
 
 ### Added
 
