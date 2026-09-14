@@ -14,13 +14,16 @@ The long-term vision of Forge is to become a modern application platform where a
 > Source-only GitHub prerelease; zero uploaded binary assets; non-production;
 > APIs and formats remain pre-stable.
 >
-> **Current main:** RR-005 adds documentation-only post-publication reconciliation
-> beyond the published source, with no new runtime capability. At RR-005 start,
+> **Current main:** RR-005 reconciliation and P10-A1 architecture documentation
+> are beyond the published source, with no new runtime capability. At RR-005 start,
 > main and the tag both selected `85d78143db1b8bcf2f96b79d681895b1a0492642`.
 > Phase 8 bounded AI/tool foundation is **CLOSED / PASS**, including accepted
 > real-provider validation. Phase 9 is **CLOSED / PASS — BOUNDED AGENT EXECUTION
 > LIFECYCLE**, internal/pre-stable and included in this release.
-> **Phase 10: NOT DEFINED / NOT AUTHORIZED.**
+> **Phase 10 architecture selected:** Bounded Workflow Composition — Synchronous
+> Sequences. **Implementation remains NOT AUTHORIZED.** P10-A1 integration and
+> strict push-main CI establish the canonical definition; no runtime capability
+> is added. See [ADR-003](docs/architecture/adr/ADR-003-bounded-workflow-composition.md).
 
 The [historical First Alpha v0.3.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.3.0-alpha.1)
 remains unchanged, with zero uploaded binary assets and without the later
@@ -294,7 +297,8 @@ application shutdown/drain/restart composition. `forge ai prompt` retains its
 direct Phase 8 composition; it does not execute through Run or RunHost.
 This is not autonomous planning, an agent command, public `pkg/agent`, memory,
 persistence, workflow orchestration, a scheduler, queue, or background jobs.
-Phase 10 is **NOT DEFINED / NOT AUTHORIZED**. **v0.4.0-alpha.1 is published.**
+Phase 10 selects bounded synchronous-sequence architecture only; implementation
+remains **NOT AUTHORIZED**. **v0.4.0-alpha.1 is published** and unchanged.
 
 ## Quick Start: External Alpha Workflow
 
@@ -687,7 +691,8 @@ The authoritative roadmap records Phases 0–9:
 - Phase 8 — AI Runtime: CLOSED / PASS for bounded AI/tool scope; real-provider PASS; published in v0.4.0-alpha.1
 - Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS; internal/pre-stable, included in v0.4.0-alpha.1
 
-Phase 10: **NOT DEFINED / NOT AUTHORIZED**.
+Phase 10: **Bounded Workflow Composition — Synchronous Sequences**;
+architecture selected, implementation **NOT AUTHORIZED**.
 
 Bounded Alpha closure does not mean that a phase's complete long-term scope is
 finished. See the current phase statuses and deferred work in
@@ -818,7 +823,8 @@ Agent Execution Lifecycle
 Phase 9 CLOSED / PASS; internal/pre-stable, included in v0.4.0-alpha.1
 
 Phase 10
-NOT DEFINED / NOT AUTHORIZED
+Bounded Workflow Composition — Synchronous Sequences
+Architecture selected; implementation NOT AUTHORIZED
 ```
 > Progress percentages represent the completed foundation scope for each
 > engineering area. They do not imply that the entire long-term platform
@@ -838,7 +844,7 @@ APIs are not delivered. These closures do not imply Beta/production readiness,
 sandboxing, process-tree containment, or persistent trust rotation/revocation.
 
 RR-004-PUB is **CLOSED / PASS — PUBLISHED**. Further releases, binary assets,
-and Phase 10 require separate Owner/governance decisions.
+and Phase 10 implementation require separate Owner/governance decisions.
 
 The core, local exact-identity registry, and trusted local runtime scopes are
 Alpha-bounded closed. Phase 6 — Compiler / Package Pipeline Hardening is

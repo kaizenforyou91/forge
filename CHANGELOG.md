@@ -6,6 +6,11 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 ## Unreleased
 
 - Documentation-only post-publication reconciliation (RR-005); no runtime changes.
+- Defined the Phase 10 bounded synchronous-sequence architecture (P10-A1);
+  no runtime implementation or public API change. Implementation packages remain
+  NOT AUTHORIZED; P10-A1 integration and strict push-main CI establish the
+  canonical definition. Phase 10 statements in released sections below record
+  their historical publication checkpoints.
 
 ## 0.4.0-alpha.1 - 2026-09-14
 

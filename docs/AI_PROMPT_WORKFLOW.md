@@ -7,7 +7,12 @@ after publication; it introduces no new runtime capability.
 Phase 8 bounded AI/tool foundation is **CLOSED / PASS**, including accepted
 real-provider validation **PASS**. Phase 9 is **CLOSED / PASS — BOUNDED AGENT
 EXECUTION LIFECYCLE**, internal/pre-stable and separate from CLI execution.
-**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
+At the v0.4.0-alpha.1 publication checkpoint, Phase 10 was not yet defined or
+authorized. Post-release P10-A0-R1 selected bounded synchronous workflow
+composition; implementation remains **NOT AUTHORIZED** and separately gated.
+[ADR-003](architecture/adr/ADR-003-bounded-workflow-composition.md) records the
+architecture-only decision; P10-A1 integration and strict push-main CI establish
+its canonical definition. This does not add a workflow command or change this CLI.
 
 These Phase 8/9 additions are **not included in published `v0.3.0-alpha.1`**.
 Its annotated tag and published prerelease remain at release commit
@@ -337,8 +342,8 @@ contracts and package formats. The published First Alpha is preserved.
 Publication status is aligned in the [README](../README.md),
 [ROADMAP](../ROADMAP.md), and [0.4.0-alpha.1 changelog](../CHANGELOG.md#040-alpha1---2026-09-14).
 RR-004-PUB is **CLOSED / PASS — PUBLISHED**; RR-005 reconciles documentation
-without changing the immutable release. Phase 10 remains
-**NOT DEFINED / NOT AUTHORIZED**. Any new live call also
+without changing the immutable release. Phase 10 synchronous-sequence architecture
+is selected; implementation remains **NOT AUTHORIZED**. Any new live call also
 requires separate authorization. No tool/provider expansion, autonomous agents,
 AI memory/durable history, persistence, workflow, scheduler, queues/workers,
 public agent API, Beta/production readiness, sandboxing, process-tree containment,

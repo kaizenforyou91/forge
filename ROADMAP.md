@@ -13,7 +13,10 @@ P9-A1/B1/B2/B3/C0 are **CLOSED / PASS — INTEGRATED**; no further Phase 9 runti
 implementation is required. RR-005 is the documentation-only post-publication
 reconciliation package; it adds no runtime capability. PR #24 integration and
 strict push-main CI are the closure gate.
-**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
+**Phase 10 architecture selected by Control Room: Bounded Workflow Composition
+— Synchronous Sequences.** P10-A1 integration plus strict push-main CI establishes
+the canonical definition. Implementation packages require separate authorization;
+P10-B1/B2/B3/C0 are **NOT AUTHORIZED** and no runtime implementation is started.
 
 ---
 
@@ -394,10 +397,13 @@ recursive tool conversations, AI memory, durable jobs, persistence, workflow
 engine, scheduler, queue, worker pool, background execution, arbitrary tool
 catalog, additional built-in tools, filesystem/network/subprocess agent tools,
 provider routing, multi-provider compatibility, public `pkg/agent` API, or Beta
-readiness. Future memory, workflow, scheduler, and tool/provider expansion
-require a new architecture/roadmap selection gate. Publication required separate
+readiness. Memory, scheduler, and tool/provider expansion require new selection
+gates. Bounded synchronous workflow composition was separately selected by
+post-release P10-A0-R1; implementation remains NOT AUTHORIZED. Publication required separate
 release governance and did not broaden Phase 9 authority.
-**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
+At the v0.4.0-alpha.1 publication checkpoint, Phase 10 was not yet defined or
+authorized. The subsequent architecture-only definition below changes no Phase 9
+authority or published runtime capability.
 
 Release status: **0.4.0-alpha.1 PUBLISHED**. Separate governance through RR-001
 to RR-004-PUB authorized the source-only prerelease (zero assets) at
@@ -407,6 +413,155 @@ passed Ubuntu/Windows acceptance and Ubuntu race. P9-C0 itself did not authorize
 publication. RR-005 reconciles documentation afterward, without moving tags.
 Historical `v0.3.0-alpha.1` remains at
 `5d836931216203aeea0737fc54de9e95091a62ef`.
+
+---
+
+# Phase 10 — Bounded Workflow Composition
+
+## Synchronous Sequences
+
+**Architecture definition selected by Control Room.** P10-A0-R1 is
+**CLOSED / PASS — OUTCOME A ACCEPTED**. P10-A1 integration plus strict push-main
+CI establishes the canonical definition. Implementation packages require
+separate authorization; no B package is started. This status is an effectiveness
+rule and remains truthful before and after integration.
+
+Objective: compose a finite, explicit sequence of already-authorized AI operations
+synchronously while preserving caller authority, lifecycle ownership, fail-fast
+semantics, cancellation, and bounded resource behavior.
+
+[ADR-003: Bounded Workflow Composition — Synchronous Sequences](docs/architecture/adr/ADR-003-bounded-workflow-composition.md)
+is the detailed architecture decision. Preparation baseline:
+`217be79f938b6f913c08ae86e1c918896e66fd68`, tree
+`4a1393af3eceae4dd8a2db6b87a2f5968ebe4680`;
+[strict main CI 34799363981](https://github.com/kaizenforyou91/forge/actions/runs/34799363981)
+is attempt 1, push/main, completed/success on that SHA with Ubuntu/Windows
+acceptance and Ubuntu race PASS. Published v0.4.0-alpha.1 remains immutable;
+architecture selection adds no runtime capability to main or that release.
+
+### Scope and core decisions
+
+- INTERNAL, single-use Sequence in `internal/agent`; Ready / Running /
+  Succeeded / Failed / Canceled, atomic execution claim, explicit Cancel,
+  stable Done, deterministic normal terminal publication, reference release.
+- Synchronous caller-goroutine execution; ZERO sequence worker goroutines.
+  Exactly 1..8 steps. Eight is an intentional initial safety bound, not a measured
+  product requirement. Static linear declaration order only, with no concurrency
+  inside one sequence.
+- Only text Run and authorized-tool Run semantics. Immutable specifications fix
+  operation kind, provider/round-tripper, model, MaxOutputTokens, timeout,
+  applicable immutable tool Authority, and input source before Execute.
+- Inputs are exactly LITERAL_TEXT or PREVIOUS_STEP_TEXT; step 1 is literal.
+  Previous text is the immediately preceding result, unchanged. Apply normal
+  ai.Request.Validate before next provider work: blank, invalid UTF-8, >16 KiB,
+  or otherwise invalid handoff fails. No truncation, summarization, template,
+  concatenation, transformation callback, or automatic extra call.
+- Construct each fresh Run only after input is known, through NewRun or
+  NewAuthorizedToolRun. Do not mutate preconstructed Runs or export a generic
+  executable operation constructor.
+- Step timeouts satisfy ai.ValidateTimeout; overall timeout is positive and
+  at most 120 seconds. The earliest caller, overall, and step deadline wins;
+  subsequent steps receive only remaining time.
+- Fail fast: zero later work after failure/cancellation. No retry, replay,
+  resume, compensation, rollback, fallback, or alternate provider.
+- Success returns final step Result and bounded aggregate metadata; final Run
+  Usage is distinct from sequence usage. Failure returns zero success data and
+  a safe error, never prior successful text as final output. Intermediate text
+  exists only as needed; reference release is not secure erasure.
+- Checked aggregate usage only when all completed steps report Usage; any nil
+  means UNKNOWN/nil, never zero. Overflow fails safely. No per-Run token cap
+  applies to the aggregate; retain the 64-cap / 96-aggregate tool regression.
+- For T text and U tool steps, T+U<=8: accepted OpenAI paths allow at most T+2U
+  POSTs and U handler attempts. Eight tool steps permit at most 16 POSTs and
+  eight handler attempts; per-Run authority and bounds remain unchanged.
+- Provider/custom trusted implementation panics may propagate. Defer/unwind
+  must release applicable references and host admission bookkeeping; no
+  universal panic-to-safe-error conversion or detached execution is introduced.
+
+### Application ownership and authority
+
+Whole-sequence host ownership includes inter-step gaps. Independent calls to
+RunHost.Execute for each child Run are insufficient. Select private generalized
+active-execution bookkeeping inside internal/agent/host.go, with narrow Run and
+Sequence entry points. Admit a sequence once and drain the entire synchronous
+call; no public/generic operation API is introduced. Existing RunHost.Execute
+behavior remains compatible.
+
+Stop closes admission, cancels the Sequence and active Run, prevents the next
+step, and waits for the whole admitted call. Register/Start execute zero AI work.
+Restart captures a fresh application context; old Sequence objects remain
+consumed. Cancellation remains cooperative and cannot force a broken provider
+to return. pkg/app remains lifecycle owner, with no production API change.
+
+Authority comes only from the trusted caller and is fixed before execution.
+Handoff transfers text data, never provider/model/tool/timeout/node authority.
+No environment credential lookup, prompt/result/authority persistence, raw data
+logging, credential serialization, history, or resume state is added. The CLI
+remains direct Phase 8 composition, explicit network/tool opt-in, one read-only
+forge_runtime_info built-in, and no RunHost/Sequence migration.
+
+| Public surface decision | Answer |
+|---|---|
+| Public API / CLI change | NO / NO |
+| Manifest / package format change | NO / NO |
+| Persistence / background execution | NO / NO |
+| Network / tool authority expansion | NO / NO |
+
+Architecture Freeze v1.0 remains unchanged. Composition stays above pkg/app,
+pkg/ai, pkg/ai/tool, and existing internal/agent primitives. Lower layers must
+not import higher composition; no Freeze exception is required.
+
+### Non-goals and separate debt
+
+No autonomous agents, planning loops, multi-agent systems, durable AI memory or
+jobs, scheduler, queue, worker pool, background work, generic workflow engine,
+DAG, parallel sequence execution, branching/join, dynamic/model-created steps,
+expression language, generic tool marketplace, new built-ins, filesystem or
+shell/subprocess tools, provider routing/fallback, remote registry/distribution,
+public agent API/CLI, native/runtime/package steps, or production sandboxing.
+
+Validated-object-to-path execution binding, same-user package mutation, Windows
+ACL/reparse/share-mode hardening, process-tree/graceful native shutdown,
+persistent trust lifecycle, key rotation/revocation, and provenance/SBOM
+completeness remain IMPORTANT but are NOT P10 blockers. Runtime/Trust Hardening
+is the preferred next architecture wave unless future evidence changes priority;
+it is outside P10 and not automatically authorized.
+
+### Future packages and acceptance
+
+| Package | Defined scope | Status / integration dependency |
+|---|---|---|
+| P10-A1 | Architecture definition, ADR, roadmap | ARCHITECTURE ONLY; integration plus strict push-main CI establishes canonical effectiveness |
+| P10-B1 | Internal sequence lifecycle and static literal-step execution | NOT AUTHORIZED; integrated A1 and separate authorization required |
+| P10-B2 | Previous-text handoff and bounded aggregate accounting | NOT AUTHORIZED; integrated B1 and separate authorization required |
+| P10-B3 | Whole-sequence application-host integration | NOT AUTHORIZED; integrated B2 and separate authorization required |
+| P10-C0 | Offline integration / architecture closure | NOT AUTHORIZED; integrated B1/B2/B3 and separate authorization required |
+
+The classification after P10-A1 integration and strict push-main PASS is
+CLOSED / PASS — INTEGRATED for A1 only. B1/B2/B3/C0 are not authorized by that
+event. Likely future implementation family is internal/agent/sequence*.go,
+sequence*_test.go, host.go, and host_test.go; P10-A1 creates no Go files.
+
+Future deterministic offline proofs cover single claim, sequential order,
+zero/>8 rejection, valid step types, literal/handoff validation, zero next calls
+on failure, all deadline/cancellation boundaries, application Stop during and
+between steps, drain/restart, known/unknown/overflow usage, 64/96 preservation,
+immutable authority, redaction, terminal reference release, concurrent Execute,
+race behavior, and panic unwind bookkeeping. Use synchronization rather than
+sleeps where possible. Preserve Ubuntu/Windows acceptance for dependency
+metadata/cleanliness, listing, vet, full tests and build; Ubuntu race retains
+pkg/compiler, runtime, internal/cli, pkg/ai, internal/aiprovider/openai,
+pkg/ai/tool, and internal/agent. No new dependency is currently justified.
+
+**NO NEW LIVE PROVIDER VALIDATION REQUIRED** for composition of unchanged
+accepted paths. Wire serialization, HTTP, decoding, or provider/tool round-trip
+changes in a future package must reopen freshness review. P10-A1 makes no live
+call and accesses no API key.
+
+No version or release is selected/authorized. Architecture definition has no
+automatic publication effect; a later implemented Phase 10 may be considered
+for an alpha feature release only through a separate gate. No Beta readiness
+or new production guarantee is implied.
 
 ---
 
@@ -542,6 +697,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 7 — Runtime | ✅ Alpha-Bounded Closed; trusted local direct-child boundary |
 | Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; published in v0.4.0-alpha.1 |
 | Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE |
+| Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | Architecture selected; implementation NOT AUTHORIZED; P10-A1 integration plus strict push-main CI establishes canonical definition |
 
 ## Engineering Milestones
 
@@ -1009,7 +1165,7 @@ Future capabilities (do not keep Phase 6 open):
 
 ```text
 Published release: v0.4.0-alpha.1 — source-only, zero uploaded assets
-Current main: RR-005 documentation-only post-publication reconciliation
+Current main: RR-005 reconciliation plus P10-A1 architecture documentation; no new runtime capability
 → Phase 1 — Core Foundation: Alpha-Bounded Closed
 → Phase 2 — Alpha workflow implemented; long-term expansion planned
 → Phase 3 — Manifest Engine: Complete for current contract
@@ -1023,7 +1179,7 @@ Current main: RR-005 documentation-only post-publication reconciliation
 → Bounded Tool Calling / Real Provider Acceptance: PASS
 → Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS; included, internal/pre-stable
 → Phase 9 Packages: A1/B1/B2/B3/C0 CLOSED / PASS — INTEGRATED; no further runtime package required
-→ Phase 10: NOT DEFINED / NOT AUTHORIZED
+→ Phase 10 — Bounded Workflow Composition (Synchronous Sequences): architecture selected; implementation NOT AUTHORIZED
 → Autonomous Agents / Memory / Workflow Engine / Scheduler: Future
 → Release: 0.4.0-alpha.1 PUBLISHED; RR-004-PUB CLOSED / PASS
 → RR-005 — post-publication documentation reconciliation; documentation-only, no runtime changes; PR #24 merge + strict push-main CI are the closure gate
