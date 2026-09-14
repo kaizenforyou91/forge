@@ -15,8 +15,14 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   single-use ownership, fail-fast cancellation, bounded deadlines, and terminal
   cleanup including panic unwind. No public API, CLI, persistence, background
   worker, previous-text handoff, aggregate Sequence usage, or host integration.
-  B1 integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED;
-  P10-B2/B3/C0 remain NOT AUTHORIZED / NOT STARTED.
+  P10-B1 is CLOSED / PASS — INTEGRATED; those exclusions describe the B1 slice.
+- Implemented separately authorized P10-B2 previous-step text handoff and checked
+  aggregate Sequence accounting. Handoff transfers only unchanged immediate-prior
+  text, revalidated before a fresh child Run. Known usage is checked for int64
+  overflow; any unknown child usage keeps the aggregate unknown. Final child
+  usage remains separate. No host, public API, CLI, persistence, or background
+  expansion. B2 integration plus strict push-main CI establishes closure;
+  P10-B3/C0 remain NOT AUTHORIZED / NOT STARTED.
 
 ## 0.4.0-alpha.1 - 2026-09-14
 
