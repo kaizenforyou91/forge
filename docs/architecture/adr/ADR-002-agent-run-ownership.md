@@ -352,9 +352,10 @@ three canonical jobs without retry or waiver.
 | P9-C0 | Offline integration / architecture closure | CLOSED / PASS — INTEGRATED |
 
 The separate B1/B2/B3 authorizations do not retroactively broaden P9-A1.
-Memory, workflow, scheduler, tool/provider expansion, and release remain future
-work requiring a new architecture/roadmap selection gate. P9-C0 authorized no
-runtime capability. **Phase 10: NOT DEFINED / NOT AUTHORIZED.**
+Memory, workflow, scheduler, and tool/provider expansion remain future work
+requiring a new architecture/roadmap selection gate. Phase 9 did not authorize
+publication; release governance proceeded separately through RR-001 to RR-004-PUB.
+P9-C0 authorized no runtime capability. **Phase 10: NOT DEFINED / NOT AUTHORIZED.**
 
 ## Original P9-B1 acceptance intent (now satisfied)
 
@@ -400,8 +401,15 @@ including canonical agent/OpenAI race coverage.
 
 ## Release status
 
-**RELEASE DEFERRED.** README/CHANGELOG/release-identity synchronization remains
-separate release-readiness work before a publication decision. P9-C0 changes
-none of those files, the historical AI workflow, or the Architecture Freeze.
+**v0.4.0-alpha.1 is PUBLISHED**, following separate RR-001 through RR-004-PUB
+governance and explicit Owner publication authorization. The source-only
+[GitHub prerelease](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1)
+has zero uploaded assets and selects
+`85d78143db1b8bcf2f96b79d681895b1a0492642`.
+RR-005 reconciles current publication wording only. P9-C0 did not authorize
+publication; the original architecture decision and separate B1/B2/B3
+authorizations are unchanged. Publication does not broaden Phase 9 authority.
+**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
+
 Published `v0.3.0-alpha.1` remains at
-`5d836931216203aeea0737fc54de9e95091a62ef`; no tag is created or moved.
+`5d836931216203aeea0737fc54de9e95091a62ef`; RR-005 creates or moves no tag.

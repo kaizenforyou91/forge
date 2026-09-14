@@ -8,15 +8,16 @@ manifest validation, package creation and inspection, explicit trust, and
 native application execution for published `v0.3.0-alpha.1`. It does not add
 current-main AI commands to that historical release's workflow.
 
-Current main is ahead of alpha.1 and **UNRELEASED**: Phase 8 bounded AI/tool
-foundation is **CLOSED / PASS**, including accepted real-provider validation **PASS**;
-Phase 9 is **CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE**,
-internal/pre-stable. See the separate [current-main AI workflow](AI_PROMPT_WORKFLOW.md)
-and [roadmap](../ROADMAP.md). The original text-only implementation checkpoint
-is historical evidence, not the full current-main capability set.
-**Phase 10: NOT DEFINED / NOT AUTHORIZED. RELEASE DEFERRED.**
+The historical First Alpha remains `v0.3.0-alpha.1`.
+The latest published prerelease is now
+[v0.4.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1),
+source-only with zero uploaded binary assets. Its bounded Phase 8 AI/tool
+capability and internal/pre-stable Phase 9 lifecycle foundation are CLOSED / PASS.
+See the separate [0.4.0-alpha.1 AI workflow](AI_PROMPT_WORKFLOW.md) and
+[roadmap](../ROADMAP.md). This guide preserves the historical First Alpha commands.
+**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
 
-## Current maturity: First Alpha — 0.3.0-alpha.1
+## Historical release maturity: First Alpha — 0.3.0-alpha.1
 
 Forge First Alpha is a local, manifest-driven, non-production technical
 preview. Formal readiness is approved with non-blocking accepted debt. This
@@ -360,8 +361,8 @@ revocation, arguments/environment/stdin/caller working directory, live output
 streaming, descendant lifecycle and graceful shutdown, sandboxing and resource
 controls, dynamic plugin loading, scheduling/orchestration, cross-toolchain
 reproducibility, build isolation, and the AI Runtime. That last exclusion
-describes alpha.1: current-main bounded Phase 8/9 additions are separately
-documented and remain unreleased.
+describes historical v0.3.0-alpha.1: bounded Phase 8/9 additions are separately
+documented and published in v0.4.0-alpha.1.
 
 Security debt also remains around same-user in-place modification of an opened
 package, materialized validation-to-path-execution binding, and deeper Windows
@@ -379,9 +380,9 @@ preview with pre-stable APIs and package formats.
 
 ## Publication boundary
 
-**RELEASE DEFERRED.** RR-001 changes documentation only and performs no live
-provider call. It does not decide another release, a version number, current-main
-release readiness, binary publication, or whether Phase 10 should open.
+v0.4.0-alpha.1 is published; the historical v0.3.0-alpha.1 workflow and release
+identity remain unchanged. RR-005 changes documentation only and performs no
+live provider call. Further publication actions require separate authorization.
 Autonomous agents, AI memory/durable history, persistence, workflows, schedulers,
 queues/workers, multi-agent orchestration, arbitrary side-effect tools, provider
 routing, and public agent APIs remain outside the delivered Phase 8/9 boundary.

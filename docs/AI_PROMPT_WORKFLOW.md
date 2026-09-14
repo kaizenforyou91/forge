@@ -1,10 +1,13 @@
-# AI Prompt — Current Main / Unreleased Workflow
+# Forge 0.4.0-alpha.1 AI Prompt Workflow
 
-Current main is ahead of published alpha.1 and remains **UNRELEASED**.
+AI prompt capability is included in [published v0.4.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1),
+a source-only GitHub prerelease with zero uploaded assets. It remains
+non-production with pre-stable APIs and formats. RR-005 reconciles documentation
+after publication; it introduces no new runtime capability.
 Phase 8 bounded AI/tool foundation is **CLOSED / PASS**, including accepted
 real-provider validation **PASS**. Phase 9 is **CLOSED / PASS — BOUNDED AGENT
 EXECUTION LIFECYCLE**, internal/pre-stable and separate from CLI execution.
-**Phase 10: NOT DEFINED / NOT AUTHORIZED. RELEASE DEFERRED.**
+**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
 
 These Phase 8/9 additions are **not included in published `v0.3.0-alpha.1`**.
 Its annotated tag and published prerelease remain at release commit
@@ -13,15 +16,16 @@ The [Alpha workflow](ALPHA_WORKFLOW.md) describes that historical product bounda
 The original PR #1 text-only checkpoint below is historical evidence; the text
 mode contract remains valid within the current two-path CLI.
 
-External pilot: **DEFERRED / NON-BLOCKING / NOT RUN**. RR-001 uses existing
-accepted live evidence only and performs no live call or API-key access.
+External pilot: **DEFERRED / NON-BLOCKING / NOT RUN**. RR-005 performs zero
+live OpenAI calls and no API-key access. Previously accepted live validation
+remained sufficient for publication because the production AI path was unchanged.
 
 ## Acceptance evidence
 
-The accepted current source baseline is
-`b8e1a2306e98b238b631f1eb7cc373c7ada5ce36`, tree
-`5e88273ef7a6753dfe6758f614ba9082f8524853`.
-[Push-main CI 34763493724](https://github.com/kaizenforyou91/forge/actions/runs/34763493724)
+Publication source:
+`85d78143db1b8bcf2f96b79d681895b1a0492642`, tree
+`e58a864eb6617811cca1dcb8d2d30bbd72e19298`.
+[Strict push-main CI 34786373253](https://github.com/kaizenforyou91/forge/actions/runs/34786373253)
 completed successfully on that exact SHA: Ubuntu acceptance **PASS**, Windows
 acceptance **PASS**, and Ubuntu race **PASS**. Acceptance covers dependency
 metadata/cleanliness, listing, vet, full tests, and build. Canonical race covers
@@ -35,7 +39,15 @@ direct text, a real function proposal, authorized local handler execution,
 Returned version/commit/build-time matched local runtime identity 3/3. The
 [roadmap](../ROADMAP.md#phase-8--ai-runtime) and
 [ADR-002](architecture/adr/ADR-002-agent-run-ownership.md) preserve the accepted
-scope and history. RR-001 does not rerun or extend that live evidence.
+scope and history. No new live request was made for publication or RR-005.
+
+### Historical RR-001 checkpoint
+
+RR-001 reconciled documentation against source
+`b8e1a2306e98b238b631f1eb7cc373c7ada5ce36`, tree
+`5e88273ef7a6753dfe6758f614ba9082f8524853`, with
+[CI 34763493724](https://github.com/kaizenforyou91/forge/actions/runs/34763493724)
+PASS. That pre-publication checkpoint did not authorize or run new live validation.
 
 ### Historical PR #1 checkpoint
 
@@ -65,7 +77,7 @@ workflow runs without network access.
 
 ## One explicit prompt
 
-From a binary built from current main, the unreleased command grammar is:
+For v0.4.0-alpha.1, the public command grammar is:
 
 ```text
 forge ai prompt --provider openai --model <model-id> --text "<prompt>" --allow-network [--allow-tools] [--timeout 30s] [--max-output-tokens 1024]
@@ -76,7 +88,7 @@ There is no default model, provider alias, fallback or provider routing.
 Missing `--allow-network` or `--allow-network=false` fails without a request.
 
 Illustrative text-mode command requiring separate authorization for any new live
-run; **not an instruction to run it during RR-001 or offline acceptance**:
+run; **not an instruction to run it during RR-005 or offline acceptance**:
 
 ```text
 forge ai prompt --provider openai --model gpt-4.1-mini-2025-04-14 --text "Summarize in one sentence: The dummy team agreed to hold a demo on Friday." --allow-network
@@ -299,14 +311,14 @@ Hosted `race (ubuntu-latest)` remains canonical and executes:
 go test -race ./pkg/compiler ./runtime ./internal/cli ./pkg/ai ./internal/aiprovider/openai ./pkg/ai/tool ./internal/agent -count=1
 ```
 
-Local race is not required for RR-001. Report an unavailable local race/CGO
+Local race is not required for RR-005. Report an unavailable local race/CGO
 toolchain as NOT RUN, not PASS. Run the repository's normal format, dependency
 cleanliness, list, vet, full tests and build checks for implementation acceptance.
 
 **OFFLINE CONTRACT PASS** means these offline checks have corresponding recorded
 evidence. The accepted **LIVE PROVIDER ACCEPTANCE PASS** above comes from the
 separately authorized Phase 8 real-provider validation, not fake test output or
-hosted CI. RR-001 performs no live call. Phase 8 and Phase 9 closure are recorded
+hosted CI. RR-005 performs no live call. Phase 8 and Phase 9 closure are recorded
 in the roadmap; offline checks alone do not create new live acceptance evidence.
 
 ## References and follow-up
@@ -322,11 +334,11 @@ on 2026-09-07 (not a new provider-specification verification by RR-001):
 
 `forge build`, `build-runnable`, `inspect` and `run` retain their existing
 contracts and package formats. The published First Alpha is preserved.
-The current main/offline status is aligned in the [README](../README.md),
-[ROADMAP](../ROADMAP.md), and [Unreleased changelog](../CHANGELOG.md#unreleased).
-**RELEASE DEFERRED.** RR-001 does not decide another release, its version,
-current-main release readiness, binary publication, or whether Phase 10 should
-open. Phase 10 remains **NOT DEFINED / NOT AUTHORIZED**. Any new live call also
+Publication status is aligned in the [README](../README.md),
+[ROADMAP](../ROADMAP.md), and [0.4.0-alpha.1 changelog](../CHANGELOG.md#040-alpha1---2026-09-14).
+RR-004-PUB is **CLOSED / PASS — PUBLISHED**; RR-005 reconciles documentation
+without changing the immutable release. Phase 10 remains
+**NOT DEFINED / NOT AUTHORIZED**. Any new live call also
 requires separate authorization. No tool/provider expansion, autonomous agents,
 AI memory/durable history, persistence, workflow, scheduler, queues/workers,
 public agent API, Beta/production readiness, sandboxing, process-tree containment,

@@ -10,18 +10,21 @@ Forge is an AI-native application platform written in Go. It is designed to buil
 
 The long-term vision of Forge is to become a modern application platform where applications are described declaratively, validated automatically, and executed through a modular runtime.
 
-> **Published release:** First Alpha — v0.3.0-alpha.1 (unchanged).
+> **Latest published prerelease:** [v0.4.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1).
+> Source-only GitHub prerelease; zero uploaded binary assets; non-production;
+> APIs and formats remain pre-stable.
 >
-> **Current main:** ahead of the published release and **UNRELEASED**.
+> **Current main:** RR-005 adds documentation-only post-publication reconciliation
+> beyond the published source, with no new runtime capability. At RR-005 start,
+> main and the tag both selected `85d78143db1b8bcf2f96b79d681895b1a0492642`.
 > Phase 8 bounded AI/tool foundation is **CLOSED / PASS**, including accepted
 > real-provider validation. Phase 9 is **CLOSED / PASS — BOUNDED AGENT EXECUTION
-> LIFECYCLE**, internal/pre-stable. Non-production technical preview.
-> **Phase 10: NOT DEFINED / NOT AUTHORIZED. RELEASE DEFERRED.**
+> LIFECYCLE**, internal/pre-stable and included in this release.
+> **Phase 10: NOT DEFINED / NOT AUTHORIZED.**
 
-The [published alpha.1 prerelease](https://github.com/kaizenforyou91/forge/releases/tag/v0.3.0-alpha.1)
-has zero uploaded prebuilt binary assets and excludes these later Phase 8/9
-additions. Historical checkpoints below describe their own source revisions,
-not the complete current-main capability set.
+The [historical First Alpha v0.3.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.3.0-alpha.1)
+remains unchanged, with zero uploaded binary assets and without the later
+Phase 8/9 additions. Historical checkpoints below describe their own revisions.
 
 Forge First Alpha is a local, manifest-driven technical preview supporting
 strict manifest validation, deterministic package creation, signed host-target
@@ -77,15 +80,15 @@ the component's full roadmap or production hardening is complete.
 | Workspace | Bootstrap complete |
 | Core | Alpha-bounded scope complete; long-term expansion planned |
 | Documentation | External First Alpha workflow established |
-| CLI | Alpha workflow implemented; unreleased AI prompt with explicit read-only tool opt-in; long-term expansion planned |
+| CLI | Alpha workflow implemented; AI prompt published in v0.4.0-alpha.1 with explicit read-only tool opt-in; long-term expansion planned |
 | Manifest Engine | Complete for current contract |
 | Validation Engine | Alpha validation workflow implemented; long-term expansion planned |
 | Registry | Alpha-bounded local exact-identity scope complete |
 | Compiler | CLOSED / PASS — bounded Pre-Alpha / First Alpha pipeline |
 | Runtime | Alpha-bounded trusted local direct-child scope complete |
 | Plugin System | Static foundation complete; dynamic loading deferred |
-| AI Runtime | Phase 8 bounded AI/tool foundation CLOSED / PASS; real-provider acceptance PASS; UNRELEASED |
-| Agent lifecycle | Phase 9 CLOSED / PASS; internal/pre-stable operation and application-host composition; UNRELEASED |
+| AI Runtime | Phase 8 bounded AI/tool foundation CLOSED / PASS; real-provider acceptance PASS; published in v0.4.0-alpha.1 |
+| Agent lifecycle | Phase 9 CLOSED / PASS; internal/pre-stable operation and application-host composition; published in v0.4.0-alpha.1 |
 
 ---
 
@@ -221,18 +224,18 @@ The current tested foundation includes:
   HTTP, middleware, and plugin foundations.
 - Bounded text AI execution, one OpenAI Responses adapter, and `forge ai prompt`
   with explicit opt-in to one read-only metadata tool; Phase 8 CLOSED / PASS,
-  including real-provider acceptance. Unreleased and absent from alpha.1.
+  including real-provider acceptance. Published in v0.4.0-alpha.1; absent from historical v0.3.0-alpha.1.
 - Internal/pre-stable single-use operation ownership, cancellation, stable Done,
   authorized-tool lifecycle composition, and application shutdown/drain/restart
   composition; Phase 9 CLOSED / PASS. No public agent API or agent CLI.
 
 Published `v0.3.0-alpha.1` provides `forge version`, `forge doctor`,
 `forge config`, `forge validate`, `forge build`, `forge build-runnable`,
-`forge inspect`, and `forge run`. Current main also provides the unreleased
-`forge ai prompt` command. The historical `forge init` and `forge fmt`
+`forge inspect`, and `forge run`. Published `v0.4.0-alpha.1` additionally provides
+`forge ai prompt`. The historical `forge init` and `forge fmt`
 targets are not current commands.
 
-The published release remains **First Alpha — v0.3.0-alpha.1**. The compiler
+The latest published prerelease is **v0.4.0-alpha.1**. The compiler
 and package pipeline are a tested local technical-preview foundation, not a
 production-ready package ecosystem or stable production format.
 
@@ -252,9 +255,9 @@ This bounded closure does not make Forge Beta or production-ready, and it does
 not complete all future compiler, runtime, trust, provenance, isolation, or
 security-hardening work.
 
-## Current main: bounded AI/tool execution (UNRELEASED)
+## Published v0.4.0-alpha.1: bounded AI/tool execution
 
-**`forge ai prompt` is not present in published `v0.3.0-alpha.1`.** Current main
+**`forge ai prompt` is included in v0.4.0-alpha.1 and absent from historical v0.3.0-alpha.1.** It
 supports one explicit prompt to OpenAI with a complete text response or
 classified error. The public grammar is:
 
@@ -281,7 +284,8 @@ provider output guarantee.
 The [AI prompt workflow](docs/AI_PROMPT_WORKFLOW.md) separates these paths,
 credential/network boundaries, and historical evidence. Use non-sensitive text:
 command arguments can appear in shell history. Accepted Phase 8 real-provider
-validation is **PASS**; RR-001 performs no live call. External pilot remains
+validation is **PASS**. No new live request was required for publication because
+the production AI path was unchanged; RR-005 performs zero live calls. External pilot remains
 **DEFERRED / NON-BLOCKING / NOT RUN**.
 
 Phase 9 is an internal/pre-stable lifecycle foundation: single-use Run ownership,
@@ -290,7 +294,7 @@ application shutdown/drain/restart composition. `forge ai prompt` retains its
 direct Phase 8 composition; it does not execute through Run or RunHost.
 This is not autonomous planning, an agent command, public `pkg/agent`, memory,
 persistence, workflow orchestration, a scheduler, queue, or background jobs.
-Phase 10 is **NOT DEFINED / NOT AUTHORIZED**. **RELEASE DEFERRED**.
+Phase 10 is **NOT DEFINED / NOT AUTHORIZED**. **v0.4.0-alpha.1 is published.**
 
 ## Quick Start: External Alpha Workflow
 
@@ -680,8 +684,8 @@ The authoritative roadmap records Phases 0–9:
 - Phase 5 — Registry
 - Phase 6 — Compiler
 - Phase 7 — Runtime
-- Phase 8 — AI Runtime: CLOSED / PASS for bounded AI/tool scope; real-provider PASS; UNRELEASED
-- Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS; internal/pre-stable, UNRELEASED
+- Phase 8 — AI Runtime: CLOSED / PASS for bounded AI/tool scope; real-provider PASS; published in v0.4.0-alpha.1
+- Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS; internal/pre-stable, included in v0.4.0-alpha.1
 
 Phase 10: **NOT DEFINED / NOT AUTHORIZED**.
 
@@ -733,7 +737,7 @@ Current public entry points are:
 - [`docs/ALPHA_WORKFLOW.md`](docs/ALPHA_WORKFLOW.md) — canonical external
   First Alpha walkthrough.
 - [`docs/AI_PROMPT_WORKFLOW.md`](docs/AI_PROMPT_WORKFLOW.md) — current main,
-  unreleased text/tool contracts and accepted offline/live evidence.
+  published v0.4.0-alpha.1 text/tool contracts and accepted offline/live evidence.
 - [`examples/alpha-app/`](examples/alpha-app/) — canonical example, including
   [`forge.yaml`](examples/alpha-app/forge.yaml) and
   [`main.go`](examples/alpha-app/main.go).
@@ -808,10 +812,10 @@ Phase 6 compiler/package/runnable pipeline CLOSED / PASS for the bounded
 Pre-Alpha / First Alpha scope
 
 AI Runtime
-Phase 8 bounded AI/tool foundation CLOSED / PASS; real-provider PASS; UNRELEASED
+Phase 8 bounded AI/tool foundation CLOSED / PASS; real-provider PASS; published in v0.4.0-alpha.1
 
 Agent Execution Lifecycle
-Phase 9 CLOSED / PASS; internal/pre-stable, UNRELEASED
+Phase 9 CLOSED / PASS; internal/pre-stable, included in v0.4.0-alpha.1
 
 Phase 10
 NOT DEFINED / NOT AUTHORIZED
@@ -824,17 +828,17 @@ NOT DEFINED / NOT AUTHORIZED
 
 ## Project Status
 
-The published release remains **First Alpha — v0.3.0-alpha.1**, a non-production
-technical preview. Current main is ahead of that release: Phase 8 bounded AI/tool
-and Phase 9 bounded agent lifecycle are **CLOSED / PASS**, **UNRELEASED**.
+The latest published prerelease is **v0.4.0-alpha.1**, source-only with zero
+uploaded binary assets. Phase 8 bounded AI/tool and Phase 9 internal lifecycle
+foundations are **CLOSED / PASS** and included. RR-005 reconciles documentation
+after publication without changing runtime capability.
 Autonomous agents, memory, durable history, persistence, workflow, scheduler,
 queues/workers, multi-agent orchestration, provider routing, and public agent
 APIs are not delivered. These closures do not imply Beta/production readiness,
 sandboxing, process-tree containment, or persistent trust rotation/revocation.
 
-**RELEASE DEFERRED.** RR-001 reconciles documentation only. It does not decide
-whether current main is ready for another release, its version or binary assets,
-or whether Phase 10 should open; those remain separate Owner/governance decisions.
+RR-004-PUB is **CLOSED / PASS — PUBLISHED**. Further releases, binary assets,
+and Phase 10 require separate Owner/governance decisions.
 
 The core, local exact-identity registry, and trusted local runtime scopes are
 Alpha-bounded closed. Phase 6 — Compiler / Package Pipeline Hardening is
