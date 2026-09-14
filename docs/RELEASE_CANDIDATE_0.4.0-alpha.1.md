@@ -15,7 +15,13 @@
 - assets: **0**
 - created_at: `2026-09-14T00:40:39Z`
 - published_at: `2026-09-14T00:42:10Z`
-- Phase 10: **NOT DEFINED / NOT AUTHORIZED**
+- Historical Phase 10 status at publication: **NOT DEFINED / NOT AUTHORIZED**
+
+Post-release P10-A0-R1 selected bounded synchronous workflow composition.
+Implementation remains **NOT AUTHORIZED** and separately gated.
+[ADR-003](architecture/adr/ADR-003-bounded-workflow-composition.md) records the
+architecture-only decision; P10-A1 integration and strict push-main CI establish
+its canonical definition. No Phase 10 runtime capability is part of this release.
 
 [Published Forge 0.4.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1)
 is a source-only, non-production prerelease. This record reconciles documentation
@@ -373,8 +379,9 @@ historical absence checks, not assertions that the published identities are abse
 RR-003 did not grant publication authorization. The Owner subsequently granted
 it explicitly for RR-004-PUB, which completed publication. RR-005 reconciles
 documentation only and does not edit the Release, move the tag, or upload assets.
-Further releases or assets require separate authorization. Phase 10 remains
-**NOT DEFINED / NOT AUTHORIZED**.
+Further releases or assets require separate authorization. Phase 10 architecture
+is selected as bounded synchronous sequences; implementation remains
+**NOT AUTHORIZED**. The publication identities and historical evidence are unchanged.
 
 ## Sources
 

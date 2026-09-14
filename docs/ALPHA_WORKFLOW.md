@@ -15,7 +15,12 @@ source-only with zero uploaded binary assets. Its bounded Phase 8 AI/tool
 capability and internal/pre-stable Phase 9 lifecycle foundation are CLOSED / PASS.
 See the separate [0.4.0-alpha.1 AI workflow](AI_PROMPT_WORKFLOW.md) and
 [roadmap](../ROADMAP.md). This guide preserves the historical First Alpha commands.
-**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
+At the v0.4.0-alpha.1 publication checkpoint, Phase 10 was not yet defined or
+authorized. Post-release P10-A0-R1 selected bounded synchronous workflow
+composition; implementation remains **NOT AUTHORIZED** and separately gated.
+[ADR-003](architecture/adr/ADR-003-bounded-workflow-composition.md) records the
+architecture-only decision; P10-A1 integration and strict push-main CI establish
+its canonical definition. These decisions do not alter the historical workflow.
 
 ## Historical release maturity: First Alpha — 0.3.0-alpha.1
 
@@ -387,4 +392,5 @@ Autonomous agents, AI memory/durable history, persistence, workflows, schedulers
 queues/workers, multi-agent orchestration, arbitrary side-effect tools, provider
 routing, and public agent APIs remain outside the delivered Phase 8/9 boundary.
 No Beta/production, sandboxing, process-tree containment, or persistent trust
-rotation/revocation claim is added. Phase 10 remains **NOT DEFINED / NOT AUTHORIZED**.
+rotation/revocation claim is added. Phase 10 synchronous-sequence architecture is
+selected; implementation remains **NOT AUTHORIZED**.

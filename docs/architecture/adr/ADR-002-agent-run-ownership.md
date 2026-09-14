@@ -352,10 +352,16 @@ three canonical jobs without retry or waiver.
 | P9-C0 | Offline integration / architecture closure | CLOSED / PASS — INTEGRATED |
 
 The separate B1/B2/B3 authorizations do not retroactively broaden P9-A1.
-Memory, workflow, scheduler, and tool/provider expansion remain future work
-requiring a new architecture/roadmap selection gate. Phase 9 did not authorize
+Memory, scheduler, and tool/provider expansion remain future work requiring a
+new architecture/roadmap selection gate. Bounded synchronous workflow composition
+was separately selected by post-release P10-A0-R1; implementation remains gated.
+Phase 9 did not authorize
 publication; release governance proceeded separately through RR-001 to RR-004-PUB.
-P9-C0 authorized no runtime capability. **Phase 10: NOT DEFINED / NOT AUTHORIZED.**
+P9-C0 authorized no runtime capability. At the v0.4.0-alpha.1 publication
+checkpoint, Phase 10 was not yet defined or authorized. See the subsequent
+[ADR-003](ADR-003-bounded-workflow-composition.md) architecture-only decision;
+P10-A1 integration and strict push-main CI establish its canonical definition.
+P10 implementation remains **NOT AUTHORIZED** and does not broaden Phase 9 authority.
 
 ## Original P9-B1 acceptance intent (now satisfied)
 
@@ -409,7 +415,9 @@ has zero uploaded assets and selects
 RR-005 reconciles current publication wording only. P9-C0 did not authorize
 publication; the original architecture decision and separate B1/B2/B3
 authorizations are unchanged. Publication does not broaden Phase 9 authority.
-**Phase 10: NOT DEFINED / NOT AUTHORIZED.**
+Phase 10 architecture was separately selected as bounded synchronous workflow
+composition; implementation remains **NOT AUTHORIZED**. This changes no Phase 9
+decision, implementation identity, or historical authorization.
 
 Published `v0.3.0-alpha.1` remains at
 `5d836931216203aeea0737fc54de9e95091a62ef`; RR-005 creates or moves no tag.
