@@ -10,8 +10,9 @@ Phase 8 bounded AI/tool foundation is **CLOSED / PASS**, including real-provider
 acceptance, and published in 0.4.0-alpha.1. Phase 9 is **CLOSED / PASS — BOUNDED
 AGENT EXECUTION LIFECYCLE**, included as internal/pre-stable infrastructure.
 P9-A1/B1/B2/B3/C0 are **CLOSED / PASS — INTEGRATED**; no further Phase 9 runtime
-implementation is required. RR-005 is documentation-only post-publication
-reconciliation, in progress pending its integration.
+implementation is required. RR-005 is the documentation-only post-publication
+reconciliation package; it adds no runtime capability. PR #24 integration and
+strict push-main CI are the closure gate.
 **Phase 10: NOT DEFINED / NOT AUTHORIZED.**
 
 ---
@@ -1025,7 +1026,7 @@ Current main: RR-005 documentation-only post-publication reconciliation
 → Phase 10: NOT DEFINED / NOT AUTHORIZED
 → Autonomous Agents / Memory / Workflow Engine / Scheduler: Future
 → Release: 0.4.0-alpha.1 PUBLISHED; RR-004-PUB CLOSED / PASS
-→ RR-005: post-publication documentation reconciliation in progress
+→ RR-005 — post-publication documentation reconciliation; documentation-only, no runtime changes; PR #24 merge + strict push-main CI are the closure gate
 → Package Pipeline Hardening checkpoints
 → Package Format Stabilization: Completed
 → Runnable Package Contract R1A: Completed
