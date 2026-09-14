@@ -14,9 +14,10 @@ implementation is required. RR-005 is the documentation-only post-publication
 reconciliation package; it adds no runtime capability. PR #24 integration and
 strict push-main CI are the closure gate.
 **Phase 10 architecture selected by Control Room: Bounded Workflow Composition
-— Synchronous Sequences.** P10-A1 integration plus strict push-main CI establishes
-the canonical definition. Implementation packages require separate authorization;
-P10-B1/B2/B3/C0 are **NOT AUTHORIZED** and no runtime implementation is started.
+— Synchronous Sequences.** P10-A1 is **CLOSED / PASS — INTEGRATED**.
+P10-B1 literal-sequence implementation is separately authorized; its integration
+plus strict push-main CI establishes CLOSED / PASS — INTEGRATED.
+P10-B2/B3/C0 remain **NOT AUTHORIZED / NOT STARTED**.
 
 ---
 
@@ -399,7 +400,8 @@ catalog, additional built-in tools, filesystem/network/subprocess agent tools,
 provider routing, multi-provider compatibility, public `pkg/agent` API, or Beta
 readiness. Memory, scheduler, and tool/provider expansion require new selection
 gates. Bounded synchronous workflow composition was separately selected by
-post-release P10-A0-R1; implementation remains NOT AUTHORIZED. Publication required separate
+post-release P10-A0-R1; P10-B1 literal-sequence implementation is separately authorized.
+P10-B2/B3/C0 remain NOT AUTHORIZED / NOT STARTED. Publication required separate
 release governance and did not broaden Phase 9 authority.
 At the v0.4.0-alpha.1 publication checkpoint, Phase 10 was not yet defined or
 authorized. The subsequent architecture-only definition below changes no Phase 9
@@ -421,25 +423,39 @@ Historical `v0.3.0-alpha.1` remains at
 ## Synchronous Sequences
 
 **Architecture definition selected by Control Room.** P10-A0-R1 is
-**CLOSED / PASS — OUTCOME A ACCEPTED**. P10-A1 integration plus strict push-main
-CI establishes the canonical definition. Implementation packages require
-separate authorization; no B package is started. This status is an effectiveness
-rule and remains truthful before and after integration.
+**CLOSED / PASS — OUTCOME A ACCEPTED**. P10-A1 is
+**CLOSED / PASS — INTEGRATED**. P10-B1 implementation is separately authorized;
+integration plus strict push-main CI establishes its CLOSED / PASS — INTEGRATED
+status. P10-B2/B3/C0 remain **NOT AUTHORIZED / NOT STARTED**.
 
 Objective: compose a finite, explicit sequence of already-authorized AI operations
 synchronously while preserving caller authority, lifecycle ownership, fail-fast
 semantics, cancellation, and bounded resource behavior.
 
 [ADR-003: Bounded Workflow Composition — Synchronous Sequences](docs/architecture/adr/ADR-003-bounded-workflow-composition.md)
-is the detailed architecture decision. Preparation baseline:
+is the detailed architecture decision. Historical P10-A1 preparation baseline:
 `217be79f938b6f913c08ae86e1c918896e66fd68`, tree
 `4a1393af3eceae4dd8a2db6b87a2f5968ebe4680`;
 [strict main CI 34799363981](https://github.com/kaizenforyou91/forge/actions/runs/34799363981)
 is attempt 1, push/main, completed/success on that SHA with Ubuntu/Windows
 acceptance and Ubuntu race PASS. Published v0.4.0-alpha.1 remains immutable;
-architecture selection adds no runtime capability to main or that release.
+architecture selection itself added no runtime capability to main or that release.
 
-### Scope and core decisions
+P10-A1 integrated main / P10-B1 preparation base:
+`18e7e51cf366519db5521d7237c218ffd54c6fe6`, tree
+`2eb9336df00ca52a479fd9ada72eaf16b2d22ffa`;
+[strict main CI 34807777744](https://github.com/kaizenforyou91/forge/actions/runs/34807777744)
+is attempt 1, push/main, completed/success with Ubuntu/Windows acceptance and
+Ubuntu race PASS. P10-B1 implements standalone internal literal execution only:
+`SequenceStep`, `Sequence`, and `SequenceResult{Final, CompletedSteps}` reuse
+existing Run paths and State. Construction validates and snapshots without I/O;
+one overall context bounds fresh, sequential child Runs. Failure/cancellation
+returns zero result. Panic propagates while Sequence becomes consumed/Failed,
+releases its references, and closes Done after unwind. Existing Run behavior
+is unchanged. There is no previous-text handoff, aggregate Sequence usage, or
+application-host admission in B1; those remain B2/B3 scope below.
+
+### Selected Phase 10 architecture — full scope beyond B1
 
 - INTERNAL, single-use Sequence in `internal/agent`; Ready / Running /
   Succeeded / Failed / Canceled, atomic execution claim, explicit Cancel,
@@ -531,16 +547,16 @@ it is outside P10 and not automatically authorized.
 
 | Package | Defined scope | Status / integration dependency |
 |---|---|---|
-| P10-A1 | Architecture definition, ADR, roadmap | ARCHITECTURE ONLY; integration plus strict push-main CI establishes canonical effectiveness |
-| P10-B1 | Internal sequence lifecycle and static literal-step execution | NOT AUTHORIZED; integrated A1 and separate authorization required |
-| P10-B2 | Previous-text handoff and bounded aggregate accounting | NOT AUTHORIZED; integrated B1 and separate authorization required |
-| P10-B3 | Whole-sequence application-host integration | NOT AUTHORIZED; integrated B2 and separate authorization required |
-| P10-C0 | Offline integration / architecture closure | NOT AUTHORIZED; integrated B1/B2/B3 and separate authorization required |
+| P10-A1 | Architecture definition, ADR, roadmap | CLOSED / PASS — INTEGRATED; architecture only |
+| P10-B1 | Internal sequence lifecycle and static literal-step execution | IMPLEMENTATION SEPARATELY AUTHORIZED; integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED |
+| P10-B2 | Previous-text handoff and bounded aggregate accounting | NOT AUTHORIZED / NOT STARTED; integrated B1 and separate authorization required |
+| P10-B3 | Whole-sequence application-host integration | NOT AUTHORIZED / NOT STARTED; integrated B2 and separate authorization required |
+| P10-C0 | Offline integration / architecture closure | NOT AUTHORIZED / NOT STARTED; integrated B1/B2/B3 and separate authorization required |
 
-The classification after P10-A1 integration and strict push-main PASS is
-CLOSED / PASS — INTEGRATED for A1 only. B1/B2/B3/C0 are not authorized by that
-event. Likely future implementation family is internal/agent/sequence*.go,
-sequence*_test.go, host.go, and host_test.go; P10-A1 creates no Go files.
+P10-A1 integration did not authorize implementation. B1 has separate approval
+and is confined to internal/agent/sequence.go, sequence_test.go, and narrow
+errors.go additions. B2/B3/C0 require separate approval. Future host.go and
+host_test.go composition is B3 only; B1 does not change RunHost or pkg/app.
 
 Future deterministic offline proofs cover single claim, sequential order,
 zero/>8 rejection, valid step types, literal/handoff validation, zero next calls
@@ -697,7 +713,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 7 — Runtime | ✅ Alpha-Bounded Closed; trusted local direct-child boundary |
 | Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; published in v0.4.0-alpha.1 |
 | Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE |
-| Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | Architecture selected; implementation NOT AUTHORIZED; P10-A1 integration plus strict push-main CI establishes canonical definition |
+| Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | P10-A1 CLOSED / PASS — INTEGRATED; B1 literal implementation separately authorized with integration + strict main CI closure gate; B2/B3/C0 NOT AUTHORIZED / NOT STARTED |
 
 ## Engineering Milestones
 
@@ -1165,7 +1181,8 @@ Future capabilities (do not keep Phase 6 open):
 
 ```text
 Published release: v0.4.0-alpha.1 — source-only, zero uploaded assets
-Current main: RR-005 reconciliation plus P10-A1 architecture documentation; no new runtime capability
+P10-B1 preparation base: main 18e7e51cf366519db5521d7237c218ffd54c6fe6, integrated P10-A1
+P10-B1: separately authorized internal literal-sequence implementation; integration + strict main CI are the closure gate
 → Phase 1 — Core Foundation: Alpha-Bounded Closed
 → Phase 2 — Alpha workflow implemented; long-term expansion planned
 → Phase 3 — Manifest Engine: Complete for current contract
@@ -1179,7 +1196,7 @@ Current main: RR-005 reconciliation plus P10-A1 architecture documentation; no n
 → Bounded Tool Calling / Real Provider Acceptance: PASS
 → Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS; included, internal/pre-stable
 → Phase 9 Packages: A1/B1/B2/B3/C0 CLOSED / PASS — INTEGRATED; no further runtime package required
-→ Phase 10 — Bounded Workflow Composition (Synchronous Sequences): architecture selected; implementation NOT AUTHORIZED
+→ Phase 10 — Bounded Workflow Composition (Synchronous Sequences): architecture defined; B1 literal slice separately authorized; B2/B3/C0 NOT AUTHORIZED / NOT STARTED
 → Autonomous Agents / Memory / Workflow Engine / Scheduler: Future
 → Release: 0.4.0-alpha.1 PUBLISHED; RR-004-PUB CLOSED / PASS
 → RR-005 — post-publication documentation reconciliation; documentation-only, no runtime changes; PR #24 merge + strict push-main CI are the closure gate
