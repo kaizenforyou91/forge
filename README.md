@@ -27,10 +27,13 @@ The long-term vision of Forge is to become a modern application platform where a
 > LIFECYCLE**, internal/pre-stable and included in the published release.
 
 **Phase 11 is DEFINED: Native Process Scope Ownership and Deterministic Cleanup.**
-P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**. P11-A1 is an architecture/ADR
-package only; implementation is **NOT AUTHORIZED**. P11-B1/B2/B3/B4/C0 remain
-**NOT AUTHORIZED / NOT STARTED**. This defines no new runtime capability or
-Beta/production guarantee. See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
+P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**; P11-A1 is
+**CLOSED / PASS — INTEGRATED**. P11-B1 is the separately authorized private,
+platform-neutral ownership-core package; its integration plus strict exact
+push-main CI establishes **CLOSED / PASS — INTEGRATED**. It adds coordination
+and deterministic fake-platform tests only, with no native scope mechanism or
+ProcessRunner integration. P11-B2/B3/B4/C0 remain **NOT AUTHORIZED / NOT STARTED**.
+No strengthened Linux/Windows behavior or Beta/production guarantee is claimed. See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
 for architecture details; the published release remains unchanged.
 
 The [historical First Alpha v0.3.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.3.0-alpha.1)
