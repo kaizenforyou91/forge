@@ -24,12 +24,14 @@ COMPOSITION (Synchronous Sequences)**. That gate passed on main
 
 **Phase 11 is DEFINED: Native Process Scope Ownership and Deterministic Cleanup.**
 P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**. P11-A1 is
-**AUTHORIZED — ARCHITECTURE / ADR ONLY**. P11-B1/B2/B3/B4/C0 remain
+**CLOSED / PASS — INTEGRATED**. P11-B1 is separately authorized for the private
+platform-neutral coordination core only. P11-B2/B3/B4/C0 remain
 **NOT AUTHORIZED / NOT STARTED**. The A0 report's earlier undefined status is
 historical and superseded by Control Room approval; selection is not reopened.
 See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
-for the detailed architecture record for review. No native scope implementation
-or release action is authorized by P11-A1.
+for the accepted architecture and bounded B1 record. B1 integration plus strict
+exact push-main CI establishes its CLOSED / PASS — INTEGRATED status. No native
+platform mechanism, runner integration, or release action is included in B1.
 
 ---
 
@@ -534,8 +536,8 @@ CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION (Synchronous Sequences).
 This closure gate passed at `bad51ed6ea7f476432c656036288f660281dbd50`,
 with strict push-main CI `34924714319`, attempt 1, completed/success.
 The immutable published release excludes Phase 10. The subsequent P11-A0
-selection was accepted; Phase 11 is defined below, with A1 architecture work
-only authorized and all implementation packages not authorized/not started.
+selection was accepted; Phase 11 is defined below, A1 is integrated, and B1
+privately implements coordination only. B2/B3/B4/C0 remain separately gated.
 
 ### Selected Phase 10 architecture
 
@@ -622,8 +624,9 @@ Validated-object-to-path execution binding, same-user package mutation, Windows
 ACL/reparse/share-mode hardening, process-tree/graceful native shutdown,
 persistent trust lifecycle, key rotation/revocation, and provenance/SBOM
 completeness remain IMPORTANT but are NOT P10 blockers. Control Room selected
-native process scope ownership as Phase 11; only P11-A1 architecture/ADR work is
-authorized. The other hardening families remain separate accepted debt. Closed
+native process scope ownership as Phase 11; P11-A1 is integrated and P11-B1
+coordination is separately authorized. Native platform mechanisms and runner
+integration remain unimplemented. The other hardening families remain separate accepted debt. Closed
 Phase 10 authority does not expand through the later selection.
 
 ### Package status and acceptance
@@ -666,15 +669,17 @@ or new production guarantee is implied.
 # Phase 11 — Native Process Scope Ownership and Deterministic Cleanup
 
 **DEFINED. P11-A0: CLOSED / PASS — SELECTION ACCEPTED.**
-P11-A1: **AUTHORIZED — ARCHITECTURE / ADR ONLY**.
-P11-B1/B2/B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
+P11-A1: **CLOSED / PASS — INTEGRATED**.
+P11-B1: **SEPARATELY AUTHORIZED — PRIVATE COORDINATION CORE ONLY**.
+P11-B2/B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
 
 Objective: own one native launch scope from creation through termination and
 cleanup while preserving direct-child results, caller cancellation, and existing
-launch authority. This is an architecture definition, not a delivered capability.
+launch authority. B1 implements only platform-neutral lifecycle coordination;
+native scope ownership is not delivered and Phase 11 is not functionally complete.
 
 [ADR-004: Native Process Scope Ownership and Deterministic Cleanup](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
-records the detailed contract for review. Preparation baseline:
+records the accepted detailed contract. Historical A1 preparation baseline:
 `bad51ed6ea7f476432c656036288f660281dbd50`, tree
 `2aaca2b07ebdeaf3694d170b16c49f1ca1711dfa`; strict push-main CI
 [34924714319](https://github.com/kaizenforyou91/forge/actions/runs/34924714319),
@@ -697,8 +702,8 @@ application lifecycle owner; Architecture Freeze remains unchanged.
 
 | Package | Proposed purpose | Authorization |
 |---|---|---|
-| P11-A1 | Architecture/ADR and focused roadmap definition | AUTHORIZED — ARCHITECTURE / ADR ONLY |
-| P11-B1 | Private native scope ownership/terminal coordination | NOT AUTHORIZED / NOT STARTED |
+| P11-A1 | Architecture/ADR and focused roadmap definition | CLOSED / PASS — INTEGRATED |
+| P11-B1 | Private platform-neutral scope ownership/terminal coordination | Separately authorized; integration + strict exact push-main CI establishes closure |
 | P11-B2 | Linux group and identifier-lifetime proof/implementation | NOT AUTHORIZED / NOT STARTED |
 | P11-B3 | Windows creation-time job membership and resource ownership | NOT AUTHORIZED / NOT STARTED |
 | P11-B4 | Runtime integration and compatibility evidence | NOT AUTHORIZED / NOT STARTED |
@@ -710,8 +715,26 @@ accepted debt. The A0 sentence that Phase 11 was not defined describes the earli
 selection output only; Control Room approval supersedes it. No A0 rerun is needed.
 
 Published v0.4.0-alpha.1 contains neither Phase 10 nor Phase 11 and stays immutable.
-No release or version is selected. A1 does not authorize implementation or claim
-integration, Phase 11 closure, Beta readiness, or production readiness.
+No release or version is selected. A1 integration does not authorize later
+packages. B1 is separately authorized and adds no platform proof, Phase 11
+closure, Beta readiness, or production readiness.
+
+### P11-B1 implementation record
+
+`runtime/process_scope.go` defines one private owner and a two-operation private
+platform contract. PREPARED resources can finalize without termination; ACTIVE
+owners serialize manual, cancellation and natural-exit cleanup requests. Only a
+successful request records a winner, and success is not descendant quiescence.
+Ordinary control failure permits a later caller request and preserves the first
+failure. Finalization is synchronous, exactly once and caches its outcome,
+releasing the platform reference. Trusted panics propagate; interrupted control
+is not reusable, and interrupted finalization cannot release resources twice.
+Fake-platform tests prove call counts and concurrent ordering without native
+processes or sleeps. B1 creates no goroutines and changes no existing execution
+path. B1 integration plus strict exact push-main CI establishes its
+CLOSED / PASS — INTEGRATED status. Linux identity/reap proof (B2), Windows
+creation-time Job proof (B3), runner integration (B4) and closure (C0) remain
+NOT AUTHORIZED / NOT STARTED. macOS remains direct-child only.
 
 ---
 
@@ -848,7 +871,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; published in v0.4.0-alpha.1 |
 | Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE |
 | Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION; A1/B1/B2/B3/C0 integrated, exact main CI passed |
-| Phase 11 — Native Process Scope Ownership and Deterministic Cleanup | DEFINED; A0 selection accepted; A1 architecture/ADR only authorized; B1/B2/B3/B4/C0 NOT AUTHORIZED / NOT STARTED |
+| Phase 11 — Native Process Scope Ownership and Deterministic Cleanup | DEFINED; A1 integrated; B1 separately authorized coordination core; B2/B3/B4/C0 NOT AUTHORIZED / NOT STARTED |
 
 ## Engineering Milestones
 

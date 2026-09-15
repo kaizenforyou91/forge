@@ -7,9 +7,18 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 - P11-A0 selected Native Process Scope Ownership and Deterministic Cleanup as
   the next architecture wave; Control Room accepted the selection and defined
-  Phase 11. P11-A1 defines architecture only, with zero runtime/source, public
-  API, CLI, or package-format change. P11-B1/B2/B3/B4/C0 remain separately gated:
-  NOT AUTHORIZED / NOT STARTED. No implementation or publication is authorized.
+  Phase 11. P11-A1 is CLOSED / PASS — INTEGRATED; it defined architecture only,
+  with zero runtime/source, public API, CLI, or package-format change.
+- Separately authorized P11-B1 adds the private platform-neutral process-scope
+  lifecycle core: prepared/active/finalized ownership, serialized control with
+  one successful cause, explicit failed-control evidence, and exactly-once
+  failure-preserving finalization. Deterministic fake-platform tests cover
+  concurrency, partial start, call counts and panic unwind. Successful control
+  is not proof of descendant quiescence. B1 integration plus strict exact
+  push-main CI establishes CLOSED / PASS — INTEGRATED. No OS scope mechanism,
+  ProcessRunner/RunningProcess integration, public API, CLI, package-format or
+  persistence change. P11-B2/B3/B4/C0 remain NOT AUTHORIZED / NOT STARTED.
+  No publication is authorized.
 
 - Documentation-only post-publication reconciliation (RR-005); no runtime changes.
 - Defined the Phase 10 bounded synchronous-sequence architecture (P10-A1);

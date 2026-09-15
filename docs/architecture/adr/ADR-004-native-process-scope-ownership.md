@@ -2,23 +2,24 @@
 
 ## Status and authorization
 
-**CONTROL ROOM SELECTION ACCEPTED; P11-A1 ARCHITECTURE RECORD FOR REVIEW.**
+**CONTROL ROOM ARCHITECTURE ACCEPTED; P11-A1 CLOSED / PASS — INTEGRATED.**
 
 - P11-A0: **CLOSED / PASS — SELECTION ACCEPTED**.
 - Phase 11: **DEFINED**.
 - Canonical title: **Native Process Scope Ownership and Deterministic Cleanup**.
-- P11-A1: **AUTHORIZED — ARCHITECTURE / ADR ONLY**.
-- P11-B1/B2/B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
+- P11-A1: **CLOSED / PASS — INTEGRATED** (architecture only).
+- P11-B1: **SEPARATELY AUTHORIZED — PRIVATE PLATFORM-NEUTRAL CORE ONLY**.
+- P11-B2/B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
 
 Control Room approval supersedes the A0 selection report's historical statement
 that Phase 11 was not defined. Selection is not being reopened. This record
-defines the proposed detailed contract for review; it does not claim that these
-mechanisms are implemented, that A1 is integrated, or that implementation or
-publication has been authorized. Every later package needs separate authorization.
+defines the accepted architecture. B1 separately implements private coordination
+only; no Linux/Windows mechanism or runner integration is present. Every later
+package needs separate authorization, and no publication is authorized.
 
 ## Baseline and existing behavior
 
-Architecture preparation main: `bad51ed6ea7f476432c656036288f660281dbd50`.
+Historical A1 architecture preparation main: `bad51ed6ea7f476432c656036288f660281dbd50`.
 Tree: `2aaca2b07ebdeaf3694d170b16c49f1ca1711dfa`.
 Parents: `92ea08c5af041e6a204891059724811ab582111a` and
 `9a1fc045e070056753c9e910ea757a5460a1a83c`.
@@ -247,12 +248,13 @@ None of this reopens Phases 6–10 or implies Beta/production readiness.
 
 ## Package sequence and proof gates
 
-These are proposed future package boundaries, not implementation authorization.
+These are bounded package boundaries. Only A1 integration and B1 coordination
+implementation have been separately authorized; later packages remain gated.
 
 | Package | Proposed family / purpose | Required proof | Status |
 |---|---|---|---|
-| P11-A1 | This ADR, README, CHANGELOG Unreleased, and focused roadmap status | Accurate authority, platform limitations, ownership and acceptance contract | AUTHORIZED — ARCHITECTURE / ADR ONLY |
-| P11-B1 | Private runtime scope ownership and terminal coordination | Single owner/control winner; partial-start and resource-release invariants | NOT AUTHORIZED / NOT STARTED |
+| P11-A1 | This ADR, README, CHANGELOG Unreleased, and focused roadmap status | Accurate authority, platform limitations, ownership and acceptance contract | CLOSED / PASS — INTEGRATED |
+| P11-B1 | Private platform-neutral scope ownership and terminal coordination | Single owner/control winner; partial-start and resource-release invariants | Separately authorized; integration + strict exact push-main CI establishes closure |
 | P11-B2 | Private Linux runtime platform mechanisms and tests | Pre-exec grouping; non-reaping observation; safe PGID lifetime; native Linux evidence | NOT AUTHORIZED / NOT STARTED |
 | P11-B3 | Private Windows runtime platform mechanisms and tests | Creation-time job membership; nested-job failures; handle/notification cleanup | NOT AUTHORIZED / NOT STARTED |
 | P11-B4 | ProcessRunner/RunningProcess integration and compatibility tests | Direct-child results, scope termination, output, cancellation and lease ordering | NOT AUTHORIZED / NOT STARTED |
@@ -262,6 +264,59 @@ B1 depends on separately reviewed A1. B2/B3 depend on the accepted B1 ownership
 contract. B4 depends on accepted platform proofs; C0 depends on integrated B4.
 No package may silently expand into the deferred trust, filesystem, build, or
 AI work. Exact future file scope belongs in each separate authorization.
+
+## B1 implementation record — private coordination only
+
+B1 baseline main: `f8f780c71cfc6eccb7b1ea21be8f89ba06b76627`, tree
+`7d6d536127c83a73c7650da84b48e541bbb119e6`; strict push-main CI
+[34937937688](https://github.com/kaizenforyou91/forge/actions/runs/34937937688),
+attempt 1, PASS for Ubuntu/Windows acceptance and Ubuntu race.
+
+[Private core](../../../runtime/process_scope.go) and
+[deterministic tests](../../../runtime/process_scope_test.go) implement only:
+
+- One pointer-owned, non-copyable `processScopeOwner`; all production identifiers
+  are private. The two-method `processScopePlatform` supplies only owned-scope
+  termination and synchronous resource finalization. Nil/typed-nil platforms and
+  zero/incomplete owners are rejected; missing platform methods fail at compile time.
+- PREPARED -> ACTIVE -> FINALIZED, with PREPARED -> FINALIZED for partial starts.
+  Activation is single-use. Partial-start finalization issues zero termination
+  calls. No reset, reuse, PID, output, direct-child result or lease ownership.
+- One mutex serializes activation, each entire control call, finalization and
+  status observation. Platform methods must not re-enter their owner. Blocking
+  private platform work blocks its callers; no cleanup is detached.
+- Manual termination, cancellation and natural-exit cleanup are distinct causes.
+  Only the first successful platform control records a winner; later requests
+  are no-ops. A winner acknowledges successful control, not descendant exit,
+  reap or quiescence. Natural cleanup does not classify the direct child as
+  manually terminated or canceled.
+- Ordinary control failure is returned without a winner. A later caller may
+  request control; no automatic retry occurs. The first returned failure is
+  retained as bounded internal diagnostic evidence even after later success.
+- Finalization closes control admission, invokes resource release once, caches
+  its returned error and drops the platform reference even on failure. Repeated
+  callers get the cached outcome. FINALIZED means the release attempt ended,
+  not that release succeeded or all descendants disappeared. Future integration
+  owns the ordering of active control, finalization and public result mapping.
+- No universal panic recovery: the original trusted platform panic propagates.
+  Interrupted control remains ineligible for another control attempt because its
+  effects are unknown, but separate finalization is still available. Interrupted
+  finalization retains a private fixed failure, clears the platform reference and
+  cannot perform a second release. No panic payload is retained as diagnostics.
+
+Tests use fake private platforms only and assert terminate/finalize call counts,
+concurrent winners, ordering in both directions, activation misuse, ordinary
+failure preservation, partial starts, panic propagation and reference release.
+B1 starts zero goroutines and performs zero native OS operations. It changes no
+ProcessRunner, RunningProcess, ProcessResult or public error contract.
+
+Linux pre-exec membership, leader-exits-first/non-reaping wait ordering, PGID
+reuse/retirement and native Go/Linux proof remain unresolved B2 obligations.
+Windows creation-time Job membership, nested-host compatibility and native handle
+lifetimes remain B3 obligations. Neither platform proof is supplied by B1;
+ProcessRunner integration remains B4. macOS retains direct-child behavior only.
+B2/B3/B4/C0 remain NOT AUTHORIZED / NOT STARTED. B1 integration plus strict exact
+push-main CI establishes B1 CLOSED / PASS — INTEGRATED; it does not close Phase 11.
 
 ## Acceptance model
 
@@ -300,9 +355,10 @@ Phase 11. Its annotated tag object is
 draft=false, prerelease=true, assets=0. No version, tag, release, or asset action
 is selected. No live OpenAI call or API-key access is required.
 
-Phase 11 is defined, not implemented or closed. A1 records architecture only.
-Any A1 integration and every subsequent implementation/closure transaction require
-their own review and authorization. A0's superseded status remains historical;
+Phase 11 is defined but not functionally complete or closed. A1 architecture is
+integrated; B1 supplies private coordination only. B1 integration and every
+subsequent implementation/closure transaction require their own review and
+authorization. A0's superseded status remains historical;
 it is not a reason to repeat architecture selection.
 
 ## OS references and design consequences
