@@ -26,6 +26,13 @@ The long-term vision of Forge is to become a modern application platform where a
 > real-provider validation. Phase 9 is **CLOSED / PASS — BOUNDED AGENT EXECUTION
 > LIFECYCLE**, internal/pre-stable and included in the published release.
 
+**Phase 11 is DEFINED: Native Process Scope Ownership and Deterministic Cleanup.**
+P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**. P11-A1 is an architecture/ADR
+package only; implementation is **NOT AUTHORIZED**. P11-B1/B2/B3/B4/C0 remain
+**NOT AUTHORIZED / NOT STARTED**. This defines no new runtime capability or
+Beta/production guarantee. See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
+for architecture details; the published release remains unchanged.
+
 The [historical First Alpha v0.3.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.3.0-alpha.1)
 remains unchanged, with zero uploaded binary assets and without the later
 Phase 8/9 additions. Historical checkpoints below describe their own revisions.

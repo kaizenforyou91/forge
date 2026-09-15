@@ -19,7 +19,17 @@ P10-B1/B2/B3 are **CLOSED / PASS — INTEGRATED**. The selected internal scope i
 functionally complete on current main, not included in v0.4.0-alpha.1.
 P10-C0 is the final documentation/audit closure package; its integration plus
 strict exact push-main CI establishes **CLOSED / PASS — BOUNDED WORKFLOW
-COMPOSITION (Synchronous Sequences)**. No closure is claimed before that gate.
+COMPOSITION (Synchronous Sequences)**. That gate passed on main
+`bad51ed6ea7f476432c656036288f660281dbd50`, strict push-main CI `34924714319`.
+
+**Phase 11 is DEFINED: Native Process Scope Ownership and Deterministic Cleanup.**
+P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**. P11-A1 is
+**AUTHORIZED — ARCHITECTURE / ADR ONLY**. P11-B1/B2/B3/B4/C0 remain
+**NOT AUTHORIZED / NOT STARTED**. The A0 report's earlier undefined status is
+historical and superseded by Control Room approval; selection is not reopened.
+See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
+for the detailed architecture record for review. No native scope implementation
+or release action is authorized by P11-A1.
 
 ---
 
@@ -521,9 +531,11 @@ functionally complete. C0 audits existing source/tests and reconciles current
 documentation, including narrow ADR-002 status corrections; it adds no runtime
 capability. P10-C0 integration plus strict exact push-main CI establishes Phase 10
 CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION (Synchronous Sequences).
-This is a conditional closure rule, not a claim that C0 has already integrated.
-The immutable published release excludes Phase 10. Runtime/Trust Hardening
-remains the preferred later architecture wave; no later phase is started.
+This closure gate passed at `bad51ed6ea7f476432c656036288f660281dbd50`,
+with strict push-main CI `34924714319`, attempt 1, completed/success.
+The immutable published release excludes Phase 10. The subsequent P11-A0
+selection was accepted; Phase 11 is defined below, with A1 architecture work
+only authorized and all implementation packages not authorized/not started.
 
 ### Selected Phase 10 architecture
 
@@ -609,9 +621,10 @@ public agent API/CLI, native/runtime/package steps, or production sandboxing.
 Validated-object-to-path execution binding, same-user package mutation, Windows
 ACL/reparse/share-mode hardening, process-tree/graceful native shutdown,
 persistent trust lifecycle, key rotation/revocation, and provenance/SBOM
-completeness remain IMPORTANT but are NOT P10 blockers. Runtime/Trust Hardening
-is the preferred next architecture wave unless future evidence changes priority;
-it is outside P10 and not automatically authorized.
+completeness remain IMPORTANT but are NOT P10 blockers. Control Room selected
+native process scope ownership as Phase 11; only P11-A1 architecture/ADR work is
+authorized. The other hardening families remain separate accepted debt. Closed
+Phase 10 authority does not expand through the later selection.
 
 ### Package status and acceptance
 
@@ -647,6 +660,58 @@ No version or release is selected/authorized. Architecture definition has no
 automatic publication effect; the integrated Phase 10 scope may be considered
 for an alpha feature release only through a separate gate. No Beta readiness
 or new production guarantee is implied.
+
+---
+
+# Phase 11 — Native Process Scope Ownership and Deterministic Cleanup
+
+**DEFINED. P11-A0: CLOSED / PASS — SELECTION ACCEPTED.**
+P11-A1: **AUTHORIZED — ARCHITECTURE / ADR ONLY**.
+P11-B1/B2/B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
+
+Objective: own one native launch scope from creation through termination and
+cleanup while preserving direct-child results, caller cancellation, and existing
+launch authority. This is an architecture definition, not a delivered capability.
+
+[ADR-004: Native Process Scope Ownership and Deterministic Cleanup](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
+records the detailed contract for review. Preparation baseline:
+`bad51ed6ea7f476432c656036288f660281dbd50`, tree
+`2aaca2b07ebdeaf3694d170b16c49f1ca1711dfa`; strict push-main CI
+[34924714319](https://github.com/kaizenforyou91/forge/actions/runs/34924714319),
+attempt 1, PASS for Ubuntu/Windows acceptance and Ubuntu race.
+
+The proposed boundary is one private process-scope owner, membership established
+before child code runs, immediate force termination, exact direct-child reaping,
+and explicit cleanup/error outcomes. Linux process-group control and Windows
+creation-time Job Object membership have different guarantees. macOS retains
+historical direct-child behavior only; no strengthened descendant claim is made. A successful
+termination request is not proof that every descendant has exited. Safe identifier
+lifetime, platform launch mechanics, and native acceptance remain proof obligations
+for separately authorized implementation packages.
+
+Preserve public result shape, CLI grammar, package/manifest formats, direct launch
+without shell injection, output bounds, and caller-fixed authority. No persistence,
+scheduler, worker pool, graceful shutdown protocol, hostile-process containment,
+AI integration, or provider/tool authority expansion is selected. pkg/app remains
+application lifecycle owner; Architecture Freeze remains unchanged.
+
+| Package | Proposed purpose | Authorization |
+|---|---|---|
+| P11-A1 | Architecture/ADR and focused roadmap definition | AUTHORIZED — ARCHITECTURE / ADR ONLY |
+| P11-B1 | Private native scope ownership/terminal coordination | NOT AUTHORIZED / NOT STARTED |
+| P11-B2 | Linux group and identifier-lifetime proof/implementation | NOT AUTHORIZED / NOT STARTED |
+| P11-B3 | Windows creation-time job membership and resource ownership | NOT AUTHORIZED / NOT STARTED |
+| P11-B4 | Runtime integration and compatibility evidence | NOT AUTHORIZED / NOT STARTED |
+| P11-C0 | Final architecture/integration closure | NOT AUTHORIZED / NOT STARTED |
+
+Existing Phases 6–10 stay closed. Executable object binding, same-user package
+mutation, Windows filesystem parity, durable trust, and provenance remain separate
+accepted debt. The A0 sentence that Phase 11 was not defined describes the earlier
+selection output only; Control Room approval supersedes it. No A0 rerun is needed.
+
+Published v0.4.0-alpha.1 contains neither Phase 10 nor Phase 11 and stays immutable.
+No release or version is selected. A1 does not authorize implementation or claim
+integration, Phase 11 closure, Beta readiness, or production readiness.
 
 ---
 
@@ -782,7 +847,8 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 7 — Runtime | ✅ Alpha-Bounded Closed; trusted local direct-child boundary |
 | Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; published in v0.4.0-alpha.1 |
 | Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE |
-| Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | P10-A1/B1/B2/B3 CLOSED / PASS — INTEGRATED; functionally complete internal scope; C0 integration + strict exact push-main CI establishes final bounded-scope closure |
+| Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION; A1/B1/B2/B3/C0 integrated, exact main CI passed |
+| Phase 11 — Native Process Scope Ownership and Deterministic Cleanup | DEFINED; A0 selection accepted; A1 architecture/ADR only authorized; B1/B2/B3/B4/C0 NOT AUTHORIZED / NOT STARTED |
 
 ## Engineering Milestones
 
