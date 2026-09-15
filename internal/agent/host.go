@@ -8,7 +8,7 @@ import (
 	"github.com/kaizenforyou91/forge/pkg/app"
 )
 
-// RunHost binds explicit Run execution to one application's current lifetime.
+// RunHost binds explicit Run or Sequence execution to an application's lifetime.
 // Register and Start never execute work. Copies share ownership, like Run.
 // Install with App.Add before starting the App; lifecycle methods are Module
 // callbacks. Callers retain the host; no DI or global registry is created.
@@ -37,8 +37,9 @@ type hostState struct {
 	stopDone chan struct{}
 }
 
-// Each admitted call gets its own identity, even when Runs share a claim.
-type hostExecution struct{ run *Run }
+// Each admitted call gets its own identity, even when owners share a claim.
+// The only retained capability is cancellation, never execution or results.
+type hostExecution struct{ cancel func() }
 
 func NewRunHost() *RunHost {
 	return &RunHost{core: &hostState{phase: hostReady, active: make(map[*hostExecution]struct{})}}
@@ -92,46 +93,81 @@ func (h *RunHost) Start(a *app.App) error {
 // sole claim/operation owner; this method adds no timeout, result validation,
 // retry, or worker goroutine. Caller values and deadlines remain authoritative.
 func (h *RunHost) Execute(ctx context.Context, run *Run) (ai.Result, error) {
+	linkedCtx, release, err := h.admit(ctx, run.Cancel)
+	if err != nil {
+		return ai.Result{}, err
+	}
+	defer release()
+	return run.Execute(linkedCtx)
+}
+
+// ExecuteSequence owns the entire synchronous Sequence call as one admission,
+// including transitions and panic unwind. Sequence alone owns child execution,
+// timeouts, handoff, accounting, and result/error classification.
+func (h *RunHost) ExecuteSequence(ctx context.Context, sequence *Sequence) (SequenceResult, error) {
+	linkedCtx, release, err := h.admit(ctx, sequence.Cancel)
+	if err != nil {
+		return SequenceResult{}, err
+	}
+	defer release()
+	return sequence.Execute(linkedCtx)
+}
+
+// admit links lifetimes and registers one cancellation owner. It does not
+// execute work. The narrow entry points must defer the returned release once.
+func (h *RunHost) admit(ctx context.Context, cancelOwner func()) (context.Context, func(), error) {
 	if ctx == nil {
-		return ai.Result{}, ai.ErrInvalidRequest
+		return nil, nil, ai.ErrInvalidRequest
 	}
 	if !h.valid() {
-		return ai.Result{}, ErrInvalidHost
+		return nil, nil, ErrInvalidHost
 	}
 	s := h.core
 	s.mu.Lock()
 	if s.app == nil {
 		s.mu.Unlock()
-		return ai.Result{}, ErrInvalidHost
+		return nil, nil, ErrInvalidHost
 	}
 	if s.phase != hostRunning || !s.app.Started() || s.appCtx == nil || s.appCtx.Err() != nil || s.app.Context() != s.appCtx {
 		s.mu.Unlock()
-		return ai.Result{}, ErrHostNotRunning
+		return nil, nil, ErrHostNotRunning
 	}
-	entry := &hostExecution{run: run}
+	entry := &hostExecution{cancel: cancelOwner}
 	s.active[entry] = struct{}{}
 	s.wg.Add(1) // Stop closes admission under this same lock before Wait.
 	appCtx := s.appCtx
 	s.mu.Unlock()
-	defer func() {
+	releaseEntry := func() {
 		s.mu.Lock()
 		delete(s.active, entry)
+		entry.cancel = nil
 		s.mu.Unlock()
 		s.wg.Done()
+	}
+	linked := false
+	defer func() {
+		// Preserve bookkeeping even if a caller's custom Context panics while
+		// linking. No recovery or translation of the original panic.
+		if !linked {
+			releaseEntry()
+		}
 	}()
 
 	linkedCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	// The standard-library callback performs cancellation only, never Run work.
+	// The standard-library callback performs cancellation only, never AI work.
 	unlink := context.AfterFunc(appCtx, cancel)
-	defer unlink()
 	if appCtx.Err() != nil {
 		cancel()
 	}
-	return run.Execute(linkedCtx)
+	linked = true
+	return linkedCtx, func() {
+		unlink()
+		cancel()
+		releaseEntry()
+	}, nil
 }
 
-// Stop closes admission, cancels every active Run, then drains admitted calls.
+// Stop closes admission, cancels every active owner, then drains admitted calls.
 // A non-cooperative provider can block shutdown: owned work is never detached
 // or abandoned. Operation results/errors belong only to Execute callers.
 func (h *RunHost) Stop(a *app.App) error {
@@ -160,13 +196,14 @@ func (h *RunHost) Stop(a *app.App) error {
 		return ErrInvalidHost
 	}
 	s.stopDone = make(chan struct{})
-	entries := make([]*hostExecution, 0, len(s.active))
+	cancels := make([]func(), 0, len(s.active))
 	for entry := range s.active {
-		entries = append(entries, entry)
+		cancels = append(cancels, entry.cancel)
 	}
 	s.mu.Unlock()
-	for _, entry := range entries {
-		entry.run.Cancel()
+	for i, cancel := range cancels {
+		cancel()
+		cancels[i] = nil
 	}
 	s.wg.Wait()
 	s.mu.Lock()

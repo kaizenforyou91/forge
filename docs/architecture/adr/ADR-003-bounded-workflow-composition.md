@@ -7,10 +7,10 @@
 P10-A0-R1 is CLOSED / PASS — OUTCOME A ACCEPTED BY CONTROL ROOM.
 P10-A1 is CLOSED / PASS — INTEGRATED after strict push-main CI. That architecture
 decision did not authorize implementation. P10-B1 is CLOSED / PASS — INTEGRATED
-under separate authorization. P10-B2 has separate implementation authorization
-for the handoff/accounting slice recorded below. Integration plus strict
-push-main CI establishes B2's CLOSED / PASS — INTEGRATED status.
-P10-B3/C0 remain NOT AUTHORIZED / NOT STARTED.
+under separate authorization, as is P10-B2. P10-B3 has separate implementation
+authorization for whole-sequence host ownership recorded below. Integration plus
+strict push-main CI establishes B3's CLOSED / PASS — INTEGRATED status.
+P10-C0 remains NOT AUTHORIZED / NOT STARTED. Phase 10 is not closed.
 
 Phase 10 — Bounded Workflow Composition (Synchronous Sequences) has the objective:
 compose a finite, explicit sequence of already-authorized AI operations
@@ -38,7 +38,7 @@ Windows acceptance, and Ubuntu race. The earlier P10-A1 PR had a separately
 authorized targeted race retry; this main run passed attempt 1. No retry is
 pre-authorized for B1.
 
-P10-B1 integrated main / P10-B2 preparation base:
+Historical P10-B1 integrated main / P10-B2 preparation base:
 `9e0c38b70d63446440328aca3fa5c5574ae68df8`, tree
 `c0bbdbc747823c87d30c059e574ad93697bafaca`; parents
 `18e7e51cf366519db5521d7237c218ffd54c6fe6` and
@@ -46,6 +46,15 @@ P10-B1 integrated main / P10-B2 preparation base:
 [Strict main CI 34818568107](https://github.com/kaizenforyou91/forge/actions/runs/34818568107)
 is push/main on that exact SHA, attempt 1, completed/success for Ubuntu acceptance,
 Windows acceptance, and Ubuntu race. No B2 CI retry is pre-authorized.
+
+P10-B2 integrated main / P10-B3 preparation base:
+`6d3cac19982129f785ce0a3153ace4feade055e4`, tree
+`dc8f618ced2fd9c826e41c8ca30d8362280abb67`; parents
+`9e0c38b70d63446440328aca3fa5c5574ae68df8` and
+`edc75b975a25d1c588da00ca9083cd9d5669a80d`.
+[Strict main CI 34825138783](https://github.com/kaizenforyou91/forge/actions/runs/34825138783)
+is push/main on that exact SHA, attempt 1, completed/success for Ubuntu acceptance,
+Windows acceptance, and Ubuntu race. No B3 retry is pre-authorized.
 
 Published [v0.4.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1)
 remains source-only, non-production, and pre-stable. Annotated tag object
@@ -60,7 +69,8 @@ owns a single execution claim, and releases terminal references. The
 directly without applying text Executor limits to aggregate usage.
 [RunHost](../../../internal/agent/host.go) admits explicit synchronous calls,
 links application cancellation, and drains active work. These accepted Phase 9
-primitives supply operation ownership, not sequence ownership or input handoff.
+primitives originally supplied operation ownership; B1/B2 add Sequence and
+handoff, and the B3 record below adds whole-sequence host ownership.
 
 ## Placement and Architecture Freeze
 
@@ -80,8 +90,8 @@ and historical separate implementation authorizations.
 ## Sequence shape and immutable specifications
 
 The following sections define the selected full Phase 10 architecture.
-The B1 and B2 implementation records below distinguish their delivered slices.
-Whole-sequence host ownership remains unauthorized B3 scope.
+The B1, B2, and separately authorized B3 records distinguish their delivered
+slices. P10-C0 closure remains separately gated.
 
 Define one single-use Sequence with Ready, Running, Succeeded, Failed, and
 Canceled states. Execute runs on the caller goroutine; Forge starts ZERO
@@ -329,7 +339,7 @@ provider, CLI, or app production file changes.
 
 No PREVIOUS_STEP_TEXT, aggregate accounting, host/app admission, public API,
 CLI, persistence, background work, or authority expansion is implemented by B1.
-B2 received separate authorization; B3 remains NOT AUTHORIZED / NOT STARTED.
+B2 subsequently integrated; B3 received separate host-integration authorization.
 
 ## P10-B2 implementation record — handoff and aggregate accounting
 
@@ -373,8 +383,64 @@ cancellation, fail-fast, panic propagation/cleanup, and redaction are preserved.
 
 B2 adds no automatic provider calls or authority. For T+U<=8, accepted paths
 retain T+2U POSTs / U handler attempts at most (16 / 8 worst case). No host/app
-admission, public API, CLI, persistence, or background execution is delivered.
-P10-B3/C0 remain NOT AUTHORIZED / NOT STARTED.
+admission, public API, CLI, persistence, or background execution is delivered by
+B2. B3 adds the separately authorized host composition below; C0 remains
+NOT AUTHORIZED / NOT STARTED.
+
+## P10-B3 implementation record — whole-sequence host integration
+
+B3 changes only host.go / host_test.go and its three governance documents.
+Sequence, Run, tool Run, errors, pkg/app, AI/provider, CLI, CI, and dependency
+source remain unchanged. No new Sequence semantics or public API is introduced.
+
+- ExecuteSequence(ctx context.Context, sequence *Sequence) (SequenceResult, error)
+  is the sole new narrow internal execution entry point. It explicitly calls
+  Sequence.Execute once, synchronously, with no worker goroutine. Existing
+  Execute(ctx, *Run), module name, registration, lifecycle, and redaction remain
+  compatible. Register/Start perform zero Run, Sequence, provider, or handler work.
+- Each call creates one unique private hostExecution{cancel func()} entry,
+  containing only Run.Cancel or Sequence.Cancel authority. No generic execution
+  callback, result, history, prompt, or authority data is stored. A losing
+  duplicate claim releases only its own entry; mixed Run/Sequence calls remain
+  distinct. Children are never individually admitted to RunHost.
+- Shared private admit checks nil context, valid/bound host, hostRunning,
+  App.Started, non-nil/live appCtx, and exact current App.Context generation
+  under the host lock. Admission and WaitGroup.Add occur before Stop can close
+  the gate. Admission errors remain existing host errors; admitted operation
+  errors and results belong to Run or Sequence unchanged.
+- Caller context stays parent. context.AfterFunc links application cancellation
+  to a derived caller context and performs cancellation only. There is no new
+  timeout policy. The whole call remains registered across active children,
+  handoff/accounting, inter-step gaps, terminal return, and panic unwind.
+- Stop closes admission under lock, snapshots owner cancellation functions,
+  cancels them outside the lock, and waits for all admitted calls. Sequence.Cancel
+  cancels its overall context and active child and prevents later construction.
+  Stop never equates canceled context or closed Done with a returned host call.
+  Non-cooperative providers/handlers may block Stop; no work is detached.
+- Deferred release stops the application-context callback, cancels the linked
+  context, deletes the exact entry and clears its cancel reference before
+  WaitGroup.Done. Context-link panic also releases admission. Trusted panic
+  propagates unchanged; Sequence retains its existing Failed/consumed cleanup,
+  and the running host remains usable after external recovery.
+- Restart captures a fresh application context. Fresh Sequences execute; old
+  consumed Sequences remain consumed. Result, Final.Usage, AggregateUsage,
+  literal/previous-text semantics, bounds, and error classifications pass through
+  unchanged. Cancellation callbacks never execute AI work.
+
+Deterministic tests cover the real narrow entry point, eight-child single-entry
+identity, literal/previous text and 64/96 usage, caller/App cancellation, text
+and tool child Stop/drain, concurrent Stops, duplicate claims/copies, mixed
+Run/Sequence ownership, admission/Stop races, deadlines, panic recovery, and
+restart. A package-local fixture uses real private admission and Sequence
+transition methods to hold a no-active-child gap after a successful child;
+Stop cancels it and cannot return before exact call release. No production
+hook or Sequence change is needed. Existing Run host tests remain intact.
+
+B3 is separately authorized and implemented. Control Room review, guarded
+integration, and strict exact push-main CI establish CLOSED / PASS — INTEGRATED.
+P10-C0 is NOT AUTHORIZED / NOT STARTED; Phase 10 is not closed. No public API,
+CLI, manifest/package change, persistence, background execution, network/tool
+authority expansion, live call, or credential access is introduced.
 
 ## Package plan and separate authorization
 
@@ -382,13 +448,13 @@ P10-B3/C0 remain NOT AUTHORIZED / NOT STARTED.
 |---|---|---|---|
 | P10-A1 | Architecture / ADR / roadmap only | Accurate bounded decision, historical truth, links, offline checks | CLOSED / PASS — INTEGRATED; architecture only |
 | P10-B1 | Internal sequence lifecycle and static literal steps; sequence.go / sequence_test.go / errors.go | Single claim, order, bounds, fail-fast, cancellation, redaction, reference release | CLOSED / PASS — INTEGRATED |
-| P10-B2 | Previous-text handoff and aggregate accounting; sequence.go / sequence_test.go | No next call on bad input, immutable authority, known/unknown/overflow usage | IMPLEMENTATION SEPARATELY AUTHORIZED; integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED |
-| P10-B3 | Whole-sequence host composition; host.go / host_test.go | Admission, inter-step cancellation/drain, restart, panic bookkeeping | NOT AUTHORIZED / NOT STARTED; requires B2 integration and separate approval |
+| P10-B2 | Previous-text handoff and aggregate accounting; sequence.go / sequence_test.go | No next call on bad input, immutable authority, known/unknown/overflow usage | CLOSED / PASS — INTEGRATED |
+| P10-B3 | Whole-sequence host composition; host.go / host_test.go | Admission, inter-step cancellation/drain, restart, panic bookkeeping | IMPLEMENTATION SEPARATELY AUTHORIZED; integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED |
 | P10-C0 | Offline integration / architecture closure | Integrated scope and invariant audit, strict main CI | NOT AUTHORIZED / NOT STARTED; requires B1/B2/B3 integration and separate approval |
 
-B2's separate implementation approval does not establish integration or closure.
-Control Room review, guarded integration, and strict exact push-main CI are its
-closure gates. It does not authorize B3/C0.
+B1/B2 are integrated. B3's separate implementation approval does not establish
+integration or closure: Control Room review, guarded integration, and strict
+exact push-main CI are its closure gates. It does not authorize C0.
 
 ## Future tests and acceptance evidence
 
