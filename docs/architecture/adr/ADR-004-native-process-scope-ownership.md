@@ -8,13 +8,15 @@
 - Phase 11: **DEFINED**.
 - Canonical title: **Native Process Scope Ownership and Deterministic Cleanup**.
 - P11-A1: **CLOSED / PASS — INTEGRATED** (architecture only).
-- P11-B1: **SEPARATELY AUTHORIZED — PRIVATE PLATFORM-NEUTRAL CORE ONLY**.
-- P11-B2/B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
+- P11-B1: **CLOSED / PASS — INTEGRATED** (private coordination only).
+- P11-B2: **SEPARATELY AUTHORIZED — LINUX MECHANISM/PROOF ONLY**.
+- P11-B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
 
 Control Room approval supersedes the A0 selection report's historical statement
 that Phase 11 was not defined. Selection is not being reopened. This record
-defines the accepted architecture. B1 separately implements private coordination
-only; no Linux/Windows mechanism or runner integration is present. Every later
+defines the accepted architecture. B1 supplies integrated private coordination;
+B2 supplies Linux-only mechanisms and proof fixtures. No Windows mechanism or
+production runner integration is present. Every later
 package needs separate authorization, and no publication is authorized.
 
 ## Baseline and existing behavior
@@ -128,10 +130,10 @@ after cmd.Wait has reaped the leader does not satisfy the identity invariant.
 No concurrent generic cmd.Wait may consume the leader before this ordering is
 complete. No group signals may be issued after identifier retirement.
 
-The Linux package must prove the supported Go/OS integration for this ordering.
-The required invariant is defined, but the concrete identifier-reuse-safe launcher
-and wait integration remain unresolved proof obligations. Linux mechanism design
-is not claimed complete by A1. If this proof cannot be met, stop for Control Room
+At the historical A1 checkpoint, the Linux package still had to prove supported
+Go/OS integration for this ordering; A1 did not claim mechanism design complete.
+The B2 record below supplies the private primitive/proof boundary; production
+launcher/wait integration remains a B4 obligation. If this proof cannot be met, stop for Control Room
 review rather than retain a stale numeric PGID, weaken identity protection, or
 silently remove existing platform support. No inference about macOS follows.
 
@@ -248,14 +250,14 @@ None of this reopens Phases 6–10 or implies Beta/production readiness.
 
 ## Package sequence and proof gates
 
-These are bounded package boundaries. Only A1 integration and B1 coordination
-implementation have been separately authorized; later packages remain gated.
+These are bounded package boundaries. A1/B1 are integrated; B2 Linux mechanism
+and proof work is separately authorized. B3/B4/C0 remain gated.
 
 | Package | Proposed family / purpose | Required proof | Status |
 |---|---|---|---|
 | P11-A1 | This ADR, README, CHANGELOG Unreleased, and focused roadmap status | Accurate authority, platform limitations, ownership and acceptance contract | CLOSED / PASS — INTEGRATED |
-| P11-B1 | Private platform-neutral scope ownership and terminal coordination | Single owner/control winner; partial-start and resource-release invariants | Separately authorized; integration + strict exact push-main CI establishes closure |
-| P11-B2 | Private Linux runtime platform mechanisms and tests | Pre-exec grouping; non-reaping observation; safe PGID lifetime; native Linux evidence | NOT AUTHORIZED / NOT STARTED |
+| P11-B1 | Private platform-neutral scope ownership and terminal coordination | Single owner/control winner; partial-start and resource-release invariants | CLOSED / PASS — INTEGRATED |
+| P11-B2 | Private Linux runtime platform mechanisms and tests | Pre-exec grouping; non-reaping observation; safe PGID lifetime; native Linux evidence | Separately authorized; integration + strict exact push-main CI establishes closure |
 | P11-B3 | Private Windows runtime platform mechanisms and tests | Creation-time job membership; nested-job failures; handle/notification cleanup | NOT AUTHORIZED / NOT STARTED |
 | P11-B4 | ProcessRunner/RunningProcess integration and compatibility tests | Direct-child results, scope termination, output, cancellation and lease ordering | NOT AUTHORIZED / NOT STARTED |
 | P11-C0 | Documentation and final architecture/acceptance audit | Reviewed integration and strict exact push-main acceptance | NOT AUTHORIZED / NOT STARTED |
@@ -310,13 +312,87 @@ failure preservation, partial starts, panic propagation and reference release.
 B1 starts zero goroutines and performs zero native OS operations. It changes no
 ProcessRunner, RunningProcess, ProcessResult or public error contract.
 
-Linux pre-exec membership, leader-exits-first/non-reaping wait ordering, PGID
-reuse/retirement and native Go/Linux proof remain unresolved B2 obligations.
+At the B1 checkpoint, Linux pre-exec membership, leader-exits-first/non-reaping
+wait ordering, PGID reuse/retirement and native proof remained B2 obligations.
 Windows creation-time Job membership, nested-host compatibility and native handle
 lifetimes remain B3 obligations. Neither platform proof is supplied by B1;
 ProcessRunner integration remains B4. macOS retains direct-child behavior only.
-B2/B3/B4/C0 remain NOT AUTHORIZED / NOT STARTED. B1 integration plus strict exact
-push-main CI establishes B1 CLOSED / PASS — INTEGRATED; it does not close Phase 11.
+B1 is CLOSED / PASS — INTEGRATED at main
+`cf1bb4069210f63ba7bf415b93c992ab753350c5`, tree
+`fa8467438a3b5712b425d79dd12c747a2d8e2411`, strict push-main CI
+[34941814984](https://github.com/kaizenforyou91/forge/actions/runs/34941814984),
+attempt 1 PASS. B2 is now separately authorized below; B3/B4/C0 remain
+NOT AUTHORIZED / NOT STARTED. Phase 11 is not closed.
+
+## B2 Linux mechanism and identifier-lifetime proof
+
+B2 baseline is the B1 integration commit/tree and strict main CI recorded above.
+The mandatory pre-mutation audit inspected installed Go **1.26.5** source:
+`src/syscall/exec_linux.go` (SysProcAttr lines 75-91, child setpgid lines 392-398,
+execve/error-pipe lines 667-677), `src/syscall/exec_unix.go` (parent error-pipe
+handling lines 217-245), and `src/os/exec/exec.go` (StartProcess/error return
+lines 733-740). Setpgid executes before user exec; a child setup error returns
+through Start instead of silently running outside the requested group.
+
+Installed `golang.org/x/sys@v0.13.0/unix/zsyscall_linux.go` provides Waitid,
+Getpgid and Kill; `zerrors_linux.go` provides P_PID, WEXITED, WNOWAIT and SIGKILL.
+x/sys v0.13.0 was already present transitively. B2 promotes that exact version to
+direct use for supported Linux waitid/WNOWAIT primitives rather than handwritten
+raw syscalls. No module/version upgrade or go.sum change is included.
+
+[Linux primitives](../../../runtime/process_scope_linux.go),
+[unit tests](../../../runtime/process_scope_linux_test.go) and
+[native fixtures](../../../runtime/process_scope_linux_integration_test.go)
+are each guarded by `//go:build linux`; all production identifiers are private.
+
+- Preparation accepts only an unstarted, exclusively Forge-owned Cmd. It copies
+  SysProcAttr and sets Setpgid=true/Pgid=0 without starting a process. Nonzero Pgid,
+  Setsid, Setctty, Foreground, Ptrace or namespace/clone flags are rejected rather
+  than overwritten. Unrelated attributes are preserved. A single-use receipt
+  binds only that prepared, successfully started, unreaped child. No external
+  PID/PGID is accepted. PGID derives from child PID; Getpgid is test evidence,
+  not the source of the pre-user-code guarantee.
+- Non-reaping observation uses blocking Waitid(P_PID, leaderPID, WEXITED|WNOWAIT).
+  EINTR retries the interrupted observation; other errors return unchanged. No
+  sleep polling, WNOHANG spin, group-existence probe or final reap is performed.
+  ECHILD also retires the now-unowned control identity without publishing success.
+- Control uses only Kill(-ownedPGID, SIGKILL). ESRCH maps to os.ErrProcessDone,
+  so B1 cannot publish a successful winner for an absent group. Other failures
+  remain observable. No signal retry, graceful interval or descendant traversal.
+- A control mutex serializes signaling and retirement. A separate observation
+  mutex prevents retirement during a blocking wait while allowing control to
+  unblock that wait. Finalization retires the numeric identity and clears OS
+  seams; it performs no extra kill, reap or nonexistent group-handle close.
+  Linux finalization has no other owned resource whose release can fail.
+- Required sole-owner order: non-reaping observation, terminal group control,
+  **control-identity retirement before normal reap**, then Cmd.Wait. Retiring
+  before reap is stronger than merely clearing a remembered PGID afterward and
+  closes that race window. The unreaped leader protects ordinary PID reuse during
+  control. No method may signal after retirement. This does not protect against
+  a future caller that violates sole-reaper ownership or mutates the Cmd.
+  Future B4 still owns the full call through reap, output completion and lease
+  release; no B2 production function starts a child or calls Cmd.Wait.
+
+Native tests use this test binary and pipes/ExtraFiles, not shells, root or
+external programs. Readiness messages and explicit exit commands establish
+ordering. WNOWAIT followed by another observation and one successful normal wait
+proves non-consumption. The leader-first fixture leaves a same-group descendant
+holding a test-owned pipe; group termination produces EOF. A separately grouped
+sentinel still answers ping. A controlled descendant calls setsid, survives group
+control and answers ping, then exits through its independent control pipe; EOF
+confirms fixture cleanup. Failure cleanup preserves pre-reap signaling order and
+uses control-pipe closure for the escaped fixture. Deadlines are failsafes only.
+No brute-force PID reuse test or all-descendants-reaped claim is made.
+
+Windows local tests and Linux cross-compilation are not native Linux proof.
+Hosted Ubuntu acceptance and race must run these fixtures successfully before B2
+may pass review. B2 integration plus strict exact push-main CI establishes
+CLOSED / PASS — INTEGRATED. B1 files, ProcessRunner, RunningProcess, ProcessResult,
+errors, output bounds and lease code are unchanged; no production runner path
+uses B2. Windows mechanisms (B3), integration (B4) and closure (C0) remain
+NOT AUTHORIZED / NOT STARTED. macOS remains historical direct-child only.
+Success still means accepted control, not immediate cessation, universal reap,
+closed inherited handles or containment of deliberately escaped processes.
 
 ## Acceptance model
 
@@ -356,8 +432,9 @@ draft=false, prerelease=true, assets=0. No version, tag, release, or asset actio
 is selected. No live OpenAI call or API-key access is required.
 
 Phase 11 is defined but not functionally complete or closed. A1 architecture is
-integrated; B1 supplies private coordination only. B1 integration and every
-subsequent implementation/closure transaction require their own review and
+integrated; B1 coordination is integrated and B2 supplies Linux primitives only.
+B2 integration and every subsequent implementation/closure transaction require
+their own review and
 authorization. A0's superseded status remains historical;
 it is not a reason to repeat architecture selection.
 

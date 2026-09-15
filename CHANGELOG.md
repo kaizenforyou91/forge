@@ -14,10 +14,21 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   one successful cause, explicit failed-control evidence, and exactly-once
   failure-preserving finalization. Deterministic fake-platform tests cover
   concurrency, partial start, call counts and panic unwind. Successful control
-  is not proof of descendant quiescence. B1 integration plus strict exact
-  push-main CI establishes CLOSED / PASS — INTEGRATED. No OS scope mechanism,
+  is not proof of descendant quiescence. P11-B1 is CLOSED / PASS — INTEGRATED.
+  The B1 slice includes no OS scope mechanism,
   ProcessRunner/RunningProcess integration, public API, CLI, package-format or
-  persistence change. P11-B2/B3/B4/C0 remain NOT AUTHORIZED / NOT STARTED.
+  persistence change.
+- Separately authorized P11-B2 adds private Linux pre-exec process-group
+  preparation, waitid/WNOWAIT leader observation, SIGKILL group control and
+  explicit control-identity retirement before reaping. Deterministic Go native
+  fixtures cover leader-first exit, inherited-pipe closure, outside-scope survival
+  and session-escape limitations. No production runner integration or public
+  API/CLI/package-format/persistence change. B2 integration plus strict exact
+  push-main CI establishes CLOSED / PASS — INTEGRATED; hosted Ubuntu acceptance
+  and race are required native evidence, not Windows cross-compilation.
+  x/sys v0.13.0 was already present transitively; B2 promotes it to direct use
+  for supported Linux waitid/WNOWAIT primitives, without a version change, new
+  module or go.sum change. P11-B3/B4/C0 remain NOT AUTHORIZED / NOT STARTED.
   No publication is authorized.
 
 - Documentation-only post-publication reconciliation (RR-005); no runtime changes.
