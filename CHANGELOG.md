@@ -5,6 +5,12 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 ## Unreleased
 
+- P11-A0 selected Native Process Scope Ownership and Deterministic Cleanup as
+  the next architecture wave; Control Room accepted the selection and defined
+  Phase 11. P11-A1 defines architecture only, with zero runtime/source, public
+  API, CLI, or package-format change. P11-B1/B2/B3/B4/C0 remain separately gated:
+  NOT AUTHORIZED / NOT STARTED. No implementation or publication is authorized.
+
 - Documentation-only post-publication reconciliation (RR-005); no runtime changes.
 - Defined the Phase 10 bounded synchronous-sequence architecture (P10-A1);
   architecture integrated with strict push-main CI. P10-A1 itself introduced
