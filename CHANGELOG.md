@@ -21,8 +21,15 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   text, revalidated before a fresh child Run. Known usage is checked for int64
   overflow; any unknown child usage keeps the aggregate unknown. Final child
   usage remains separate. No host, public API, CLI, persistence, or background
-  expansion. B2 integration plus strict push-main CI establishes closure;
-  P10-B3/C0 remain NOT AUTHORIZED / NOT STARTED.
+  expansion in the B2 slice. P10-A1/B1/B2 are CLOSED / PASS — INTEGRATED.
+- Implemented separately authorized P10-B3 whole-sequence RunHost integration.
+  One host admission covers all children, handoff/accounting, inter-step gaps,
+  and terminal return/unwind. Stop closes admission, cancels the Sequence, and
+  drains its entire synchronous call without detaching non-cooperative work.
+  Existing RunHost.Execute remains compatible; Sequence and pkg/app are unchanged.
+  No public API, CLI, persistence, background work, or authority expansion.
+  B3 integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED;
+  P10-C0 remains NOT AUTHORIZED / NOT STARTED. Phase 10 is not closed.
 
 ## 0.4.0-alpha.1 - 2026-09-14
 

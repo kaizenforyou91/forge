@@ -717,3 +717,492 @@ func TestHostRedaction(t *testing.T) {
 		hostEmpty(t, h, false)
 	}
 }
+
+func hostActiveCount(t *testing.T, h *RunHost, want int) *hostExecution {
+	t.Helper()
+	h.core.mu.Lock()
+	defer h.core.mu.Unlock()
+	if len(h.core.active) != want {
+		t.Fatalf("active calls = %d, want %d", len(h.core.active), want)
+	}
+	for entry := range h.core.active {
+		return entry
+	}
+	return nil
+}
+
+func TestHostSequenceAdmissionAndZeroWork(t *testing.T) {
+	var calls int
+	s := newSequence(t, sequenceTextStep(t, providerFunc(func(context.Context, ai.Request) (ai.Result, error) {
+		calls++
+		return result(), nil
+	})))
+	check := func(h *RunHost, ctx context.Context, want error) {
+		t.Helper()
+		got, err := h.ExecuteSequence(ctx, s)
+		if got != (SequenceResult{}) || err != want || s.State() != StateReady || calls != 0 {
+			t.Fatal("rejection consumed Sequence or performed work")
+		}
+	}
+	for _, h := range []*RunHost{nil, {}, {core: &hostState{}}, NewRunHost()} {
+		check(h, context.Background(), ErrInvalidHost)
+		check(h, nil, ai.ErrInvalidRequest)
+	}
+	h, a := registeredHost(t)
+	check(h, context.Background(), ErrHostNotRunning)
+	if err := a.Add(&hostTestModule{start: func(*app.App) error {
+		check(h, context.Background(), ErrHostNotRunning)
+		return nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 0 || s.State() != StateReady {
+		t.Fatal("Register/Start executed Sequence")
+	}
+	check(h, nil, ai.ErrInvalidRequest)
+	for _, invalid := range []*Sequence{nil, {}, {core: &sequenceState{}}} {
+		got, err := h.ExecuteSequence(context.Background(), invalid)
+		if got != (SequenceResult{}) || err != ErrInvalidSequence {
+			t.Fatal("Sequence validation ownership changed")
+		}
+		hostEmpty(t, h, false)
+	}
+	// A live but different context is not the captured application generation.
+	h.core.mu.Lock()
+	actual := h.core.appCtx
+	h.core.appCtx = context.Background()
+	h.core.mu.Unlock()
+	check(h, context.Background(), ErrHostNotRunning)
+	h.core.mu.Lock()
+	h.core.appCtx = actual
+	h.core.mu.Unlock()
+	got, err := h.ExecuteSequence(context.Background(), s)
+	if err != nil || got.CompletedSteps != 1 || !reflect.DeepEqual(got.Final, result()) || *got.AggregateUsage != *result().Usage {
+		t.Fatal("one-step result changed")
+	}
+	if err := a.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	hostEmpty(t, h, true)
+}
+
+func TestHostSequenceSingleAdmissionAndResults(t *testing.T) {
+	for _, previous := range []bool{false, true} {
+		h, _ := runningHost(t)
+		var identity *hostExecution
+		var calls int
+		work := func(req ai.Request) (ai.Result, error) {
+			entry := hostActiveCount(t, h, 1)
+			if identity == nil {
+				identity = entry
+			} else if identity != entry {
+				t.Fatal("per-child host admission")
+			}
+			want := request().Text
+			if previous && calls > 0 {
+				want = result().Text
+			}
+			if req.Text != want {
+				t.Fatal("host changed handoff/literal")
+			}
+			calls++
+			got := result()
+			if calls%2 == 0 {
+				got.Usage.OutputTokens = 96
+			}
+			return got, nil
+		}
+		p := providerFunc(func(_ context.Context, r ai.Request) (ai.Result, error) { return work(r) })
+		rt := roundTripperFunc(func(_ context.Context, r ai.Request, _ *tool.Authority) (ai.Result, error) { return work(r) })
+		authority := testAuthority(t)
+		steps := make([]SequenceStep, 8)
+		for i := range steps {
+			var err error
+			if previous && i > 0 {
+				if i%2 == 0 {
+					steps[i], err = NewTextSequenceStepFromPrevious(p, request().Model, 64, time.Second)
+				} else {
+					steps[i], err = NewAuthorizedToolSequenceStepFromPrevious(rt, request().Model, 64, authority, time.Second)
+				}
+			} else if i%2 == 0 {
+				steps[i] = sequenceTextStep(t, p)
+			} else {
+				steps[i] = sequenceToolStep(t, rt, authority)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		s := newSequence(t, steps...)
+		got, err := h.ExecuteSequence(context.Background(), s)
+		if err != nil || calls != 8 || got.CompletedSteps != 8 || got.Final.Text != result().Text ||
+			*got.Final.Usage != (ai.Usage{InputTokens: 1, OutputTokens: 96}) ||
+			*got.AggregateUsage != (ai.Usage{InputTokens: 8, OutputTokens: 392}) || got.Final.Usage == got.AggregateUsage {
+			t.Fatal("host rewrote result or aggregate usage")
+		}
+		hostEmpty(t, h, false)
+		if identity.cancel != nil {
+			t.Fatal("released entry retained cancellation owner")
+		}
+	}
+}
+
+func TestHostSequenceCancellationAndDrain(t *testing.T) {
+	for _, source := range []string{"caller", "app", "stop", "concurrent-host-stop"} {
+		for _, toolPath := range []bool{false, true} {
+			t.Run(fmt.Sprint(source, "/tool=", toolPath), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					h, a := runningHost(t)
+					entered := make(chan context.Context, 1)
+					release := make(chan struct{})
+					work := func(ctx context.Context) (ai.Result, error) { entered <- ctx; <-release; return result(), nil }
+					step := sequenceTextStep(t, providerFunc(func(ctx context.Context, _ ai.Request) (ai.Result, error) { return work(ctx) }))
+					if toolPath {
+						step = sequenceToolStep(t, roundTripperFunc(func(ctx context.Context, _ ai.Request, _ *tool.Authority) (ai.Result, error) { return work(ctx) }), testAuthority(t))
+					}
+					s := newSequence(t, step, sequenceTextStep(t, providerFunc(func(context.Context, ai.Request) (ai.Result, error) {
+						t.Error("later child executed after cancellation")
+						return result(), nil
+					})))
+					done := s.Done()
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					returned, stopped := make(chan error, 1), make(chan error, 2)
+					go func() {
+						got, err := h.ExecuteSequence(ctx, s)
+						if got != (SequenceResult{}) {
+							t.Error("partial result escaped")
+						}
+						returned <- err
+					}()
+					childCtx := <-entered
+					entry := hostActiveCount(t, h, 1)
+					stopCount := 0
+					switch source {
+					case "caller":
+						cancel()
+					case "app":
+						a.Cancel()
+					case "stop":
+						stopCount = 1
+						go func() { stopped <- a.Stop() }()
+					case "concurrent-host-stop":
+						stopCount = 2
+						go func() { stopped <- h.Stop(a) }()
+						go func() { stopped <- h.Stop(a) }()
+					}
+					synctest.Wait()
+					if childCtx.Err() != context.Canceled || s.State() != StateRunning || hostActiveCount(t, h, 1) != entry {
+						t.Fatal("cancellation detached active Sequence")
+					}
+					sequenceOpen(t, s, done)
+					select {
+					case <-stopped:
+						t.Fatal("Stop did not drain")
+					default:
+					}
+					select {
+					case <-returned:
+						t.Fatal("host detached non-cooperative work")
+					default:
+					}
+					if source != "caller" {
+						if _, err := h.ExecuteSequence(context.Background(), nil); err != ErrHostNotRunning {
+							t.Fatal("admission remained open")
+						}
+					}
+					close(release)
+					if err := <-returned; err != context.Canceled {
+						t.Fatal(err)
+					}
+					for range stopCount {
+						if err := <-stopped; err != nil {
+							t.Fatal(err)
+						}
+					}
+					sequenceTerminal(t, s, done, StateCanceled)
+					hostEmpty(t, h, stopCount > 0)
+				})
+			})
+		}
+	}
+}
+
+func TestHostSequenceInterStepOwnership(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h, a := runningHost(t)
+		s := newSequence(t, sequenceTextStep(t, providerFunc(func(context.Context, ai.Request) (ai.Result, error) {
+			return result(), nil
+		})), sequenceTextStep(t, providerFunc(func(context.Context, ai.Request) (ai.Result, error) {
+			t.Error("canceled gap constructed/executed next child")
+			return result(), nil
+		})))
+		// White-box transition fixture: use the real host admission and the real
+		// Sequence cancellation/nextRun/complete paths, with no timing hook.
+		linked, release, err := h.admit(context.Background(), s.Cancel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(linked, s.core.overallTimeout)
+		defer cancel()
+		s.core.mu.Lock()
+		s.core.state, s.core.cancel = StateRunning, cancel
+		s.core.mu.Unlock()
+		entry := hostActiveCount(t, h, 1)
+		first, err := s.core.nextRun(ctx, 0, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := first.Execute(ctx); err != nil {
+			t.Fatal(err)
+		}
+		s.core.mu.Lock()
+		s.core.active = nil
+		s.core.mu.Unlock()
+		stopped := make(chan error, 1)
+		go func() { stopped <- h.Stop(a) }()
+		synctest.Wait()
+		s.core.mu.Lock()
+		gapCanceled := s.core.canceled && s.core.active == nil
+		s.core.mu.Unlock()
+		if !gapCanceled || s.State() != StateRunning || hostActiveCount(t, h, 1) != entry {
+			t.Fatal("gap was not owned/canceled")
+		}
+		sequenceOpen(t, s, s.Done())
+		if child, err := s.core.nextRun(ctx, 1, result().Text); child != nil || err != context.Canceled {
+			t.Fatal("next child constructed after Stop")
+		}
+		if got, err := s.core.complete(ctx, SequenceResult{}, ctx.Err()); got != (SequenceResult{}) || err != context.Canceled {
+			t.Fatal("gap cancellation changed")
+		}
+		// Even terminal Done does not release the host call; its return/unwind does.
+		select {
+		case <-stopped:
+			t.Fatal("Stop used Done instead of call lifetime")
+		default:
+		}
+		release()
+		if err := <-stopped; err != nil {
+			t.Fatal(err)
+		}
+		hostEmpty(t, h, true)
+	})
+}
+
+func TestHostSequenceDuplicateClaimsAndMixedOwners(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h, a := runningHost(t)
+		seqEntered, runEntered := make(chan context.Context, 1), make(chan context.Context, 1)
+		seqRelease, runRelease := make(chan struct{}), make(chan struct{})
+		s := newSequence(t, sequenceTextStep(t, providerFunc(func(ctx context.Context, _ ai.Request) (ai.Result, error) {
+			seqEntered <- ctx
+			<-seqRelease
+			return ai.Result{}, ctx.Err()
+		})))
+		copyOfSequence := *s
+		start, returned := make(chan struct{}), make(chan error, 16)
+		for i := range 16 {
+			go func() {
+				<-start
+				target := s
+				if i%2 == 0 {
+					target = &copyOfSequence
+				}
+				_, err := h.ExecuteSequence(context.Background(), target)
+				returned <- err
+			}()
+		}
+		close(start)
+		seqCtx := <-seqEntered
+		for range 15 {
+			if err := <-returned; err != ErrSequenceConsumed {
+				t.Fatal("duplicate claim escaped", err)
+			}
+		}
+		winner := hostActiveCount(t, h, 1)
+		r := newRun(t, providerFunc(func(ctx context.Context, _ ai.Request) (ai.Result, error) {
+			runEntered <- ctx
+			<-runRelease
+			return ai.Result{}, ctx.Err()
+		}))
+		runReturned := make(chan error, 1)
+		go func() { _, err := h.Execute(context.Background(), r); runReturned <- err }()
+		runCtx := <-runEntered
+		hostActiveCount(t, h, 2)
+		stopped := make(chan error, 1)
+		go func() { stopped <- a.Stop() }()
+		synctest.Wait()
+		if seqCtx.Err() != context.Canceled || runCtx.Err() != context.Canceled {
+			t.Fatal("mixed owners not canceled")
+		}
+		close(runRelease)
+		if err := <-runReturned; err != context.Canceled {
+			t.Fatal(err)
+		}
+		if hostActiveCount(t, h, 1) != winner {
+			t.Fatal("other call untracked winning Sequence")
+		}
+		select {
+		case <-stopped:
+			t.Fatal("mixed Stop returned early")
+		default:
+		}
+		close(seqRelease)
+		if err := <-returned; err != context.Canceled {
+			t.Fatal(err)
+		}
+		if err := <-stopped; err != nil {
+			t.Fatal(err)
+		}
+		hostEmpty(t, h, true)
+	})
+}
+
+func TestHostSequenceStopAdmissionRace(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h, a := runningHost(t)
+		start, returned := make(chan struct{}), make(chan struct{}, 32)
+		for range 32 {
+			go func() {
+				var calls int
+				s := newSequence(t, sequenceTextStep(t, providerFunc(func(ctx context.Context, _ ai.Request) (ai.Result, error) {
+					calls++
+					<-ctx.Done()
+					return ai.Result{}, ctx.Err()
+				})))
+				<-start
+				got, err := h.ExecuteSequence(context.Background(), s)
+				if got != (SequenceResult{}) {
+					t.Error("race returned partial data")
+				}
+				switch err {
+				case ErrHostNotRunning:
+					if calls != 0 || s.State() != StateReady {
+						t.Error("rejected Sequence consumed")
+					}
+					s.Cancel()
+				case ErrSequenceConsumed, context.Canceled:
+					if s.State() != StateCanceled || calls > 1 {
+						t.Error("admitted Sequence not owned")
+					}
+				default:
+					t.Error("unexpected admission outcome", err)
+				}
+				returned <- struct{}{}
+			}()
+		}
+		stopped := make(chan error, 1)
+		go func() { <-start; stopped <- a.Stop() }()
+		close(start)
+		for range 32 {
+			<-returned
+		}
+		if err := <-stopped; err != nil {
+			t.Fatal(err)
+		}
+		hostEmpty(t, h, true)
+	})
+}
+
+func TestHostSequenceDeadlinesAndPreCancel(t *testing.T) {
+	for _, callerLimit := range []time.Duration{time.Millisecond * 100, time.Second} {
+		synctest.Test(t, func(t *testing.T) {
+			h, _ := runningHost(t)
+			ctx, cancel := context.WithTimeout(context.WithValue(context.Background(), struct{}{}, "caller"), callerLimit)
+			defer cancel()
+			want := min(callerLimit, time.Millisecond*200)
+			step := sequenceTextStep(t, providerFunc(func(ctx context.Context, _ ai.Request) (ai.Result, error) {
+				deadline, ok := ctx.Deadline()
+				if !ok || time.Until(deadline) != want || ctx.Value(struct{}{}) != "caller" {
+					t.Fatal("host changed timeout/context")
+				}
+				<-ctx.Done()
+				return ai.Result{}, ctx.Err()
+			}))
+			s, err := NewSequence([]SequenceStep{step}, time.Millisecond*200)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := h.ExecuteSequence(ctx, s)
+			if got != (SequenceResult{}) || err != context.DeadlineExceeded {
+				t.Fatal("deadline lost")
+			}
+			sequenceTerminal(t, s, s.Done(), StateCanceled)
+			hostEmpty(t, h, false)
+		})
+	}
+	h, _ := runningHost(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	s := newSequence(t, sequenceTextStep(t, providerFunc(func(context.Context, ai.Request) (ai.Result, error) {
+		t.Fatal("pre-canceled work")
+		return result(), nil
+	})))
+	if got, err := h.ExecuteSequence(ctx, s); got != (SequenceResult{}) || err != context.Canceled {
+		t.Fatal("pre-cancel changed")
+	}
+	sequenceTerminal(t, s, s.Done(), StateCanceled)
+}
+
+func TestHostSequenceFailurePanicAndRestart(t *testing.T) {
+	h, a := runningHost(t)
+	panicValue := &struct{ name string }{"private_panic_canary"}
+	for _, panics := range []bool{false, true} {
+		s := newSequence(t, sequenceTextStep(t, providerFunc(func(context.Context, ai.Request) (ai.Result, error) {
+			if panics {
+				panic(panicValue)
+			}
+			return result(), errors.Join(context.Canceled, ai.ErrProvider)
+		})))
+		if panics {
+			func() {
+				defer func() {
+					if recover() != panicValue {
+						t.Error("panic identity changed")
+					}
+				}()
+				_, _ = h.ExecuteSequence(context.Background(), s)
+			}()
+		} else {
+			got, err := h.ExecuteSequence(context.Background(), s)
+			if got != (SequenceResult{}) || !errors.Is(err, ai.ErrProvider) || !errors.Is(err, context.Canceled) {
+				t.Fatal("failure reclassified")
+			}
+		}
+		sequenceTerminal(t, s, s.Done(), StateFailed)
+		hostEmpty(t, h, false)
+	}
+	makeSequence := func() *Sequence {
+		return newSequence(t, sequenceTextStep(t, providerFunc(func(ctx context.Context, _ ai.Request) (ai.Result, error) {
+			if ctx.Err() != nil {
+				t.Fatal("stale generation context")
+			}
+			return result(), nil
+		})))
+	}
+	old := makeSequence()
+	if _, err := h.ExecuteSequence(context.Background(), old); err != nil {
+		t.Fatal("host unusable after panic", err)
+	}
+	oldCtx := a.Context()
+	if err := a.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	hostEmpty(t, h, true)
+	if err := a.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if a.Context() == oldCtx || oldCtx.Err() != context.Canceled || h.core.appCtx != a.Context() {
+		t.Fatal("generation not refreshed")
+	}
+	if _, err := h.ExecuteSequence(context.Background(), old); err != ErrSequenceConsumed {
+		t.Fatal("restart reused old Sequence")
+	}
+	if _, err := h.ExecuteSequence(context.Background(), makeSequence()); err != nil {
+		t.Fatal(err)
+	}
+	hostEmpty(t, h, false)
+}
