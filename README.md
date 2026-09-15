@@ -14,16 +14,17 @@ The long-term vision of Forge is to become a modern application platform where a
 > Source-only GitHub prerelease; zero uploaded binary assets; non-production;
 > APIs and formats remain pre-stable.
 >
-> **Current main:** RR-005 reconciliation and P10-A1 architecture documentation
-> are beyond the published source, with no new runtime capability. At RR-005 start,
-> main and the tag both selected `85d78143db1b8bcf2f96b79d681895b1a0492642`.
+> **Current main:** includes Phase 10 — Bounded Workflow Composition
+> (Synchronous Sequences), beyond the published source. P10-A1/B1/B2/B3 are
+> **CLOSED / PASS — INTEGRATED**. The internal/pre-stable implementation supports
+> bounded handoff, aggregate usage, and whole-Sequence host ownership. It is
+> **not included in v0.4.0-alpha.1** and exposes no public agent API or CLI feature.
+> P10-C0 is the final documentation/audit package; its integration plus strict
+> exact push-main CI establishes **CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION**.
+> See [ADR-003](docs/architecture/adr/ADR-003-bounded-workflow-composition.md).
 > Phase 8 bounded AI/tool foundation is **CLOSED / PASS**, including accepted
 > real-provider validation. Phase 9 is **CLOSED / PASS — BOUNDED AGENT EXECUTION
-> LIFECYCLE**, internal/pre-stable and included in this release.
-> **Phase 10 architecture selected:** Bounded Workflow Composition — Synchronous
-> Sequences. **Implementation remains NOT AUTHORIZED.** P10-A1 integration and
-> strict push-main CI establish the canonical definition; no runtime capability
-> is added. See [ADR-003](docs/architecture/adr/ADR-003-bounded-workflow-composition.md).
+> LIFECYCLE**, internal/pre-stable and included in the published release.
 
 The [historical First Alpha v0.3.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.3.0-alpha.1)
 remains unchanged, with zero uploaded binary assets and without the later
@@ -92,6 +93,7 @@ the component's full roadmap or production hardening is complete.
 | Plugin System | Static foundation complete; dynamic loading deferred |
 | AI Runtime | Phase 8 bounded AI/tool foundation CLOSED / PASS; real-provider acceptance PASS; published in v0.4.0-alpha.1 |
 | Agent lifecycle | Phase 9 CLOSED / PASS; internal/pre-stable operation and application-host composition; published in v0.4.0-alpha.1 |
+| Bounded composition | Internal/pre-stable synchronous Sequences on current main; functionally complete; C0 integration + strict exact push-main CI establishes closure; not included in v0.4.0-alpha.1 |
 
 ---
 
@@ -231,6 +233,10 @@ The current tested foundation includes:
 - Internal/pre-stable single-use operation ownership, cancellation, stable Done,
   authorized-tool lifecycle composition, and application shutdown/drain/restart
   composition; Phase 9 CLOSED / PASS. No public agent API or agent CLI.
+- Internal/pre-stable Phase 10 synchronous Sequence: 1..8 static linear text or
+  authorized-tool Runs, literal/previous-text input, 16 KiB handoff validation,
+  aggregate usage accounting, and whole-Sequence RunHost lifecycle ownership.
+  Current main only; no persistence, background execution, or external CLI feature.
 
 Published `v0.3.0-alpha.1` provides `forge version`, `forge doctor`,
 `forge config`, `forge validate`, `forge build`, `forge build-runnable`,
@@ -294,11 +300,11 @@ the production AI path was unchanged; RR-005 performs zero live calls. External 
 Phase 9 is an internal/pre-stable lifecycle foundation: single-use Run ownership,
 explicit cancellation and Done, authorized-tool composition, and cooperative
 application shutdown/drain/restart composition. `forge ai prompt` retains its
-direct Phase 8 composition; it does not execute through Run or RunHost.
-This is not autonomous planning, an agent command, public `pkg/agent`, memory,
-persistence, workflow orchestration, a scheduler, queue, or background jobs.
-Phase 10 selects bounded synchronous-sequence architecture only; implementation
-remains **NOT AUTHORIZED**. **v0.4.0-alpha.1 is published** and unchanged.
+direct Phase 8 composition; it does not execute through Run, Sequence, or RunHost.
+Phase 10 adds internal bounded synchronous composition on current main only.
+It provides no autonomous planning, agent/workflow command, public `pkg/agent`,
+memory, persistence, generic workflow engine, scheduler, queue, or background jobs.
+**v0.4.0-alpha.1 is published** and unchanged; Phase 10 is not included in it.
 
 ## Quick Start: External Alpha Workflow
 
@@ -678,7 +684,7 @@ forge/
 
 # Development Roadmap
 
-The authoritative roadmap records Phases 0–9:
+The authoritative roadmap records Phases 0–10:
 
 - Phase 0 — Foundation
 - Phase 1 — Core
@@ -692,7 +698,8 @@ The authoritative roadmap records Phases 0–9:
 - Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS; internal/pre-stable, included in v0.4.0-alpha.1
 
 Phase 10: **Bounded Workflow Composition — Synchronous Sequences**;
-architecture selected, implementation **NOT AUTHORIZED**.
+A1/B1/B2/B3 are integrated. P10-C0 integration plus strict exact push-main CI
+establishes final closure for that bounded scope.
 
 Bounded Alpha closure does not mean that a phase's complete long-term scope is
 finished. See the current phase statuses and deferred work in
@@ -824,7 +831,8 @@ Phase 9 CLOSED / PASS; internal/pre-stable, included in v0.4.0-alpha.1
 
 Phase 10
 Bounded Workflow Composition — Synchronous Sequences
-Architecture selected; implementation NOT AUTHORIZED
+A1/B1/B2/B3 integrated; internal implementation functionally complete
+C0 integration + strict exact push-main CI establishes final bounded-scope closure
 ```
 > Progress percentages represent the completed foundation scope for each
 > engineering area. They do not imply that the entire long-term platform
@@ -838,13 +846,15 @@ The latest published prerelease is **v0.4.0-alpha.1**, source-only with zero
 uploaded binary assets. Phase 8 bounded AI/tool and Phase 9 internal lifecycle
 foundations are **CLOSED / PASS** and included. RR-005 reconciles documentation
 after publication without changing runtime capability.
-Autonomous agents, memory, durable history, persistence, workflow, scheduler,
+Current main also includes internal Phase 10 synchronous Sequences, not included
+in that release. P10-C0 adds documentation/audit only and has a separate closure gate.
+Autonomous agents, memory, durable history, persistence, generic workflow engine, scheduler,
 queues/workers, multi-agent orchestration, provider routing, and public agent
 APIs are not delivered. These closures do not imply Beta/production readiness,
 sandboxing, process-tree containment, or persistent trust rotation/revocation.
 
 RR-004-PUB is **CLOSED / PASS — PUBLISHED**. Further releases, binary assets,
-and Phase 10 implementation require separate Owner/governance decisions.
+and any further architecture expansion require separate Owner/governance decisions.
 
 The core, local exact-identity registry, and trusted local runtime scopes are
 Alpha-bounded closed. Phase 6 — Compiler / Package Pipeline Hardening is

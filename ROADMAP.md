@@ -15,10 +15,11 @@ reconciliation package; it adds no runtime capability. PR #24 integration and
 strict push-main CI are the closure gate.
 **Phase 10 architecture selected by Control Room: Bounded Workflow Composition
 — Synchronous Sequences.** P10-A1 is **CLOSED / PASS — INTEGRATED**.
-P10-B1/B2 are **CLOSED / PASS — INTEGRATED**. P10-B3 whole-sequence host
-integration is separately authorized and implemented; integration plus strict
-push-main CI establishes CLOSED / PASS — INTEGRATED. P10-C0 remains
-**NOT AUTHORIZED / NOT STARTED**. Phase 10 is not closed.
+P10-B1/B2/B3 are **CLOSED / PASS — INTEGRATED**. The selected internal scope is
+functionally complete on current main, not included in v0.4.0-alpha.1.
+P10-C0 is the final documentation/audit closure package; its integration plus
+strict exact push-main CI establishes **CLOSED / PASS — BOUNDED WORKFLOW
+COMPOSITION (Synchronous Sequences)**. No closure is claimed before that gate.
 
 ---
 
@@ -401,14 +402,14 @@ catalog, additional built-in tools, filesystem/network/subprocess agent tools,
 provider routing, multi-provider compatibility, public `pkg/agent` API, or Beta
 readiness. Memory, scheduler, and tool/provider expansion require new selection
 gates. Bounded synchronous workflow composition was separately selected by
-post-release P10-A0-R1; P10-B1/B2 are CLOSED / PASS — INTEGRATED. P10-B3
-whole-sequence host integration is separately authorized; integration plus
-strict push-main CI establishes closure. P10-C0 remains NOT AUTHORIZED / NOT STARTED.
+post-release P10-A0-R1; P10-A1/B1/B2/B3 are CLOSED / PASS — INTEGRATED.
+P10-C0 is the final closure package; integration plus strict exact push-main CI
+establishes final bounded-scope closure.
 Publication required separate
 release governance and did not broaden Phase 9 authority.
 At the v0.4.0-alpha.1 publication checkpoint, Phase 10 was not yet defined or
-authorized. The subsequent architecture-only definition below changes no Phase 9
-authority or published runtime capability.
+authorized. The subsequent Phase 10 architecture and implementation below change
+no Phase 9 historical authority or published runtime capability.
 
 Release status: **0.4.0-alpha.1 PUBLISHED**. Separate governance through RR-001
 to RR-004-PUB authorized the source-only prerelease (zero assets) at
@@ -427,9 +428,10 @@ Historical `v0.3.0-alpha.1` remains at
 
 **Architecture definition selected by Control Room.** P10-A0-R1 is
 **CLOSED / PASS — OUTCOME A ACCEPTED**. P10-A1 is
-**CLOSED / PASS — INTEGRATED**, as are P10-B1/B2. P10-B3 implementation is separately
-authorized; integration plus strict push-main CI establishes its
-CLOSED / PASS — INTEGRATED status. P10-C0 remains **NOT AUTHORIZED / NOT STARTED**.
+**CLOSED / PASS — INTEGRATED**, as are P10-B1/B2/B3. P10-C0 is the final
+closure package, adding documentation and audit only. P10-C0 integration plus
+strict exact push-main CI establishes Phase 10
+CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION (Synchronous Sequences).
 
 Objective: compose a finite, explicit sequence of already-authorized AI operations
 synchronously while preserving caller authority, lifecycle ownership, fail-fast
@@ -477,7 +479,7 @@ The B2 slice adds no host/app integration, public API, CLI, persistence, or back
 
 ### P10-B3 implementation record — whole-sequence host ownership
 
-P10-B2 integrated main / B3 preparation base:
+Historical P10-B2 integrated main / B3 preparation base:
 `6d3cac19982129f785ce0a3153ace4feade055e4`, tree
 `dc8f618ced2fd9c826e41c8ca30d8362280abb67`;
 [strict main CI 34825138783](https://github.com/kaizenforyou91/forge/actions/runs/34825138783)
@@ -501,10 +503,27 @@ a fresh App context; consumed Sequences remain consumed.
 
 Existing RunHost.Execute and module identity remain compatible. Sequence and
 pkg/app source remain unchanged. No public API, CLI, persistence, background
-work, or authority expansion. B3 is separately authorized and implemented;
-integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED.
-P10-C0 is NOT AUTHORIZED / NOT STARTED. Phase 10 implementation is near-complete,
-not closed.
+work, or authority expansion. B3 is CLOSED / PASS — INTEGRATED.
+
+### P10-C0 final offline closure record
+
+P10-B3 integrated main / P10-C0 audit baseline:
+`92ea08c5af041e6a204891059724811ab582111a`, tree
+`00e178657f0fa746c6e1261df55251c46bae277e`; parents
+`6d3cac19982129f785ce0a3153ace4feade055e4` and
+`bc64d2f19e09fce0f40a6e08b52ec4ddea7d5a88`.
+[Strict main CI 34920655351](https://github.com/kaizenforyou91/forge/actions/runs/34920655351)
+is push/main on that exact SHA, attempt 1, completed/success: Ubuntu acceptance,
+Windows acceptance, and Ubuntu race PASS. No C0 retry is pre-authorized.
+
+P10-A1/B1/B2/B3 are CLOSED / PASS — INTEGRATED. The selected implementation is
+functionally complete. C0 audits existing source/tests and reconciles current
+documentation, including narrow ADR-002 status corrections; it adds no runtime
+capability. P10-C0 integration plus strict exact push-main CI establishes Phase 10
+CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION (Synchronous Sequences).
+This is a conditional closure rule, not a claim that C0 has already integrated.
+The immutable published release excludes Phase 10. Runtime/Trust Hardening
+remains the preferred later architecture wave; no later phase is started.
 
 ### Selected Phase 10 architecture
 
@@ -594,22 +613,21 @@ completeness remain IMPORTANT but are NOT P10 blockers. Runtime/Trust Hardening
 is the preferred next architecture wave unless future evidence changes priority;
 it is outside P10 and not automatically authorized.
 
-### Future packages and acceptance
+### Package status and acceptance
 
 | Package | Defined scope | Status / integration dependency |
 |---|---|---|
 | P10-A1 | Architecture definition, ADR, roadmap | CLOSED / PASS — INTEGRATED; architecture only |
 | P10-B1 | Internal sequence lifecycle and static literal-step execution | CLOSED / PASS — INTEGRATED |
 | P10-B2 | Previous-text handoff and bounded aggregate accounting | CLOSED / PASS — INTEGRATED |
-| P10-B3 | Whole-sequence application-host integration | IMPLEMENTATION SEPARATELY AUTHORIZED; integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED |
-| P10-C0 | Offline integration / architecture closure | NOT AUTHORIZED / NOT STARTED; integrated B1/B2/B3 and separate authorization required |
+| P10-B3 | Whole-sequence application-host integration | CLOSED / PASS — INTEGRATED |
+| P10-C0 | Offline integration / architecture closure | Final documentation/audit closure package; integration plus strict exact push-main CI establishes bounded Phase 10 closure |
 
-P10-A1 integration did not authorize implementation. B1 integrated under separate
-approval, as did B2. B3 has separate approval for host.go / host_test.go plus
-its documentation record. Sequence and pkg/app source remain unchanged. C0
-requires separate authorization after B3 integration and strict main CI.
+P10-A1 integration did not authorize implementation. B1/B2/B3 each integrated
+under separate approval. B3 preserved Sequence and pkg/app source. C0 is separately
+authorized for documentation and read-only audit only, with no new test or source.
 
-Future deterministic offline proofs cover single claim, sequential order,
+Existing deterministic offline tests cover single claim, sequential order,
 zero/>8 rejection, valid step types, literal/handoff validation, zero next calls
 on failure, all deadline/cancellation boundaries, application Stop during and
 between steps, drain/restart, known/unknown/overflow usage, 64/96 preservation,
@@ -622,11 +640,11 @@ pkg/ai/tool, and internal/agent. No new dependency is currently justified.
 
 **NO NEW LIVE PROVIDER VALIDATION REQUIRED** for composition of unchanged
 accepted paths. Wire serialization, HTTP, decoding, or provider/tool round-trip
-changes in a future package must reopen freshness review. P10-A1 makes no live
+changes in a future package must reopen freshness review. C0 makes no live
 call and accesses no API key.
 
 No version or release is selected/authorized. Architecture definition has no
-automatic publication effect; a later implemented Phase 10 may be considered
+automatic publication effect; the integrated Phase 10 scope may be considered
 for an alpha feature release only through a separate gate. No Beta readiness
 or new production guarantee is implied.
 
@@ -764,7 +782,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 7 — Runtime | ✅ Alpha-Bounded Closed; trusted local direct-child boundary |
 | Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; published in v0.4.0-alpha.1 |
 | Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE |
-| Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | P10-A1/B1/B2 CLOSED / PASS — INTEGRATED; B3 whole-sequence host integration separately authorized with integration + strict main CI closure gate; C0 NOT AUTHORIZED / NOT STARTED |
+| Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | P10-A1/B1/B2/B3 CLOSED / PASS — INTEGRATED; functionally complete internal scope; C0 integration + strict exact push-main CI establishes final bounded-scope closure |
 
 ## Engineering Milestones
 
@@ -1232,8 +1250,8 @@ Future capabilities (do not keep Phase 6 open):
 
 ```text
 Published release: v0.4.0-alpha.1 — source-only, zero uploaded assets
-P10-B3 preparation base: main 6d3cac19982129f785ce0a3153ace4feade055e4, integrated P10-A1/B1/B2
-P10-B3: separately authorized whole-sequence host implementation; integration + strict main CI are the closure gate
+P10-C0 audit base: main 92ea08c5af041e6a204891059724811ab582111a, integrated P10-A1/B1/B2/B3
+P10-C0: final documentation/audit package; integration + strict exact push-main CI establishes bounded Phase 10 closure
 → Phase 1 — Core Foundation: Alpha-Bounded Closed
 → Phase 2 — Alpha workflow implemented; long-term expansion planned
 → Phase 3 — Manifest Engine: Complete for current contract
@@ -1247,7 +1265,7 @@ P10-B3: separately authorized whole-sequence host implementation; integration + 
 → Bounded Tool Calling / Real Provider Acceptance: PASS
 → Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS; included, internal/pre-stable
 → Phase 9 Packages: A1/B1/B2/B3/C0 CLOSED / PASS — INTEGRATED; no further runtime package required
-→ Phase 10 — Bounded Workflow Composition (Synchronous Sequences): A1/B1/B2 integrated; B3 whole-sequence host integration separately authorized; C0 NOT AUTHORIZED / NOT STARTED
+→ Phase 10 — Bounded Workflow Composition (Synchronous Sequences): A1/B1/B2/B3 integrated; functionally complete internal scope; C0 integration + strict exact push-main CI establishes closure
 → Autonomous Agents / Memory / Workflow Engine / Scheduler: Future
 → Release: 0.4.0-alpha.1 PUBLISHED; RR-004-PUB CLOSED / PASS
 → RR-005 — post-publication documentation reconciliation; documentation-only, no runtime changes; PR #24 merge + strict push-main CI are the closure gate
