@@ -16,11 +16,15 @@ capability and internal/pre-stable Phase 9 lifecycle foundation are CLOSED / PAS
 See the separate [0.4.0-alpha.1 AI workflow](AI_PROMPT_WORKFLOW.md) and
 [roadmap](../ROADMAP.md). This guide preserves the historical First Alpha commands.
 At the v0.4.0-alpha.1 publication checkpoint, Phase 10 was not yet defined or
-authorized. Post-release P10-A0-R1 selected bounded synchronous workflow
-composition; implementation remains **NOT AUTHORIZED** and separately gated.
-[ADR-003](architecture/adr/ADR-003-bounded-workflow-composition.md) records the
-architecture-only decision; P10-A1 integration and strict push-main CI establish
-its canonical definition. These decisions do not alter the historical workflow.
+authorized. Current main now includes the separately selected internal/pre-stable
+Phase 10 synchronous Sequence implementation: P10-A1/B1/B2/B3 are
+CLOSED / PASS — INTEGRATED. Phase 10 is not included in v0.4.0-alpha.1 and
+is not an external Alpha CLI capability. See
+[ADR-003](architecture/adr/ADR-003-bounded-workflow-composition.md).
+P10-C0 integration plus strict exact push-main CI establishes final bounded-scope
+closure. `forge ai prompt` remains direct Phase 8 composition in the published
+release and current main; it has not migrated to Run, Sequence, or RunHost.
+These decisions do not alter the historical workflow.
 
 ## Historical release maturity: First Alpha — 0.3.0-alpha.1
 
@@ -392,5 +396,6 @@ Autonomous agents, AI memory/durable history, persistence, workflows, schedulers
 queues/workers, multi-agent orchestration, arbitrary side-effect tools, provider
 routing, and public agent APIs remain outside the delivered Phase 8/9 boundary.
 No Beta/production, sandboxing, process-tree containment, or persistent trust
-rotation/revocation claim is added. Phase 10 synchronous-sequence architecture is
-selected; implementation remains **NOT AUTHORIZED**.
+rotation/revocation claim is added. Current main implements internal Phase 10
+synchronous Sequences, not included in v0.4.0-alpha.1 or this external workflow.
+C0 integration plus strict exact push-main CI establishes final bounded-scope closure.

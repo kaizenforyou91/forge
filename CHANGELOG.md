@@ -28,8 +28,11 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   drains its entire synchronous call without detaching non-cooperative work.
   Existing RunHost.Execute remains compatible; Sequence and pkg/app are unchanged.
   No public API, CLI, persistence, background work, or authority expansion.
-  B3 integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED;
-  P10-C0 remains NOT AUTHORIZED / NOT STARTED. Phase 10 is not closed.
+  P10-B3 is CLOSED / PASS — INTEGRATED.
+- P10-C0 reconciles current documentation and audits the integrated A1/B1/B2/B3
+  scope; it adds zero runtime capability. C0 integration plus strict exact
+  push-main CI establishes Phase 10 CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION
+  (Synchronous Sequences). No new release or broader capability is implied.
 
 ## 0.4.0-alpha.1 - 2026-09-14
 

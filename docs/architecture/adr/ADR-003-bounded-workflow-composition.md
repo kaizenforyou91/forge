@@ -7,10 +7,13 @@
 P10-A0-R1 is CLOSED / PASS — OUTCOME A ACCEPTED BY CONTROL ROOM.
 P10-A1 is CLOSED / PASS — INTEGRATED after strict push-main CI. That architecture
 decision did not authorize implementation. P10-B1 is CLOSED / PASS — INTEGRATED
-under separate authorization, as is P10-B2. P10-B3 has separate implementation
-authorization for whole-sequence host ownership recorded below. Integration plus
-strict push-main CI establishes B3's CLOSED / PASS — INTEGRATED status.
-P10-C0 remains NOT AUTHORIZED / NOT STARTED. Phase 10 is not closed.
+under separate authorization, as are P10-B2 and P10-B3. The selected internal
+implementation is functionally complete on current main. P10-C0 is the separately
+authorized final documentation/audit closure package, with no new runtime capability.
+P10-C0 integration plus strict exact push-main CI establishes Phase 10
+CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION (Synchronous Sequences).
+No closure is claimed before that gate. The architecture-only status above
+classifies the original decision; implementation authority was granted separately.
 
 Phase 10 — Bounded Workflow Composition (Synchronous Sequences) has the objective:
 compose a finite, explicit sequence of already-authorized AI operations
@@ -47,21 +50,30 @@ Historical P10-B1 integrated main / P10-B2 preparation base:
 is push/main on that exact SHA, attempt 1, completed/success for Ubuntu acceptance,
 Windows acceptance, and Ubuntu race. No B2 CI retry is pre-authorized.
 
-P10-B2 integrated main / P10-B3 preparation base:
+Historical P10-B2 integrated main / P10-B3 preparation base:
 `6d3cac19982129f785ce0a3153ace4feade055e4`, tree
 `dc8f618ced2fd9c826e41c8ca30d8362280abb67`; parents
 `9e0c38b70d63446440328aca3fa5c5574ae68df8` and
 `edc75b975a25d1c588da00ca9083cd9d5669a80d`.
 [Strict main CI 34825138783](https://github.com/kaizenforyou91/forge/actions/runs/34825138783)
 is push/main on that exact SHA, attempt 1, completed/success for Ubuntu acceptance,
-Windows acceptance, and Ubuntu race. No B3 retry is pre-authorized.
+Windows acceptance, and Ubuntu race. No B3 retry was pre-authorized.
+
+P10-B3 integrated main / P10-C0 audit baseline:
+`92ea08c5af041e6a204891059724811ab582111a`, tree
+`00e178657f0fa746c6e1261df55251c46bae277e`; parents
+`6d3cac19982129f785ce0a3153ace4feade055e4` and
+`bc64d2f19e09fce0f40a6e08b52ec4ddea7d5a88`.
+[Strict main CI 34920655351](https://github.com/kaizenforyou91/forge/actions/runs/34920655351)
+is push/main on that exact SHA, attempt 1, completed/success: Ubuntu acceptance,
+Windows acceptance, and Ubuntu race PASS. No C0 retry is pre-authorized.
 
 Published [v0.4.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.4.0-alpha.1)
 remains source-only, non-production, and pre-stable. Annotated tag object
 `c02b81a94c3c7bead6a7fcf4030ce03cc98af52a` targets
 `85d78143db1b8bcf2f96b79d681895b1a0492642`; Release ID `388084778` remains
 draft=false, prerelease=true, assets=0. Phase 10 is not included in that release.
-The release/publication chain is CLOSED / PASS; P10-A1 does not mutate it.
+The release/publication chain is CLOSED / PASS; C0 does not mutate it.
 
 The existing [Run](../../../internal/agent/run.go) snapshots its request,
 owns a single execution claim, and releases terminal references. The
@@ -74,10 +86,10 @@ handoff, and the B3 record below adds whole-sequence host ownership.
 
 ## Placement and Architecture Freeze
 
-The Sequence is INTERNAL and pre-stable in `internal/agent`; likely future files
-are `internal/agent/sequence*.go` and `sequence*_test.go`, with narrow changes
-to `internal/agent/host.go` and `host_test.go` for host composition.
-P10-A1 creates none of those files.
+The Sequence is INTERNAL and pre-stable in `internal/agent`, implemented in
+`sequence.go` / `sequence_test.go`, with whole-sequence host composition in
+`host.go` / `host_test.go`. Historical P10-A1 created none of those source files;
+B1/B2/B3 integrated them under separate authorization. C0 changes documentation only.
 
 Composition builds above `pkg/app`, `pkg/ai`, `pkg/ai/tool`, and existing
 `internal/agent` ownership. Lower layers must not import higher agent composition.
@@ -384,8 +396,8 @@ cancellation, fail-fast, panic propagation/cleanup, and redaction are preserved.
 B2 adds no automatic provider calls or authority. For T+U<=8, accepted paths
 retain T+2U POSTs / U handler attempts at most (16 / 8 worst case). No host/app
 admission, public API, CLI, persistence, or background execution is delivered by
-B2. B3 adds the separately authorized host composition below; C0 remains
-NOT AUTHORIZED / NOT STARTED.
+B2. B3 subsequently integrated the separately authorized host composition below.
+C0 is the separately gated final documentation/audit closure package.
 
 ## P10-B3 implementation record — whole-sequence host integration
 
@@ -436,11 +448,62 @@ transition methods to hold a no-active-child gap after a successful child;
 Stop cancels it and cannot return before exact call release. No production
 hook or Sequence change is needed. Existing Run host tests remain intact.
 
-B3 is separately authorized and implemented. Control Room review, guarded
-integration, and strict exact push-main CI establish CLOSED / PASS — INTEGRATED.
-P10-C0 is NOT AUTHORIZED / NOT STARTED; Phase 10 is not closed. No public API,
-CLI, manifest/package change, persistence, background execution, network/tool
-authority expansion, live call, or credential access is introduced.
+B3 is CLOSED / PASS — INTEGRATED on the exact baseline recorded above.
+C0 integration plus strict exact push-main CI establishes final Phase 10 closure.
+No public API, CLI, manifest/package change, persistence, background execution,
+network/tool authority expansion, live call, or credential access is introduced.
+
+## P10-C0 final offline source audit
+
+C0 audits the exact B3 integration baseline above. A1/B1/B2/B3 are
+CLOSED / PASS — INTEGRATED. The following existing source and tests establish
+the implemented bounded scope; C0 changes no Go, tests, CI, dependencies,
+manifest/schema, or runtime capability.
+
+| Evidence | Audited boundary |
+|---|---|
+| [Sequence](../../../internal/agent/sequence.go), [tests](../../../internal/agent/sequence_test.go) | Shared single claim; synchronous 1..8 static steps; literal/previous-text modes; fresh Request validation before fresh Run; deadlines, cancellation, fail-fast, panic cleanup, redaction and reference release |
+| [RunHost](../../../internal/agent/host.go), [tests](../../../internal/agent/host_test.go) | One unique cancel-only admission for the entire Sequence call; active-child and inter-step Stop cancellation/drain; duplicate/mixed owners; panic unwind; fresh App generation on restart |
+| [Run](../../../internal/agent/run.go), [tests](../../../internal/agent/run_test.go), [tool Run](../../../internal/agent/tool_run.go), [tests](../../../internal/agent/tool_run_test.go) | Existing narrow execution paths and lifecycle remain authoritative; safe errors, explicit authority and tool 64-cap/96-output usage preserved |
+| [AI contracts](../../../pkg/ai/types.go), [Executor](../../../pkg/ai/executor.go), [tool Authority](../../../pkg/ai/tool/authority.go), [tool execution](../../../pkg/ai/tool/execution.go) | Canonical request/result validation; 16 KiB input; immutable caller authority; bounded handler execution |
+| [OpenAI round trip](../../../internal/aiprovider/openai/function_call_roundtrip.go), [authority path](../../../internal/aiprovider/openai/function_call_authority.go) | Unchanged production wire path; at most two POSTs and one handler attempt per authorized-tool Run; no retry or recursive tool loop |
+| [CLI AI path](../../../internal/cli/ai.go) | Direct Phase 8 composition, not Run/Sequence/RunHost; no new CLI grammar or built-in tool |
+| [App lifecycle](../../../pkg/app/lifecycle.go), [start](../../../pkg/app/start.go), [stop](../../../pkg/app/stop.go), [Architecture Freeze](../ARCHITECTURE_FREEZE_V1.md), [ADR-002](ADR-002-agent-run-ownership.md) | App remains lifecycle owner; no app production API change, lower-layer dependency inversion, new dependency, or Freeze exception; ADR-002 receives only current-status reconciliation |
+
+Handoff uses only the immediate successful predecessor's text, unchanged.
+Request.Validate rejects invalid or over-16-KiB input before the next child is
+constructed. No truncation, summarization, repair call, or history is added.
+Final.Usage belongs to the final child; AggregateUsage is a fresh checked sum
+only while every successful child reports usage. Nil stays unknown and stops
+arithmetic; known int64 overflow fails safely with zero result and no later work.
+The existing 64/96 tool regression remains valid without an aggregate token cap.
+
+Model output remains text data only: provider, model, token limit, timeout,
+operation kind/count and immutable tool authority stay caller-fixed. For T text
+and U tool steps with T+U<=8, accepted OpenAI paths retain at most T+2U POSTs and
+U handler attempts (16/8 worst case), without increasing per-Run authority.
+Trusted provider/custom panic propagates unchanged while Sequence and host
+bookkeeping unwind; existing Run and tool-handler panic contracts are unchanged.
+Stop owns the exact call until return/unwind and cannot detach non-cooperative work.
+
+No public API, CLI, manifest/package change, persistence, background execution,
+new network/tool authority, autonomous planning, scheduler, generic workflow
+engine, DAG/parallel nodes, provider routing, or production isolation is added.
+Source comparison confirms CLI, pkg/app, AI/tool, OpenAI, manifest/package/runtime,
+dependency metadata, and Architecture Freeze remain unchanged from publication.
+The production AI path also matches the accepted live baseline
+`ac68a1b3e059f173d9b5c71eadaff9fcffba981f`; no new live validation is required.
+
+C0 preserves published v0.4.0-alpha.1 and its historical pre-Phase-10 truth.
+It selects no version or release. The accepted debt above, cooperative shutdown,
+provider processing/billing limits, and pre-stable APIs/formats remain; this is
+not Beta/production readiness. Runtime/Trust Hardening is a later selection gate.
+
+P10-C0 integration plus strict exact push-main CI establishes
+**CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION (Synchronous Sequences)**.
+This conditional rule does not assert that C0 has already integrated. Normal
+PR acceptance on Ubuntu/Windows and canonical Ubuntu race must pass before
+that separate guarded integration; no retry or waiver is pre-authorized.
 
 ## Package plan and separate authorization
 
@@ -449,14 +512,17 @@ authority expansion, live call, or credential access is introduced.
 | P10-A1 | Architecture / ADR / roadmap only | Accurate bounded decision, historical truth, links, offline checks | CLOSED / PASS — INTEGRATED; architecture only |
 | P10-B1 | Internal sequence lifecycle and static literal steps; sequence.go / sequence_test.go / errors.go | Single claim, order, bounds, fail-fast, cancellation, redaction, reference release | CLOSED / PASS — INTEGRATED |
 | P10-B2 | Previous-text handoff and aggregate accounting; sequence.go / sequence_test.go | No next call on bad input, immutable authority, known/unknown/overflow usage | CLOSED / PASS — INTEGRATED |
-| P10-B3 | Whole-sequence host composition; host.go / host_test.go | Admission, inter-step cancellation/drain, restart, panic bookkeeping | IMPLEMENTATION SEPARATELY AUTHORIZED; integration plus strict push-main CI establishes CLOSED / PASS — INTEGRATED |
-| P10-C0 | Offline integration / architecture closure | Integrated scope and invariant audit, strict main CI | NOT AUTHORIZED / NOT STARTED; requires B1/B2/B3 integration and separate approval |
+| P10-B3 | Whole-sequence host composition; host.go / host_test.go | Admission, inter-step cancellation/drain, restart, panic bookkeeping | CLOSED / PASS — INTEGRATED |
+| P10-C0 | Offline integration / architecture closure | Integrated scope and invariant audit, strict main CI | Final documentation/audit closure package; integration plus strict exact push-main CI establishes bounded Phase 10 closure |
 
-B1/B2 are integrated. B3's separate implementation approval does not establish
-integration or closure: Control Room review, guarded integration, and strict
-exact push-main CI are its closure gates. It does not authorize C0.
+A1/B1/B2/B3 are integrated under their separate authorizations. C0 is authorized
+for final documentation and offline audit only. Its guarded integration and strict
+exact push-main CI remain the final Phase 10 closure gate.
 
 ## Future tests and acceptance evidence
+
+The selected proof obligations below are now covered by integrated tests.
+C0 uses that evidence and adds no runtime test; future changes must preserve it.
 
 - Admission: zero-node and >8 rejection, step-kind/input validation, nil and
   typed-nil rejection, construction with zero I/O, immutable snapshots.
@@ -490,10 +556,10 @@ for later integration/closure; this ADR does not weaken them.
 **NO NEW LIVE PROVIDER VALIDATION REQUIRED** for the selected composition
 design: it reuses accepted execution paths without changing provider wire or
 adapter behavior. A future change to wire serialization, HTTP, response decoding,
-or provider/tool round-trip behavior must reopen freshness review. P10-A1 makes
+or provider/tool round-trip behavior must reopen freshness review. C0 makes
 zero live calls and accesses no API key.
 
 No version is selected, release authorized, tag created, or Release edited.
-Architecture definition has no automatic publication effect. Later implemented
-Phase 10 may be considered for an alpha feature release only through a separate
-release gate. This decision does not promise production or Beta readiness.
+Architecture definition and C0 closure have no automatic publication effect.
+The integrated Phase 10 scope may be considered for an alpha feature release
+only through a separate release gate. This decision does not promise production or Beta readiness.
