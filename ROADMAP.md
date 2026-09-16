@@ -24,14 +24,14 @@ COMPOSITION (Synchronous Sequences)**. That gate passed on main
 
 **Phase 11 is DEFINED: Native Process Scope Ownership and Deterministic Cleanup.**
 P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**. P11-A1 is
-**CLOSED / PASS — INTEGRATED**, as is P11-B1. P11-B2 is separately authorized
-for private Linux mechanism/proof only. P11-B3/B4/C0 remain
+**CLOSED / PASS — INTEGRATED**, as are P11-B1/B2. P11-B3 is separately authorized
+for private Windows creation-time Job mechanism/proof only. P11-B4/C0 remain
 **NOT AUTHORIZED / NOT STARTED**. The A0 report's earlier undefined status is
 historical and superseded by Control Room approval; selection is not reopened.
 See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
-for the accepted architecture and bounded B1/B2 records. B2 integration plus
+for the accepted architecture and bounded B1/B2/B3 records. B3 integration plus
 strict exact push-main CI establishes its CLOSED / PASS — INTEGRATED status.
-B2 does not integrate ProcessRunner or authorize release work.
+B3 does not integrate ProcessRunner or authorize release work.
 
 ---
 
@@ -536,8 +536,8 @@ CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION (Synchronous Sequences).
 This closure gate passed at `bad51ed6ea7f476432c656036288f660281dbd50`,
 with strict push-main CI `34924714319`, attempt 1, completed/success.
 The immutable published release excludes Phase 10. The subsequent P11-A0
-selection was accepted; Phase 11 is defined below, A1/B1 are integrated, and B2
-is the separately authorized Linux mechanism/proof package. B3/B4/C0 remain gated.
+selection was accepted; Phase 11 is defined below, A1/B1/B2 are integrated, and
+B3 is the separately authorized Windows mechanism/proof package. B4/C0 remain gated.
 
 ### Selected Phase 10 architecture
 
@@ -624,9 +624,9 @@ Validated-object-to-path execution binding, same-user package mutation, Windows
 ACL/reparse/share-mode hardening, process-tree/graceful native shutdown,
 persistent trust lifecycle, key rotation/revocation, and provenance/SBOM
 completeness remain IMPORTANT but are NOT P10 blockers. Control Room selected
-native process scope ownership as Phase 11; P11-A1/B1 are integrated and P11-B2
-Linux mechanisms are separately authorized. Windows mechanisms and production
-runner integration remain unimplemented. The other hardening families remain separate accepted debt. Closed
+native process scope ownership as Phase 11; P11-A1/B1/B2 are integrated and
+P11-B3 Windows mechanisms are separately authorized. Production runner
+integration remains unimplemented. The other hardening families remain separate accepted debt. Closed
 Phase 10 authority does not expand through the later selection.
 
 ### Package status and acceptance
@@ -671,12 +671,13 @@ or new production guarantee is implied.
 **DEFINED. P11-A0: CLOSED / PASS — SELECTION ACCEPTED.**
 P11-A1: **CLOSED / PASS — INTEGRATED**.
 P11-B1: **CLOSED / PASS — INTEGRATED**.
-P11-B2: **SEPARATELY AUTHORIZED — LINUX MECHANISM/PROOF ONLY**.
-P11-B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
+P11-B2: **CLOSED / PASS — INTEGRATED**.
+P11-B3: **SEPARATELY AUTHORIZED — WINDOWS MECHANISM/PROOF ONLY**.
+P11-B4/C0: **NOT AUTHORIZED / NOT STARTED**.
 
 Objective: own one native launch scope from creation through termination and
 cleanup while preserving direct-child results, caller cancellation, and existing
-launch authority. B1 supplies coordination and B2 supplies private Linux
+launch authority. B1 supplies coordination; B2/B3 supply private Linux/Windows
 primitives; production scope ownership is not integrated and Phase 11 is not
 functionally complete.
 
@@ -706,8 +707,8 @@ application lifecycle owner; Architecture Freeze remains unchanged.
 |---|---|---|
 | P11-A1 | Architecture/ADR and focused roadmap definition | CLOSED / PASS — INTEGRATED |
 | P11-B1 | Private platform-neutral scope ownership/terminal coordination | CLOSED / PASS — INTEGRATED |
-| P11-B2 | Private Linux group and identifier-lifetime mechanism/proof | Separately authorized; integration + strict exact push-main CI establishes closure |
-| P11-B3 | Windows creation-time job membership and resource ownership | NOT AUTHORIZED / NOT STARTED |
+| P11-B2 | Private Linux group and identifier-lifetime mechanism/proof | CLOSED / PASS — INTEGRATED |
+| P11-B3 | Windows creation-time job membership and resource ownership | Separately authorized; integration + strict exact push-main CI establishes closure |
 | P11-B4 | Runtime integration and compatibility evidence | NOT AUTHORIZED / NOT STARTED |
 | P11-C0 | Final architecture/integration closure | NOT AUTHORIZED / NOT STARTED |
 
@@ -718,7 +719,7 @@ selection output only; Control Room approval supersedes it. No A0 rerun is neede
 
 Published v0.4.0-alpha.1 contains neither Phase 10 nor Phase 11 and stays immutable.
 No release or version is selected. A1 integration does not authorize later
-packages. B2 is separately authorized and adds no production runner integration,
+packages. B3 is separately authorized and adds no production runner integration,
 Phase 11 closure, Beta readiness, or production readiness.
 
 ### P11-B1 implementation record
@@ -757,10 +758,31 @@ leader-first exit with inherited-pipe closure, an independent sentinel, and a
 controlled setsid escape followed by explicit cleanup. Hosted Ubuntu acceptance
 and race supply native evidence. Windows acceptance is regression evidence only;
 Linux cross-compilation is compile-only. x/sys remains v0.13.0, promoted from
-indirect to direct use with go.sum unchanged. B2 integration plus strict exact
-push-main CI establishes B2 CLOSED / PASS — INTEGRATED. Windows creation-time
-Job proof (B3), runner integration (B4) and closure (C0) remain
+indirect to direct use with go.sum unchanged. B2 is CLOSED / PASS — INTEGRATED
+at main `f7337587d72315a77dc21bc29ad18c71b49069ce`, strict push-main CI
+[34949872571](https://github.com/kaizenforyou91/forge/actions/runs/34949872571),
+attempt 1 PASS. B3 is separately authorized below. B4/C0 remain
 NOT AUTHORIZED / NOT STARTED. macOS remains direct-child only.
+
+### P11-B3 Windows mechanism and native proof gate
+
+The private Windows launcher creates one unnamed, non-inheritable Job, sets only
+KILL_ON_JOB_CLOSE, and supplies exactly that Job in the creation-time JOB_LIST
+attribute. Explicit duplicated stdio handles are the only HANDLE_LIST entries.
+No post-start assignment, suspended fallback, host-Job mutation, breakaway or
+administrator operation is used. Unsupported attributes or nesting fail start.
+Job control and direct-child handles have separate owners. TerminateJobObject
+with exit code 1 acknowledges a request only; process signaling and pipe EOF are
+separate proof. Finalization retires/closes the Job once and preserves failure.
+Kill-on-close is failure safety, not the normal B1 control winner.
+
+Fake tests cover exact handle cleanup and partial failures. Native Go helpers
+cover membership, ordinary descendants, outside sentinels, test-owned outer/inner
+Jobs and kill-on-close. Hosted Windows acceptance is canonical native B3 proof;
+Ubuntu acceptance/race remain regression gates. B3 integration plus strict exact
+push-main CI establishes CLOSED / PASS — INTEGRATED. B1/B2 and production runner
+paths remain unchanged; no public API, CLI, format, persistence or dependency
+change. B4/C0 remain NOT AUTHORIZED / NOT STARTED; Phase 11 is not closed.
 
 ---
 
@@ -897,7 +919,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; published in v0.4.0-alpha.1 |
 | Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE |
 | Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION; A1/B1/B2/B3/C0 integrated, exact main CI passed |
-| Phase 11 — Native Process Scope Ownership and Deterministic Cleanup | DEFINED; A1/B1 integrated; B2 separately authorized Linux mechanism/proof; B3/B4/C0 NOT AUTHORIZED / NOT STARTED |
+| Phase 11 — Native Process Scope Ownership and Deterministic Cleanup | DEFINED; A1/B1/B2 integrated; B3 separately authorized Windows mechanism/proof; B4/C0 NOT AUTHORIZED / NOT STARTED |
 
 ## Engineering Milestones
 

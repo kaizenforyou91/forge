@@ -9,14 +9,15 @@
 - Canonical title: **Native Process Scope Ownership and Deterministic Cleanup**.
 - P11-A1: **CLOSED / PASS — INTEGRATED** (architecture only).
 - P11-B1: **CLOSED / PASS — INTEGRATED** (private coordination only).
-- P11-B2: **SEPARATELY AUTHORIZED — LINUX MECHANISM/PROOF ONLY**.
-- P11-B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
+- P11-B2: **CLOSED / PASS — INTEGRATED** (private Linux mechanism/proof).
+- P11-B3: **SEPARATELY AUTHORIZED — WINDOWS MECHANISM/PROOF ONLY**.
+- P11-B4/C0: **NOT AUTHORIZED / NOT STARTED**.
 
 Control Room approval supersedes the A0 selection report's historical statement
 that Phase 11 was not defined. Selection is not being reopened. This record
 defines the accepted architecture. B1 supplies integrated private coordination;
-B2 supplies Linux-only mechanisms and proof fixtures. No Windows mechanism or
-production runner integration is present. Every later
+B2 supplies integrated Linux mechanisms/proof; B3 supplies separately authorized
+private Windows mechanisms/proof fixtures. No production runner integration is present. Every later
 package needs separate authorization, and no publication is authorized.
 
 ## Baseline and existing behavior
@@ -38,7 +39,7 @@ materialized executable directly. [RunningProcess](../../../runtime/running_proc
 owns direct-child cancellation/termination, one wait/reap path, bounded output,
 and coordinated [execution-lease](../../../runtime/executable_lease.go) release.
 Its existing Terminate requests immediate termination, not graceful shutdown.
-Descendant scope ownership is not currently implemented. The AI lifecycle in
+Production-runner descendant scope ownership is not currently integrated. The AI lifecycle in
 ADR-002/ADR-003 is separate and is not a native-process supervisor.
 
 ## Objective and invariant
@@ -250,15 +251,15 @@ None of this reopens Phases 6–10 or implies Beta/production readiness.
 
 ## Package sequence and proof gates
 
-These are bounded package boundaries. A1/B1 are integrated; B2 Linux mechanism
-and proof work is separately authorized. B3/B4/C0 remain gated.
+These are bounded package boundaries. A1/B1/B2 are integrated; B3 Windows
+mechanism and proof work is separately authorized. B4/C0 remain gated.
 
 | Package | Proposed family / purpose | Required proof | Status |
 |---|---|---|---|
 | P11-A1 | This ADR, README, CHANGELOG Unreleased, and focused roadmap status | Accurate authority, platform limitations, ownership and acceptance contract | CLOSED / PASS — INTEGRATED |
 | P11-B1 | Private platform-neutral scope ownership and terminal coordination | Single owner/control winner; partial-start and resource-release invariants | CLOSED / PASS — INTEGRATED |
-| P11-B2 | Private Linux runtime platform mechanisms and tests | Pre-exec grouping; non-reaping observation; safe PGID lifetime; native Linux evidence | Separately authorized; integration + strict exact push-main CI establishes closure |
-| P11-B3 | Private Windows runtime platform mechanisms and tests | Creation-time job membership; nested-job failures; handle/notification cleanup | NOT AUTHORIZED / NOT STARTED |
+| P11-B2 | Private Linux runtime platform mechanisms and tests | Pre-exec grouping; non-reaping observation; safe PGID lifetime; native Linux evidence | CLOSED / PASS — INTEGRATED |
+| P11-B3 | Private Windows runtime platform mechanisms and tests | Creation-time job membership; nested-job failures; handle cleanup | Separately authorized; integration + strict exact push-main CI establishes closure |
 | P11-B4 | ProcessRunner/RunningProcess integration and compatibility tests | Direct-child results, scope termination, output, cancellation and lease ordering | NOT AUTHORIZED / NOT STARTED |
 | P11-C0 | Documentation and final architecture/acceptance audit | Reviewed integration and strict exact push-main acceptance | NOT AUTHORIZED / NOT STARTED |
 
@@ -315,14 +316,14 @@ ProcessRunner, RunningProcess, ProcessResult or public error contract.
 At the B1 checkpoint, Linux pre-exec membership, leader-exits-first/non-reaping
 wait ordering, PGID reuse/retirement and native proof remained B2 obligations.
 Windows creation-time Job membership, nested-host compatibility and native handle
-lifetimes remain B3 obligations. Neither platform proof is supplied by B1;
+lifetimes are B3 obligations, addressed below. Neither platform proof is supplied by B1;
 ProcessRunner integration remains B4. macOS retains direct-child behavior only.
 B1 is CLOSED / PASS — INTEGRATED at main
 `cf1bb4069210f63ba7bf415b93c992ab753350c5`, tree
 `fa8467438a3b5712b425d79dd12c747a2d8e2411`, strict push-main CI
 [34941814984](https://github.com/kaizenforyou91/forge/actions/runs/34941814984),
-attempt 1 PASS. B2 is now separately authorized below; B3/B4/C0 remain
-NOT AUTHORIZED / NOT STARTED. Phase 11 is not closed.
+attempt 1 PASS. The B2 record below is now integrated; B3 is separately authorized.
+B4/C0 remain NOT AUTHORIZED / NOT STARTED. Phase 11 is not closed.
 
 ## B2 Linux mechanism and identifier-lifetime proof
 
@@ -385,14 +386,126 @@ uses control-pipe closure for the escaped fixture. Deadlines are failsafes only.
 No brute-force PID reuse test or all-descendants-reaped claim is made.
 
 Windows local tests and Linux cross-compilation are not native Linux proof.
-Hosted Ubuntu acceptance and race must run these fixtures successfully before B2
-may pass review. B2 integration plus strict exact push-main CI establishes
-CLOSED / PASS — INTEGRATED. B1 files, ProcessRunner, RunningProcess, ProcessResult,
+B2 is CLOSED / PASS — INTEGRATED at main
+`f7337587d72315a77dc21bc29ad18c71b49069ce`, tree
+`4ed8a9422711d1fa2b117de53ccdb79045935de0`, parents
+`cf1bb4069210f63ba7bf415b93c992ab753350c5` and
+`a235f0babf9a8f19a999c1eefcda687d7ce02252`.
+[Strict push-main CI 34949872571](https://github.com/kaizenforyou91/forge/actions/runs/34949872571)
+passed attempt 1: native Ubuntu acceptance/race and Windows acceptance. B1 files, ProcessRunner, RunningProcess, ProcessResult,
 errors, output bounds and lease code are unchanged; no production runner path
-uses B2. Windows mechanisms (B3), integration (B4) and closure (C0) remain
-NOT AUTHORIZED / NOT STARTED. macOS remains historical direct-child only.
+uses B2. Windows mechanisms (B3) are separately authorized below; integration
+(B4) and closure (C0) remain NOT AUTHORIZED / NOT STARTED. macOS remains historical direct-child only.
 Success still means accepted control, not immediate cessation, universal reap,
 closed inherited handles or containment of deliberately escaped processes.
+
+## B3 Windows creation-time Job mechanism and proof gate
+
+B3 starts from the integrated B2 main/tree/parents and strict CI recorded above.
+All three new files are Windows-tagged and contain no public runtime API:
+[private launcher](../../../runtime/process_scope_windows.go),
+[unit tests](../../../runtime/process_scope_windows_test.go), and
+[native fixtures](../../../runtime/process_scope_windows_integration_test.go).
+No production ProcessRunner call path uses this launcher. B1, B2, runner/result,
+lease/output and public error code remain unchanged. go.mod/go.sum are unchanged;
+the only non-stdlib dependency remains the already-direct x/sys **v0.13.0**.
+
+### Feasibility and supported evidence profile
+
+The pre-mutation audit inspected installed Go **1.26.5 windows/amd64**:
+`src/syscall/exec_windows.go` exposes creation flags, inherited handles and parent
+process, but no Job-list attribute in SysProcAttr. Ordinary exec.Cmd.Start cannot
+express the selected creation-time contract. x/sys v0.13.0 supplies the Job,
+CreateProcess, wait/exit-code, duplication, StartupInfoEx and extended-limit
+representations. Required kernel32 exports were checked locally. A no-process
+probe successfully installed JOB_LIST with a freshly created private Job.
+
+Microsoft documents JOB_LIST for Windows 10 / Server 2016 and newer, not every
+historical Windows version. Its value is the SDK input attribute 13 (`0x2000d`).
+The narrow attribute wrapper calls documented Initialize/Update/Delete functions
+and owns an aligned, pinned Go buffer, including second-initialization failure.
+Attribute values are pinned until list deletion; unpinning and reference release
+occur synchronously afterward. No opaque attribute pointer outlives this storage.
+This avoids the allocation leak on that failure path in the installed x/sys
+container implementation; no dependency upgrade is needed. Missing exports or
+unsupported attributes return start failure, never another launch profile.
+
+Local native evidence: Windows **10.0 build 26100**, Go **1.26.5 windows/amd64**,
+x/sys **v0.13.0**. The hosted profile inspected before B3 was Windows Server 2025
+**10.0.26100**, Go **1.26.8 windows/amd64**, image
+**windows-2025-vs2026 / 20260907.229.1**, from baseline
+Windows acceptance job **104318019443**. That earlier run is environment evidence,
+not B3 proof. The exact-head B3 Windows acceptance run must establish native B3
+PASS and its job log supplies the actual runner image/toolchain identity; a moving
+windows-latest label is not a permanent platform guarantee. Tests request no
+elevation, admin operation, registry/service installation or host-policy change.
+They run as the ordinary invoking/hosted runner account; this is not an assertion
+that the runner account itself has no administrative group membership.
+
+### Launch authority and handle lifetime
+
+- One private, unnamed Job is created with nil security attributes (non-inheritable).
+  Only KILL_ON_JOB_CLOSE is configured, before process creation. No breakaway,
+  quotas, UI restrictions, external Job handle, Job name or reusable registry.
+- One narrow declaration supplies an absolute executable, explicit command line,
+  absolute directory, explicit environment and three borrowed stdio handles.
+  The caller keeps these handles alive through start. No inherited environment,
+  shell, token/parent override, PID selector or arbitrary creation flags.
+- File/pipe/console stdio is duplicated into owned inheritable handles without
+  changing the caller's handle flags. Exactly those three duplicates enter
+  HANDLE_LIST; the private Job never does. JOB_LIST contains exactly that Job.
+  Attribute values remain live until list deletion. Explicit Unicode environment
+  and EXTENDED_STARTUPINFO_PRESENT accompany CreateProcessW.
+- Creation-time JOB_LIST admission is the guarantee. Post-create IsProcessInJob
+  is evidence only. Neither Start-then-Assign nor suspended-create/Assign/Resume
+  is implemented. Unsupported capability or rejected nesting fails start.
+- The Job object owns scope control only. The primary thread handle is closed
+  after creation; the private launch result transfers a separate direct process
+  handle to its caller for wait/result/close. B3 does not own ProcessResult,
+  output accounting, executable leases or the production runner's waiter.
+- Partial-start cleanup deletes attributes, closes duplicated stdio and thread
+  handles, and finalizes the Job. A failure after process creation also requests
+  owned-Job termination and closes the process handle. Cleanup errors are joined,
+  not discarded or retried. No cleanup goroutine is detached.
+
+### Scope control, nesting and native proof
+
+TerminateJobObject(privateJob, **1**) acknowledges a control request only. It does
+not prove process objects are signaled, pending I/O completed, handles closed or
+malicious escape contained. Native tests separately wait for process signaling
+and pipe EOF. The private platform implements unchanged B1 terminate/finalize
+semantics; mutex serialization prevents control using a retired handle.
+Finalization retires the Job handle before its single CloseHandle attempt, caches
+close failure and clears control references. Empty/PREPARED Job closure is resource
+cleanup. KILL_ON_JOB_CLOSE is failure safety; B4 must order normal active terminal
+control before finalization and must not treat CloseHandle as a B1 control winner.
+
+Windows decides whether an inherited outer Job and Forge's new nested Job form
+a compatible hierarchy. Forge does not open, mutate or close the host Job,
+request breakaway, or bypass host policy. Rejected nesting is an explicit failure.
+The deterministic native nesting fixture creates its own outer Job, launches an
+intermediate helper, then creates a private inner Job and ordinary outer sibling.
+Inner termination/closure must leave both the intermediate and sibling responsive.
+
+Fake tests assert exact create/terminate/close/list-delete counts and handle sets,
+invalid declarations, attribute/creation failures, post-create cleanup, preserved
+errors and concurrent exactly-once finalization. Self-contained Go test helpers
+prove immediate membership plus first handshake, ordinary descendant inheritance,
+process signaling/inherited-pipe closure, independent sentinel survival, nested
+Job isolation and isolated kill-on-close behavior. Pipes/messages establish order;
+timeouts are failsafes, not sleep-based proof. No descendant enumeration or external
+helper executable is required. The existing full Windows acceptance command runs
+these tests without skips; Linux acceptance/race remain regression gates.
+
+B3 integration plus strict exact push-main CI establishes **CLOSED / PASS —
+INTEGRATED**. PR/native proof alone is not integration or Phase 11 closure.
+B4/C0 remain **NOT AUTHORIZED / NOT STARTED**. macOS retains historical
+direct-child behavior; other GOOS are unclaimed. There is no public API, CLI,
+package-format, persistence, background-service or AI-authority expansion.
+
+References: [creation attributes](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute),
+[CreateProcessW](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw),
+and [nested Jobs](https://learn.microsoft.com/en-us/windows/win32/procthread/nested-jobs).
 
 ## Acceptance model
 
@@ -420,7 +533,7 @@ is not filesystem/process semantic evidence. No retry or waiver is pre-authorize
 
 Native proof of the non-reaping Linux integration and Windows creation-time job
 launcher is required before those platform packages can pass; this document does
-not claim either implementation proof has already been obtained.
+not substitute architecture assertions for the native evidence recorded for each package.
 
 ## Publication and closure boundary
 
@@ -432,10 +545,9 @@ draft=false, prerelease=true, assets=0. No version, tag, release, or asset actio
 is selected. No live OpenAI call or API-key access is required.
 
 Phase 11 is defined but not functionally complete or closed. A1 architecture is
-integrated; B1 coordination is integrated and B2 supplies Linux primitives only.
-B2 integration and every subsequent implementation/closure transaction require
-their own review and
-authorization. A0's superseded status remains historical;
+integrated; B1 coordination and B2 Linux primitives are integrated. B3 supplies
+private Windows primitives only. B3 integration and later implementation/closure
+transactions require their own review and authorization. A0's superseded status remains historical;
 it is not a reason to repeat architecture selection.
 
 ## OS references and design consequences

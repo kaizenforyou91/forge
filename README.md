@@ -27,16 +27,17 @@ The long-term vision of Forge is to become a modern application platform where a
 > LIFECYCLE**, internal/pre-stable and included in the published release.
 
 **Phase 11 is DEFINED: Native Process Scope Ownership and Deterministic Cleanup.**
-P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**; P11-A1 is
-**CLOSED / PASS — INTEGRATED**, as is P11-B1, the private platform-neutral
-ownership core. P11-B2 is the separately authorized Linux mechanism/proof package:
-pre-exec group preparation, non-reaping leader observation and control-identity
-retirement, with deterministic native tests. B2 integration plus strict exact
-push-main CI establishes **CLOSED / PASS — INTEGRATED**. No ProcessRunner
-integration or strengthened production-runner behavior is delivered yet.
-P11-B3/B4/C0 remain **NOT AUTHORIZED / NOT STARTED**. Windows and macOS behavior
-remain unchanged; no Beta/production guarantee is claimed. See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
-for architecture details; the published release remains unchanged.
+P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**; P11-A1/B1/B2 are
+**CLOSED / PASS — INTEGRATED**. B1 supplies private coordination; B2 supplies
+Linux process-group mechanisms and native proof. P11-B3 is the separately
+authorized Windows creation-time private Job mechanism/proof package, using
+JOB_LIST admission, bounded handle ownership and deterministic native tests.
+B3 integration plus strict exact push-main CI establishes **CLOSED / PASS —
+INTEGRATED**. No ProcessRunner integration or strengthened production-runner
+behavior is delivered yet. P11-B4/C0 remain **NOT AUTHORIZED / NOT STARTED**.
+macOS retains historical direct-child behavior; no Beta/production guarantee
+is claimed. See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
+for architecture and platform proof boundaries; the published release is unchanged.
 
 The [historical First Alpha v0.3.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.3.0-alpha.1)
 remains unchanged, with zero uploaded binary assets and without the later

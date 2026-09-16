@@ -23,13 +23,23 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   explicit control-identity retirement before reaping. Deterministic Go native
   fixtures cover leader-first exit, inherited-pipe closure, outside-scope survival
   and session-escape limitations. No production runner integration or public
-  API/CLI/package-format/persistence change. B2 integration plus strict exact
-  push-main CI establishes CLOSED / PASS — INTEGRATED; hosted Ubuntu acceptance
-  and race are required native evidence, not Windows cross-compilation.
+  API/CLI/package-format/persistence change. P11-B2 is CLOSED / PASS — INTEGRATED;
+  strict push-main CI 34949872571 passed attempt 1, including native Ubuntu
+  acceptance and race evidence.
   x/sys v0.13.0 was already present transitively; B2 promotes it to direct use
   for supported Linux waitid/WNOWAIT primitives, without a version change, new
-  module or go.sum change. P11-B3/B4/C0 remain NOT AUTHORIZED / NOT STARTED.
-  No publication is authorized.
+  module or go.sum change.
+- Separately authorized P11-B3 adds private Windows creation-time Job Object
+  admission through JOB_LIST in STARTUPINFOEX, KILL_ON_JOB_CLOSE failure safety,
+  TerminateJobObject scope control and explicit handle ownership. Deterministic
+  unit/native fixtures cover partial starts, descendant inheritance, outside
+  sentinel survival, nested Jobs and kill-on-close. Control success is not
+  quiescence. B3 integration plus strict exact push-main CI establishes its
+  CLOSED / PASS — INTEGRATED status; hosted Windows acceptance is mandatory
+  native proof. No late assignment, suspended fallback, host-policy change,
+  breakaway, ProcessRunner integration, public API, CLI, package-format or
+  persistence change. go.mod/go.sum and Linux mechanisms are unchanged.
+  P11-B4/C0 remain NOT AUTHORIZED / NOT STARTED. No publication is authorized.
 
 - Documentation-only post-publication reconciliation (RR-005); no runtime changes.
 - Defined the Phase 10 bounded synchronous-sequence architecture (P10-A1);
