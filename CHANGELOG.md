@@ -34,12 +34,26 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   TerminateJobObject scope control and explicit handle ownership. Deterministic
   unit/native fixtures cover partial starts, descendant inheritance, outside
   sentinel survival, nested Jobs and kill-on-close. Control success is not
-  quiescence. B3 integration plus strict exact push-main CI establishes its
-  CLOSED / PASS — INTEGRATED status; hosted Windows acceptance is mandatory
-  native proof. No late assignment, suspended fallback, host-policy change,
-  breakaway, ProcessRunner integration, public API, CLI, package-format or
-  persistence change. go.mod/go.sum and Linux mechanisms are unchanged.
-  P11-B4/C0 remain NOT AUTHORIZED / NOT STARTED. No publication is authorized.
+  quiescence. P11-B3 is CLOSED / PASS — INTEGRATED; strict push-main CI
+  35063351382 passed attempt 1, including native Windows acceptance. The B3 slice
+  adds no ProcessRunner integration, public API, CLI, package-format or persistence
+  change. go.mod/go.sum and Linux mechanisms are unchanged.
+- Separately authorized P11-B4 integrates the accepted B1/B2/B3 mechanisms into
+  production ProcessRunner/RunningProcess. Linux/Windows own the native scope;
+  natural leader exit triggers descendant cleanup without reclassifying the
+  direct-child result. Scope finalization, child completion, bounded output drains,
+  and the joined cancellation watcher precede lease release and terminal publication.
+  Windows retains the existing restricted environment and EOF stdin. macOS/other
+  GOOS retain historical direct-child behavior. No public API, CLI, package-format,
+  persistence or dependency change. B4 integration plus strict exact push-main CI
+  establishes CLOSED / PASS — INTEGRATED; P11-C0 remains NOT AUTHORIZED / NOT STARTED.
+  No Phase 11 closure or publication is authorized.
+  P11-B4-R1 strengthens Windows terminal ordering after hosted acceptance exposed
+  executable cleanup before native Job quiescence. Forge now captures and closes
+  the direct-process handle, waits for the still-owned Job to signal, verifies
+  native accounting reports zero active processes, then finalizes the Job, joins
+  output helpers and releases the executable lease. A failed proof retains the
+  lease and returns the existing joined wait error; no filesystem retry is used.
 
 - Documentation-only post-publication reconciliation (RR-005); no runtime changes.
 - Defined the Phase 10 bounded synchronous-sequence architecture (P10-A1);

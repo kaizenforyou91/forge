@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
 	"strings"
@@ -82,57 +81,21 @@ func (r *ProcessRunner) Start(
 
 	stdout := newBoundedOutputWriter(runtimeProcessOutputLimit)
 	stderr := newBoundedOutputWriter(runtimeProcessOutputLimit)
-	cmd := exec.CommandContext(ctx, lease.path)
-	termination := &processTerminationControl{}
-	termination.kill = func() error {
-		return cmd.Process.Kill()
+	execution, scope, err := startProcessExecution(ctx, lease.path, workDirectory, stdout, stderr)
+	if err != nil {
+		return nil, releaseLeaseAfterStartFailure(lease,
+			fmt.Errorf("%w: start owned process: %w", ErrProcessStartFailed, err))
 	}
-	cmd.Cancel = func() error {
-		return termination.request(processTerminationCauseCancellation)
+	process := &RunningProcess{
+		pid: execution.pid(), entrypoint: lease.entrypoint, signerKeyID: lease.signerKeyID,
+		execution: execution, scope: scope, ctx: ctx, lease: lease,
+		termination: &processTerminationControl{control: scope.request},
+		stdout:      stdout, stderr: stderr, done: make(chan struct{}),
+		watchStop: make(chan struct{}), watchDone: make(chan struct{}),
 	}
-	cmd.Dir = workDirectory
-	cmd.Env = runtimeProcessEnvironment(workDirectory)
-	cmd.Stdin = nil
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	cmd.WaitDelay = runtimeProcessWaitDelay
-
-	if err := cmd.Start(); err != nil {
-		return nil, releaseLeaseAfterStartFailure(
-			lease,
-			fmt.Errorf(
-				"%w: start direct child: %w",
-				ErrProcessStartFailed,
-				err,
-			),
-		)
-	}
-
-	process := newRunningProcess(ctx, cmd, lease, termination, stdout, stderr)
+	go process.watchCancellation()
 	go process.waitInBackground()
 	return process, nil
-}
-
-func newRunningProcess(
-	ctx context.Context,
-	cmd *exec.Cmd,
-	lease *executableLease,
-	termination *processTerminationControl,
-	stdout,
-	stderr *boundedOutputWriter,
-) *RunningProcess {
-	return &RunningProcess{
-		pid:         cmd.Process.Pid,
-		entrypoint:  lease.entrypoint,
-		signerKeyID: lease.signerKeyID,
-		cmd:         cmd,
-		ctx:         ctx,
-		lease:       lease,
-		termination: termination,
-		stdout:      stdout,
-		stderr:      stderr,
-		done:        make(chan struct{}),
-	}
 }
 
 func releaseLeaseAfterStartFailure(lease *executableLease, primary error) error {

@@ -5,20 +5,22 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"sync"
 
 	"github.com/kaizenforyou91/forge/pkg/compiler"
 )
 
-// RunningProcess owns the wait/reap lifecycle for one directly invoked child.
+// RunningProcess owns one direct child and its platform-bounded native scope.
 // The underlying command, process, executable path, and lease remain private.
 type RunningProcess struct {
 	pid         int
 	entrypoint  compiler.RuntimeEntrypoint
 	signerKeyID string
 
-	cmd         *exec.Cmd
+	execution   processExecution
+	scope       *processScopeOwner
+	watchStop   chan struct{}
+	watchDone   chan struct{}
 	ctx         context.Context
 	lease       *executableLease
 	termination *processTerminationControl
@@ -46,9 +48,10 @@ const (
 type processTerminationControl struct {
 	mu sync.Mutex
 
-	completed bool
-	winner    processTerminationCause
-	kill      func() error
+	completed           bool
+	winner              processTerminationCause
+	control             func(processScopeControlCause) error
+	cancellationFailure error
 }
 
 func (p *RunningProcess) PID() int {
@@ -72,7 +75,7 @@ func (p *RunningProcess) SignerKeyID() string {
 	return p.signerKeyID
 }
 
-// Terminate requests immediate termination of the direct child. The
+// Terminate requests immediate termination of the owned scope. The
 // background waiter remains the sole owner of process reaping and lease
 // release. Repeated and concurrent calls are idempotent.
 func (p *RunningProcess) Terminate() error {
@@ -89,7 +92,7 @@ func (p *RunningProcess) Terminate() error {
 			return
 		}
 		p.terminateErr = fmt.Errorf(
-			"%w: kill direct child: %w",
+			"%w: terminate owned scope: %w",
 			ErrProcessTerminationFailed,
 			err,
 		)
@@ -98,7 +101,7 @@ func (p *RunningProcess) Terminate() error {
 }
 
 // Wait may be called repeatedly or concurrently. Exactly one background
-// waiter owns cmd.Wait; callers receive defensive copies of cached output.
+// waiter owns native wait completion; callers receive defensive copies of cached output.
 func (p *RunningProcess) Wait() (ProcessResult, error) {
 	if p == nil || p.done == nil {
 		return ProcessResult{}, fmt.Errorf(
@@ -113,66 +116,63 @@ func (p *RunningProcess) Wait() (ProcessResult, error) {
 	return p.result.clone(), p.waitErr
 }
 
-func (p *RunningProcess) waitInBackground() {
-	waitErr := p.cmd.Wait()
-	winner := p.termination.complete()
-	result := ProcessResult{ExitCode: -1}
-	if p.cmd.ProcessState != nil {
-		result.ExitCode = p.cmd.ProcessState.ExitCode()
+func (p *RunningProcess) watchCancellation() {
+	defer close(p.watchDone)
+	select {
+	case <-p.ctx.Done():
+		_ = p.termination.request(processTerminationCauseCancellation)
+	case <-p.watchStop:
 	}
+}
+
+func (p *RunningProcess) waitInBackground() {
+	observeErr := p.execution.observe()
+	winner := p.termination.complete()
+	close(p.watchStop)
+	<-p.watchDone
+	var cleanupErr error
+	if winner == processTerminationCauseNone {
+		cleanupErr = naturalScopeCleanup(p.scope)
+	}
+	preparedCode, resultPrepared, quiescenceErr := p.execution.prepareFinalize()
+	finalizeErr := p.scope.finalize()
+	code, finishErr := p.execution.finish()
+	if resultPrepared {
+		code = preparedCode
+	}
+	result := ProcessResult{ExitCode: code}
 	result.Stdout, result.StdoutTruncated = p.stdout.snapshot()
 	result.Stderr, result.StderrTruncated = p.stderr.snapshot()
-
 	var resultErr error
-	switch {
-	case waitErr == nil:
-		// A completed zero exit wins over a kill that raced too late.
-	case winner == processTerminationCauseCancellation:
-		result.Canceled = true
-		contextErr := p.ctx.Err()
-		if contextErr == nil {
-			contextErr = context.Canceled
-		}
-		resultErr = contextErr
-		var exitErr *exec.ExitError
-		if !errors.As(waitErr, &exitErr) && !errors.Is(waitErr, contextErr) {
-			resultErr = errors.Join(
-				resultErr,
-				fmt.Errorf("%w: wait after cancellation: %w", ErrProcessWaitFailed, waitErr),
-			)
-		}
-	case winner == processTerminationCauseManual:
-		result.Terminated = true
-		var exitErr *exec.ExitError
-		if !errors.As(waitErr, &exitErr) {
-			resultErr = fmt.Errorf(
-				"%w: wait after manual termination: %w",
-				ErrProcessWaitFailed,
-				waitErr,
-			)
-		}
-	default:
-		var exitErr *exec.ExitError
-		if !errors.As(waitErr, &exitErr) {
-			resultErr = fmt.Errorf(
-				"%w: wait for direct child: %w",
-				ErrProcessWaitFailed,
-				waitErr,
-			)
+	// A zero direct-child exit wins over a successful control request that
+	// raced too late. Cleanup infrastructure errors remain observable below.
+	if code != 0 {
+		switch winner {
+		case processTerminationCauseCancellation:
+			result.Canceled = true
+			resultErr = p.ctx.Err()
+			if resultErr == nil {
+				resultErr = context.Canceled
+			}
+		case processTerminationCauseManual:
+			result.Terminated = true
 		}
 	}
-
-	if releaseErr := p.lease.release(); releaseErr != nil {
-		if resultErr == nil {
-			resultErr = releaseErr
-		} else {
-			resultErr = errors.Join(resultErr, releaseErr)
-		}
+	if err := errors.Join(observeErr, cleanupErr, quiescenceErr, finalizeErr, finishErr); err != nil {
+		resultErr = errors.Join(resultErr, fmt.Errorf("%w: complete owned process: %w", ErrProcessWaitFailed, err))
 	}
-
+	// The watcher is joined and admission is closed, so this evidence is stable.
+	if err := p.termination.cancellationFailure; err != nil {
+		resultErr = errors.Join(resultErr, p.ctx.Err(),
+			fmt.Errorf("%w: %w: cancellation control: %w", ErrProcessWaitFailed, ErrProcessTerminationFailed, err))
+	}
+	if p.execution.safeToReleaseLease() {
+		resultErr = errors.Join(resultErr, p.lease.release())
+	} else {
+		resultErr = errors.Join(resultErr, fmt.Errorf("%w: executable lease retained because native terminal ownership is incomplete", ErrProcessWaitFailed))
+	}
 	p.mu.Lock()
-	p.result = result.clone()
-	p.waitErr = resultErr
+	p.result, p.waitErr = result.clone(), resultErr
 	close(p.done)
 	p.mu.Unlock()
 }
@@ -190,18 +190,24 @@ func (c *processTerminationControl) request(cause processTerminationCause) error
 	}
 	if c.winner != processTerminationCauseNone {
 		if cause == processTerminationCauseCancellation {
-			// Tell os/exec that cancellation did not win after another kill was
-			// already successfully initiated.
+			// Cancellation cannot replace an earlier successful control winner.
 			return os.ErrProcessDone
 		}
 		return nil
 	}
-	if c.kill == nil {
-		return fmt.Errorf("direct-child kill function is unavailable")
+	if c.control == nil {
+		return fmt.Errorf("owned scope control is unavailable")
 	}
 
-	err := c.kill()
+	scopeCause := processScopeManualTermination
+	if cause == processTerminationCauseCancellation {
+		scopeCause = processScopeCancellation
+	}
+	err := c.control(scopeCause)
 	if err != nil {
+		if cause == processTerminationCauseCancellation && !errors.Is(err, os.ErrProcessDone) {
+			c.cancellationFailure = err
+		}
 		return err
 	}
 	c.winner = cause

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	goruntime "runtime"
 	"strings"
 	"sync"
@@ -103,9 +104,7 @@ func TestProcessRunnerStartsAndWaits(t *testing.T) {
 		}
 		assertControlledRunnerEnvironment(t, result.Stdout, workDirectory)
 
-		if process.cmd.ProcessState == nil || !process.cmd.ProcessState.Exited() {
-			t.Fatal("direct child was not reaped")
-		}
+		assertRunnerNativeCompletion(t, process)
 		if materialized.leaseActive || materialized.cleanupDone {
 			t.Fatalf(
 				"unexpected post-Wait lifecycle: active=%v cleaned=%v",
@@ -217,9 +216,7 @@ func TestProcessRunnerBoundsOutputAndStillReaps(t *testing.T) {
 		outputValue(result.Stderr, "fixture") != "process-output-stderr" {
 		t.Fatal("bounded output did not retain deterministic prefixes")
 	}
-	if process.cmd.ProcessState == nil || !process.cmd.ProcessState.Exited() {
-		t.Fatal("high-output child was not reaped")
-	}
+	assertRunnerNativeCompletion(t, process)
 }
 
 func TestProcessRunnerReturnsNonZeroApplicationExit(t *testing.T) {
@@ -283,18 +280,7 @@ func TestProcessRunnerCancellationCoordinatesPendingCleanup(t *testing.T) {
 		repeated.Canceled != result.Canceled || repeated.Terminated != result.Terminated {
 		t.Fatalf("repeated canceled Wait = (%#v, %v)", repeated, repeatedErr)
 	}
-	// Exited is false on Unix for signal-terminated children even after
-	// cmd.Wait has completed and reaped them.
-	if process.cmd.ProcessState == nil {
-		t.Fatal("cmd.Wait did not publish process state for canceled child")
-	}
-	if process.cmd.ProcessState.Pid() != process.PID() {
-		t.Fatalf(
-			"process state PID = %d, want direct child PID %d",
-			process.cmd.ProcessState.Pid(),
-			process.PID(),
-		)
-	}
+	assertRunnerNativeCompletion(t, process)
 	if materialized.leaseActive || !materialized.cleanupDone {
 		t.Fatalf(
 			"pending cleanup state: active=%v cleaned=%v",
@@ -323,10 +309,10 @@ func TestRunningProcessTerminationLifecycle(t *testing.T) {
 
 		var killCalls atomic.Int32
 		process.termination.mu.Lock()
-		originalKill := process.termination.kill
-		process.termination.kill = func() error {
+		originalKill := process.termination.control
+		process.termination.control = func(cause processScopeControlCause) error {
 			killCalls.Add(1)
-			return originalKill()
+			return originalKill(cause)
 		}
 		process.termination.mu.Unlock()
 
@@ -366,18 +352,7 @@ func TestRunningProcessTerminationLifecycle(t *testing.T) {
 		if killCalls.Load() != 1 {
 			t.Fatalf("direct-child kill calls = %d, want 1", killCalls.Load())
 		}
-		// Exited is false on Unix for signal-terminated children even after
-		// cmd.Wait has completed and reaped them.
-		if process.cmd.ProcessState == nil {
-			t.Fatal("cmd.Wait did not publish process state for manually terminated child")
-		}
-		if process.cmd.ProcessState.Pid() != process.PID() {
-			t.Fatalf(
-				"process state PID = %d, want direct child PID %d",
-				process.cmd.ProcessState.Pid(),
-				process.PID(),
-			)
-		}
+		assertRunnerNativeCompletion(t, process)
 		if materialized.leaseActive || materialized.cleanupDone {
 			t.Fatalf(
 				"post-termination lifecycle: active=%v cleaned=%v",
@@ -478,8 +453,8 @@ func TestRunningProcessTerminationLifecycle(t *testing.T) {
 		killFailure := errors.New("injected direct-child kill failure")
 		var killCalls atomic.Int32
 		process.termination.mu.Lock()
-		originalKill := process.termination.kill
-		process.termination.kill = func() error {
+		originalKill := process.termination.control
+		process.termination.control = func(cause processScopeControlCause) error {
 			killCalls.Add(1)
 			return killFailure
 		}
@@ -498,7 +473,7 @@ func TestRunningProcessTerminationLifecycle(t *testing.T) {
 		}
 
 		process.termination.mu.Lock()
-		process.termination.kill = originalKill
+		process.termination.control = originalKill
 		process.termination.mu.Unlock()
 		cancel()
 		if _, err := process.Wait(); !errors.Is(err, context.Canceled) {
@@ -587,7 +562,7 @@ func TestRunningProcessCleanupFailurePreservesResult(t *testing.T) {
 		if !errors.Is(err, ErrExecutableMaterializationFailed) || !errors.Is(err, cleanupFailure) {
 			t.Fatalf("cleanup Wait error = %v", err)
 		}
-		if !result.Terminated || result.Canceled || result.ExitCode != process.cmd.ProcessState.ExitCode() {
+		if !result.Terminated || result.Canceled || result.ExitCode != runnerNativeExitCode(t, process) {
 			t.Fatalf("cleanup failure discarded process result: %#v", result)
 		}
 		repeated, repeatedErr := process.Wait()
@@ -620,7 +595,7 @@ func TestRunningProcessCleanupFailurePreservesResult(t *testing.T) {
 			!errors.Is(err, cleanupFailure) {
 			t.Fatalf("joined cancellation cleanup error = %v", err)
 		}
-		if !result.Canceled || result.Terminated || result.ExitCode != process.cmd.ProcessState.ExitCode() {
+		if !result.Canceled || result.Terminated || result.ExitCode != runnerNativeExitCode(t, process) {
 			t.Fatalf("cancellation cleanup failure discarded process result: %#v", result)
 		}
 		if err := materialized.Close(); err != nil {
@@ -925,5 +900,432 @@ func assertControlledRunnerEnvironment(t *testing.T, output []byte, workDirector
 		outputValue(output, "temp") != "" ||
 		outputValue(output, "tmp") != "" {
 		t.Fatal("Windows environment variables leaked into non-Windows child")
+	}
+}
+
+func assertRunnerNativeCompletion(t *testing.T, p *RunningProcess) {
+	t.Helper()
+	pid, _, completed := p.execution.completed()
+	if !completed || pid != p.PID() {
+		t.Fatalf("native completion: pid=%d completed=%v, want %d", pid, completed, p.PID())
+	}
+	if p.scope.status().phase != processScopeFinalized {
+		t.Fatal("scope not finalized before Wait")
+	}
+	select {
+	case <-p.watchDone:
+	default:
+		t.Fatal("cancellation watcher outlived Wait")
+	}
+}
+func runnerNativeExitCode(t *testing.T, p *RunningProcess) int {
+	t.Helper()
+	assertRunnerNativeCompletion(t, p)
+	_, code, _ := p.execution.completed()
+	return code
+}
+
+func waitRunnerMarker(t *testing.T, p *RunningProcess, path string) {
+	t.Helper()
+	timer := time.NewTimer(15 * time.Second)
+	defer timer.Stop()
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for {
+		if _, err := os.Stat(path); err == nil {
+			out, _ := p.stdout.snapshot()
+			errout, _ := p.stderr.snapshot()
+			if outputValue(out, "leader") == "ready" && outputValue(out, "descendant") == "ready" && outputValue(errout, "descendant-stderr") == "ready" {
+				return
+			}
+		}
+		select {
+		case <-p.done:
+			t.Fatal("process completed before fixture handshake")
+		case <-timer.C:
+			t.Fatal("fixture readiness deadline")
+		case <-tick.C:
+		}
+	}
+}
+func awaitRunner(t *testing.T, p *RunningProcess) (ProcessResult, error) {
+	t.Helper()
+	select {
+	case <-p.done:
+		return p.Wait()
+	case <-time.After(15 * time.Second):
+		t.Fatal("runner completion deadline")
+		return ProcessResult{}, nil
+	}
+}
+
+func TestProcessRunnerOwnedDescendants(t *testing.T) {
+	if goruntime.GOOS != "linux" && goruntime.GOOS != "windows" {
+		t.Skip("no strengthened scope claim")
+	}
+	for _, mode := range []string{"natural", "manual", "cancellation"} {
+		t.Run(mode, func(t *testing.T) {
+			fixture := "process_tree_wait"
+			if mode == "natural" {
+				fixture = "process_tree_exit"
+			}
+			loaded := loadProcessRunnerFixture(t, fixture)
+			materialized := materializeRunnerFixture(t, loaded)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			p, err := NewProcessRunner().Start(ctx, materialized)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = p.Terminate(); _, _ = awaitRunner(t, p) }()
+			want := "*runtime." + goruntime.GOOS + "ProcessExecution"
+			if reflect.TypeOf(p.execution).String() != want {
+				t.Fatalf("production route %T, want %s", p.execution, want)
+			}
+			work := filepath.Join(materialized.directory, runtimeProcessWorkDirectoryName)
+			waitRunnerMarker(t, p, filepath.Join(work, "leader.ready"))
+			out, _ := p.stdout.snapshot()
+			if outputValue(out, "descendant") != "ready" || outputValue(out, "leader") != "ready" {
+				t.Fatalf("missing readiness: %q", out)
+			}
+			if err := materialized.Close(); !errors.Is(err, ErrMaterializedExecutableBusy) {
+				t.Fatalf("active lease: %v", err)
+			}
+			switch mode {
+			case "natural":
+				if err := os.WriteFile(filepath.Join(work, "leader.exit"), []byte("exit"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "manual":
+				if err := p.Terminate(); err != nil {
+					t.Fatal(err)
+				}
+			case "cancellation":
+				cancel()
+			}
+			result, err := awaitRunner(t, p)
+			if mode == "cancellation" {
+				if !errors.Is(err, context.Canceled) {
+					t.Fatal(err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if result.Terminated != (mode == "manual") || result.Canceled != (mode == "cancellation") {
+				t.Fatalf("classification: %#v", result)
+			}
+			if mode == "natural" && result.ExitCode != 0 {
+				t.Fatalf("natural leader exit: %d", result.ExitCode)
+			}
+			if outputValue(result.Stderr, "descendant-stderr") != "ready" {
+				t.Fatal("inherited stderr lost")
+			}
+			// Successful Wait (no output timeout) proves EOF on both inherited pipes:
+			// the live fixture descendant cannot voluntarily exit inside this deadline.
+			assertRunnerNativeCompletion(t, p)
+			assertWindowsTerminalOwnership(t, p)
+			if materialized.leaseActive || !materialized.cleanupDone {
+				t.Fatal("lease/cleanup did not follow terminal ownership")
+			}
+			wantCause := processScopeNaturalExitCleanup
+			if mode == "manual" {
+				wantCause = processScopeManualTermination
+			}
+			if mode == "cancellation" {
+				wantCause = processScopeCancellation
+			}
+			if p.scope.status().winner != wantCause {
+				t.Fatalf("scope cause: %+v", p.scope.status())
+			}
+			if err := p.Terminate(); err != nil {
+				t.Fatal(err)
+			}
+			again, againErr := p.Wait()
+			if !reflect.DeepEqual(result, again) || (err == nil) != (againErr == nil) {
+				t.Fatal("unstable Wait")
+			}
+		})
+	}
+}
+
+type runnerFaultScope struct {
+	platform                processScopePlatform
+	controlErr, finalizeErr error
+	controls, finalizes     int
+}
+
+func (s *runnerFaultScope) terminate() error {
+	s.controls++
+	if s.controls == 1 && s.controlErr != nil {
+		return s.controlErr
+	}
+	return s.platform.terminate()
+}
+func (s *runnerFaultScope) finalize() error {
+	s.finalizes++
+	return errors.Join(s.platform.finalize(), s.finalizeErr)
+}
+
+func TestProcessRunnerScopeFailuresPreserveResult(t *testing.T) {
+	if goruntime.GOOS != "linux" && goruntime.GOOS != "windows" {
+		t.Skip("strengthened scopes")
+	}
+	loaded := loadProcessRunnerFixture(t, "process_tree_exit")
+	for _, mode := range []string{"cancel-failure", "finalize-failure"} {
+		t.Run(mode, func(t *testing.T) {
+			m := materializeRunnerFixture(t, loaded)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			p, err := NewProcessRunner().Start(ctx, m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = p.Terminate(); _, _ = awaitRunner(t, p) }()
+			work := filepath.Join(m.directory, runtimeProcessWorkDirectoryName)
+			waitRunnerMarker(t, p, filepath.Join(work, "leader.ready"))
+			failure := errors.New("injected scope completion failure")
+			p.scope.mu.Lock()
+			fault := &runnerFaultScope{platform: p.scope.platform}
+			if mode == "cancel-failure" {
+				fault.controlErr = failure
+			} else {
+				fault.finalizeErr = failure
+			}
+			p.scope.platform = fault
+			p.scope.mu.Unlock()
+			if mode == "cancel-failure" {
+				cancel()
+				select {
+				case <-p.watchDone:
+				case <-time.After(5 * time.Second):
+					t.Fatal("cancellation watcher did not return")
+				}
+				if p.scope.status().winner != processScopeNoControl {
+					t.Fatal("failed cancellation published winner")
+				}
+			}
+			if err := os.WriteFile(filepath.Join(work, "leader.exit"), []byte("exit"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			result, err := awaitRunner(t, p)
+			if !errors.Is(err, failure) || !errors.Is(err, ErrProcessWaitFailed) {
+				t.Fatalf("failure lost: %v", err)
+			}
+			if mode == "cancel-failure" && !errors.Is(err, context.Canceled) {
+				t.Fatalf("context evidence lost: %v", err)
+			}
+			if result.ExitCode != 0 || result.Canceled || result.Terminated {
+				t.Fatalf("natural result changed: %#v", result)
+			}
+			if fault.finalizes != 1 {
+				t.Fatalf("finalize calls %d", fault.finalizes)
+			}
+			wantCalls := 1
+			if mode == "cancel-failure" {
+				wantCalls = 2
+			}
+			if fault.controls != wantCalls {
+				t.Fatalf("control calls %d, want %d", fault.controls, wantCalls)
+			}
+			assertRunnerNativeCompletion(t, p)
+			assertWindowsTerminalOwnership(t, p)
+		})
+	}
+}
+
+// These fake operations test terminal failure ordering without leaving a real
+// child alive when an intentionally injected native control operation fails.
+type runnerOrderedExecution struct {
+	events                *[]string
+	observeErr, finishErr error
+	leaseSafe             bool
+}
+
+func (e *runnerOrderedExecution) pid() int { return 123 }
+func (e *runnerOrderedExecution) observe() error {
+	*e.events = append(*e.events, "observe")
+	return e.observeErr
+}
+func (e *runnerOrderedExecution) prepareFinalize() (int, bool, error) {
+	*e.events = append(*e.events, "quiesce")
+	return 23, true, nil
+}
+func (e *runnerOrderedExecution) finish() (int, error) {
+	*e.events = append(*e.events, "finish")
+	return 23, e.finishErr
+}
+func (e *runnerOrderedExecution) completed() (int, int, bool) { return 123, 23, true }
+func (e *runnerOrderedExecution) safeToReleaseLease() bool    { return e.leaseSafe }
+func (e *runnerOrderedExecution) terminalEvidence() processTerminalEvidence {
+	return processTerminalEvidence{outputJoined: true}
+}
+
+type runnerOrderedScope struct {
+	events                  *[]string
+	controlErr, finalizeErr error
+	controls, finalizes     int
+}
+
+func (s *runnerOrderedScope) terminate() error {
+	*s.events = append(*s.events, "control")
+	s.controls++
+	return s.controlErr
+}
+func (s *runnerOrderedScope) finalize() error {
+	*s.events = append(*s.events, "finalize")
+	s.finalizes++
+	return s.finalizeErr
+}
+
+func TestRunningProcessTerminalFailureOrdering(t *testing.T) {
+	events := []string{}
+	observeErr := errors.New("observe failure")
+	controlErr := errors.New("natural cleanup failure")
+	finalizeErr := errors.New("scope release failure")
+	finishErr := errors.New("native wait/output/handle failure")
+	leaseErr := errors.New("lease release failure")
+	m := materializeTestPackage(t, []byte("not executed"))
+	lease, err := m.acquireExecutionLease()
+	if err != nil {
+		t.Fatal(err)
+	}
+	installRetryableCleanupFailure(m, leaseErr)
+	originalRemove := m.removeAll
+	m.removeAll = func(path string) error { events = append(events, "lease"); return originalRemove(path) }
+	if err := m.Close(); !errors.Is(err, ErrMaterializedExecutableBusy) {
+		t.Fatal(err)
+	}
+	platform := &runnerOrderedScope{events: &events, controlErr: controlErr, finalizeErr: finalizeErr}
+	scope, err := newProcessScopeOwner(platform)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := scope.activate(); err != nil {
+		t.Fatal(err)
+	}
+	p := &RunningProcess{pid: 123, execution: &runnerOrderedExecution{events: &events, observeErr: observeErr, finishErr: finishErr, leaseSafe: true},
+		scope: scope, lease: lease, ctx: context.Background(), termination: &processTerminationControl{control: scope.request},
+		stdout: newBoundedOutputWriter(runtimeProcessOutputLimit), stderr: newBoundedOutputWriter(runtimeProcessOutputLimit),
+		done: make(chan struct{}), watchStop: make(chan struct{}), watchDone: make(chan struct{})}
+	go p.watchCancellation()
+	p.waitInBackground()
+	result, err := p.Wait()
+	for _, expected := range []error{observeErr, controlErr, finalizeErr, finishErr, leaseErr, ErrProcessWaitFailed} {
+		if !errors.Is(err, expected) {
+			t.Fatalf("lost failure %v: %v", expected, err)
+		}
+	}
+	if result.ExitCode != 23 || result.Canceled || result.Terminated {
+		t.Fatalf("direct result lost: %#v", result)
+	}
+	if !reflect.DeepEqual(events, []string{"observe", "control", "quiesce", "finalize", "finish", "lease"}) {
+		t.Fatalf("terminal order: %v", events)
+	}
+	if platform.controls != 1 || platform.finalizes != 1 || m.leaseActive {
+		t.Fatal("terminal ownership counts")
+	}
+	if scope.status().winner != processScopeNoControl {
+		t.Fatal("failed control published success")
+	}
+	if err := p.Terminate(); err != nil {
+		t.Fatal(err)
+	}
+	if platform.controls != 1 {
+		t.Fatal("late control after retirement")
+	}
+	assertRunnerNativeCompletion(t, p)
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunningProcessNaturalScopeAlreadyAbsent(t *testing.T) {
+	events := []string{}
+	platform := &runnerOrderedScope{events: &events, controlErr: os.ErrProcessDone}
+	owner, err := newProcessScopeOwner(platform)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = owner.activate(); err != nil {
+		t.Fatal(err)
+	}
+	if err = naturalScopeCleanup(owner); err != nil {
+		t.Fatal(err)
+	}
+	if owner.status().winner != processScopeNoControl || platform.controls != 1 {
+		t.Fatal("absence became control success")
+	}
+	if err = owner.finalize(); err != nil {
+		t.Fatal(err)
+	}
+	if platform.finalizes != 1 {
+		t.Fatal("missing finalization")
+	}
+}
+
+func TestRunningProcessRetainsLeaseWithoutNativeTerminalProof(t *testing.T) {
+	events := []string{}
+	m := materializeTestPackage(t, []byte("not executed"))
+	lease, err := m.acquireExecutionLease()
+	if err != nil {
+		t.Fatal(err)
+	}
+	platform := &runnerOrderedScope{events: &events}
+	owner, err := newProcessScopeOwner(platform)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.activate(); err != nil {
+		t.Fatal(err)
+	}
+	execution := &runnerOrderedExecution{events: &events}
+	p := &RunningProcess{
+		pid: 123, execution: execution, scope: owner, lease: lease,
+		ctx: context.Background(), termination: &processTerminationControl{control: owner.request},
+		stdout: newBoundedOutputWriter(runtimeProcessOutputLimit), stderr: newBoundedOutputWriter(runtimeProcessOutputLimit),
+		done: make(chan struct{}), watchStop: make(chan struct{}), watchDone: make(chan struct{}),
+	}
+	go p.watchCancellation()
+	p.waitInBackground()
+	result, err := p.Wait()
+	if !errors.Is(err, ErrProcessWaitFailed) || result.ExitCode != 23 {
+		t.Fatalf("unsafe terminal result = (%#v, %v)", result, err)
+	}
+	if !m.leaseActive {
+		t.Fatal("lease released without native terminal proof")
+	}
+	execution.leaseSafe = true
+	if err := lease.release(); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertWindowsTerminalOwnership(t *testing.T, p *RunningProcess) {
+	t.Helper()
+	if goruntime.GOOS != "windows" {
+		return
+	}
+	evidence := p.execution.terminalEvidence()
+	if !evidence.directProcessClosed || evidence.directProcessCloses != 1 || evidence.directProcessError != nil {
+		t.Fatalf("direct process close ownership: %+v", evidence)
+	}
+	if !evidence.jobQuiescent || !evidence.jobFinalized || evidence.jobFinalizes != 1 || evidence.jobFinalizeError != nil {
+		t.Fatalf("Job quiescence/finalization ownership: %+v", evidence)
+	}
+	if !evidence.outputJoined {
+		t.Fatal("output helpers remain unjoined")
+	}
+}
+
+func TestProcessExecutionRejectsCanceledAdmission(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	out, errout := newBoundedOutputWriter(runtimeProcessOutputLimit), newBoundedOutputWriter(runtimeProcessOutputLimit)
+	execution, owner, err := startProcessExecution(ctx, "must-not-start", t.TempDir(), out, errout)
+	if execution != nil || owner != nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("pre-canceled admission: %v %v %v", execution, owner, err)
 	}
 }
