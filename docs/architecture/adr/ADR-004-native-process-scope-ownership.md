@@ -532,10 +532,20 @@ Linux observes WNOWAIT, closes classification, requests natural group cleanup on
 without an earlier winner, retires the identity, then calls Cmd.Wait once. Binding
 uses exclusively owned command preparation; no foreign reaper or attribute mutation
 is permitted. Windows uses unchanged B3 JOB_LIST admission, observes the process
-handle, closes classification, controls/finalizes the Job, collects exit status,
-joins output drains and closes the direct handle. B4 composes a synchronous wait
-into B3's existing per-call close seam for post-create launch failures, before B3
-releases the process handle. It does not change Job membership or termination.
+handle, closes classification, controls the Job, captures the direct-child result,
+establishes native Job quiescence, finalizes the Job and joins output drains. B4
+composes the same synchronous ordering into B3's existing per-call close seam for
+post-create launch failures. It does not change Job membership or termination.
+
+P11-B4-R1 makes native Windows quiescence an explicit pre-finalization phase.
+After required scope control, Forge captures the direct-child exit code and closes
+the direct-process handle exactly once. While the private Job handle remains valid,
+Forge waits for native Job signaling and corroborates it with
+`JobObjectBasicAccountingInformation.ActiveProcesses == 0`. Only that proof permits
+Job finalization, joined output completion and executable-lease release. A wait,
+accounting, process-close or Job-close failure remains observable and prevents
+lease release; elapsed time, output EOF and `TerminateJobObject` success are never
+accepted as quiescence. The same ordering is used by post-create failure cleanup.
 
 The joined per-process cancellation watcher performs only gated scope control.
 Windows stdout/stderr each drain continuously into the existing 1 MiB writer;

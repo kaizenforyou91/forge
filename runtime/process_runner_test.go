@@ -1023,6 +1023,7 @@ func TestProcessRunnerOwnedDescendants(t *testing.T) {
 			// Successful Wait (no output timeout) proves EOF on both inherited pipes:
 			// the live fixture descendant cannot voluntarily exit inside this deadline.
 			assertRunnerNativeCompletion(t, p)
+			assertWindowsTerminalOwnership(t, p)
 			if materialized.leaseActive || !materialized.cleanupDone {
 				t.Fatal("lease/cleanup did not follow terminal ownership")
 			}
@@ -1127,6 +1128,7 @@ func TestProcessRunnerScopeFailuresPreserveResult(t *testing.T) {
 				t.Fatalf("control calls %d, want %d", fault.controls, wantCalls)
 			}
 			assertRunnerNativeCompletion(t, p)
+			assertWindowsTerminalOwnership(t, p)
 		})
 	}
 }
@@ -1136,6 +1138,7 @@ func TestProcessRunnerScopeFailuresPreserveResult(t *testing.T) {
 type runnerOrderedExecution struct {
 	events                *[]string
 	observeErr, finishErr error
+	leaseSafe             bool
 }
 
 func (e *runnerOrderedExecution) pid() int { return 123 }
@@ -1143,11 +1146,19 @@ func (e *runnerOrderedExecution) observe() error {
 	*e.events = append(*e.events, "observe")
 	return e.observeErr
 }
+func (e *runnerOrderedExecution) prepareFinalize() (int, bool, error) {
+	*e.events = append(*e.events, "quiesce")
+	return 23, true, nil
+}
 func (e *runnerOrderedExecution) finish() (int, error) {
 	*e.events = append(*e.events, "finish")
 	return 23, e.finishErr
 }
 func (e *runnerOrderedExecution) completed() (int, int, bool) { return 123, 23, true }
+func (e *runnerOrderedExecution) safeToReleaseLease() bool    { return e.leaseSafe }
+func (e *runnerOrderedExecution) terminalEvidence() processTerminalEvidence {
+	return processTerminalEvidence{outputJoined: true}
+}
 
 type runnerOrderedScope struct {
 	events                  *[]string
@@ -1192,7 +1203,7 @@ func TestRunningProcessTerminalFailureOrdering(t *testing.T) {
 	if err := scope.activate(); err != nil {
 		t.Fatal(err)
 	}
-	p := &RunningProcess{pid: 123, execution: &runnerOrderedExecution{events: &events, observeErr: observeErr, finishErr: finishErr},
+	p := &RunningProcess{pid: 123, execution: &runnerOrderedExecution{events: &events, observeErr: observeErr, finishErr: finishErr, leaseSafe: true},
 		scope: scope, lease: lease, ctx: context.Background(), termination: &processTerminationControl{control: scope.request},
 		stdout: newBoundedOutputWriter(runtimeProcessOutputLimit), stderr: newBoundedOutputWriter(runtimeProcessOutputLimit),
 		done: make(chan struct{}), watchStop: make(chan struct{}), watchDone: make(chan struct{})}
@@ -1207,7 +1218,7 @@ func TestRunningProcessTerminalFailureOrdering(t *testing.T) {
 	if result.ExitCode != 23 || result.Canceled || result.Terminated {
 		t.Fatalf("direct result lost: %#v", result)
 	}
-	if !reflect.DeepEqual(events, []string{"observe", "control", "finalize", "finish", "lease"}) {
+	if !reflect.DeepEqual(events, []string{"observe", "control", "quiesce", "finalize", "finish", "lease"}) {
 		t.Fatalf("terminal order: %v", events)
 	}
 	if platform.controls != 1 || platform.finalizes != 1 || m.leaseActive {
@@ -1249,6 +1260,63 @@ func TestRunningProcessNaturalScopeAlreadyAbsent(t *testing.T) {
 	}
 	if platform.finalizes != 1 {
 		t.Fatal("missing finalization")
+	}
+}
+
+func TestRunningProcessRetainsLeaseWithoutNativeTerminalProof(t *testing.T) {
+	events := []string{}
+	m := materializeTestPackage(t, []byte("not executed"))
+	lease, err := m.acquireExecutionLease()
+	if err != nil {
+		t.Fatal(err)
+	}
+	platform := &runnerOrderedScope{events: &events}
+	owner, err := newProcessScopeOwner(platform)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.activate(); err != nil {
+		t.Fatal(err)
+	}
+	execution := &runnerOrderedExecution{events: &events}
+	p := &RunningProcess{
+		pid: 123, execution: execution, scope: owner, lease: lease,
+		ctx: context.Background(), termination: &processTerminationControl{control: owner.request},
+		stdout: newBoundedOutputWriter(runtimeProcessOutputLimit), stderr: newBoundedOutputWriter(runtimeProcessOutputLimit),
+		done: make(chan struct{}), watchStop: make(chan struct{}), watchDone: make(chan struct{}),
+	}
+	go p.watchCancellation()
+	p.waitInBackground()
+	result, err := p.Wait()
+	if !errors.Is(err, ErrProcessWaitFailed) || result.ExitCode != 23 {
+		t.Fatalf("unsafe terminal result = (%#v, %v)", result, err)
+	}
+	if !m.leaseActive {
+		t.Fatal("lease released without native terminal proof")
+	}
+	execution.leaseSafe = true
+	if err := lease.release(); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertWindowsTerminalOwnership(t *testing.T, p *RunningProcess) {
+	t.Helper()
+	if goruntime.GOOS != "windows" {
+		return
+	}
+	evidence := p.execution.terminalEvidence()
+	if !evidence.directProcessClosed || evidence.directProcessCloses != 1 || evidence.directProcessError != nil {
+		t.Fatalf("direct process close ownership: %+v", evidence)
+	}
+	if !evidence.jobQuiescent || !evidence.jobFinalized || evidence.jobFinalizes != 1 || evidence.jobFinalizeError != nil {
+		t.Fatalf("Job quiescence/finalization ownership: %+v", evidence)
+	}
+	if !evidence.outputJoined {
+		t.Fatal("output helpers remain unjoined")
 	}
 }
 

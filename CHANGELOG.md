@@ -48,6 +48,12 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   persistence or dependency change. B4 integration plus strict exact push-main CI
   establishes CLOSED / PASS — INTEGRATED; P11-C0 remains NOT AUTHORIZED / NOT STARTED.
   No Phase 11 closure or publication is authorized.
+  P11-B4-R1 strengthens Windows terminal ordering after hosted acceptance exposed
+  executable cleanup before native Job quiescence. Forge now captures and closes
+  the direct-process handle, waits for the still-owned Job to signal, verifies
+  native accounting reports zero active processes, then finalizes the Job, joins
+  output helpers and releases the executable lease. A failed proof retains the
+  lease and returns the existing joined wait error; no filesystem retry is used.
 
 - Documentation-only post-publication reconciliation (RR-005); no runtime changes.
 - Defined the Phase 10 bounded synchronous-sequence architecture (P10-A1);

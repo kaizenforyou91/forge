@@ -36,8 +36,11 @@ func startProcessExecution(ctx context.Context, path, directory string, stdout, 
 	}
 	return e, owner, nil
 }
-func (e *directProcessExecution) pid() int             { return e.cmd.Process.Pid }
-func (e *directProcessExecution) observe() error       { e.waitErr = e.cmd.Wait(); return nil }
+func (e *directProcessExecution) pid() int       { return e.cmd.Process.Pid }
+func (e *directProcessExecution) observe() error { e.waitErr = e.cmd.Wait(); return nil }
+func (e *directProcessExecution) prepareFinalize() (int, bool, error) {
+	return -1, false, nil
+}
 func (e *directProcessExecution) finish() (int, error) { return commandExit(e.cmd, e.waitErr) }
 
 func (e *directProcessExecution) completed() (int, int, bool) {
@@ -45,4 +48,12 @@ func (e *directProcessExecution) completed() (int, int, bool) {
 		return 0, -1, false
 	}
 	return e.cmd.ProcessState.Pid(), e.cmd.ProcessState.ExitCode(), true
+}
+
+func (e *directProcessExecution) safeToReleaseLease() bool {
+	return e.cmd.ProcessState != nil
+}
+
+func (e *directProcessExecution) terminalEvidence() processTerminalEvidence {
+	return processTerminalEvidence{outputJoined: e.cmd.ProcessState != nil}
 }

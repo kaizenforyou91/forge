@@ -55,6 +55,9 @@ func startProcessExecution(ctx context.Context, path, directory string, stdout, 
 
 func (e *linuxProcessExecution) pid() int       { return e.cmd.Process.Pid }
 func (e *linuxProcessExecution) observe() error { return e.scope.waitLeaderExitNoReap() }
+func (e *linuxProcessExecution) prepareFinalize() (int, bool, error) {
+	return -1, false, nil
+}
 func (e *linuxProcessExecution) finish() (int, error) {
 	return commandExit(e.cmd, e.cmd.Wait())
 }
@@ -64,4 +67,12 @@ func (e *linuxProcessExecution) completed() (int, int, bool) {
 		return 0, -1, false
 	}
 	return e.cmd.ProcessState.Pid(), e.cmd.ProcessState.ExitCode(), true
+}
+
+func (e *linuxProcessExecution) safeToReleaseLease() bool {
+	return e.cmd.ProcessState != nil
+}
+
+func (e *linuxProcessExecution) terminalEvidence() processTerminalEvidence {
+	return processTerminalEvidence{outputJoined: e.cmd.ProcessState != nil}
 }

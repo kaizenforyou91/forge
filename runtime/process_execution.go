@@ -12,8 +12,22 @@ import (
 type processExecution interface {
 	pid() int
 	observe() error
+	prepareFinalize() (int, bool, error)
 	finish() (int, error)
 	completed() (int, int, bool)
+	safeToReleaseLease() bool
+	terminalEvidence() processTerminalEvidence
+}
+
+type processTerminalEvidence struct {
+	directProcessClosed bool
+	directProcessCloses int
+	directProcessError  error
+	jobQuiescent        bool
+	jobFinalized        bool
+	jobFinalizes        int
+	jobFinalizeError    error
+	outputJoined        bool
 }
 
 func processCommand(path, directory string, stdout, stderr *boundedOutputWriter) *exec.Cmd {
@@ -49,9 +63,10 @@ func admitProcessExecution(e processExecution, platform processScopePlatform) (*
 	}
 	controlErr := platform.terminate()
 	observeErr := e.observe()
+	_, _, quiescenceErr := e.prepareFinalize()
 	finalizeErr := platform.finalize()
 	_, finishErr := e.finish()
-	return nil, errors.Join(err, controlErr, observeErr, finalizeErr, finishErr)
+	return nil, errors.Join(err, controlErr, observeErr, quiescenceErr, finalizeErr, finishErr)
 }
 
 func naturalScopeCleanup(owner *processScopeOwner) error {

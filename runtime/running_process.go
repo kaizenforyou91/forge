@@ -134,8 +134,12 @@ func (p *RunningProcess) waitInBackground() {
 	if winner == processTerminationCauseNone {
 		cleanupErr = naturalScopeCleanup(p.scope)
 	}
+	preparedCode, resultPrepared, quiescenceErr := p.execution.prepareFinalize()
 	finalizeErr := p.scope.finalize()
 	code, finishErr := p.execution.finish()
+	if resultPrepared {
+		code = preparedCode
+	}
 	result := ProcessResult{ExitCode: code}
 	result.Stdout, result.StdoutTruncated = p.stdout.snapshot()
 	result.Stderr, result.StderrTruncated = p.stderr.snapshot()
@@ -154,7 +158,7 @@ func (p *RunningProcess) waitInBackground() {
 			result.Terminated = true
 		}
 	}
-	if err := errors.Join(observeErr, cleanupErr, finalizeErr, finishErr); err != nil {
+	if err := errors.Join(observeErr, cleanupErr, quiescenceErr, finalizeErr, finishErr); err != nil {
 		resultErr = errors.Join(resultErr, fmt.Errorf("%w: complete owned process: %w", ErrProcessWaitFailed, err))
 	}
 	// The watcher is joined and admission is closed, so this evidence is stable.
@@ -162,7 +166,11 @@ func (p *RunningProcess) waitInBackground() {
 		resultErr = errors.Join(resultErr, p.ctx.Err(),
 			fmt.Errorf("%w: %w: cancellation control: %w", ErrProcessWaitFailed, ErrProcessTerminationFailed, err))
 	}
-	resultErr = errors.Join(resultErr, p.lease.release())
+	if p.execution.safeToReleaseLease() {
+		resultErr = errors.Join(resultErr, p.lease.release())
+	} else {
+		resultErr = errors.Join(resultErr, fmt.Errorf("%w: executable lease retained because native terminal ownership is incomplete", ErrProcessWaitFailed))
+	}
 	p.mu.Lock()
 	p.result, p.waitErr = result.clone(), resultErr
 	close(p.done)
