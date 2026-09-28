@@ -27,15 +27,15 @@ The long-term vision of Forge is to become a modern application platform where a
 > LIFECYCLE**, internal/pre-stable and included in the published release.
 
 **Phase 11 is DEFINED: Native Process Scope Ownership and Deterministic Cleanup.**
-P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**; P11-A1/B1/B2/B3 are
-**CLOSED / PASS — INTEGRATED**. P11-B4 is the separately authorized production runner
-integration package: Linux uses the accepted process group, Windows uses the
-creation-time private Job, and natural child exit triggers owned-scope cleanup.
-Direct-child results, restricted inputs, bounded output, and lease ordering remain
-compatible. B4 integration plus strict exact push-main CI establishes its
-**CLOSED / PASS — INTEGRATED** status. macOS/other GOOS retain direct-child behavior.
-P11-C0 remains **NOT AUTHORIZED / NOT STARTED**; Phase 11 closure is pending.
+P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**; P11-A1/B1/B2/B3/B4 are
+**CLOSED / PASS — INTEGRATED**. Linux uses pre-exec process groups and Windows
+uses creation-time private Jobs with native quiescence proof before executable
+lease release. Direct-child results remain authoritative; macOS/other GOOS retain
+historical direct-child behavior. P11-C0 is the final documentation/evidence audit;
+its integration plus strict exact push-main CI establishes **CLOSED / PASS — NATIVE
+PROCESS SCOPE OWNERSHIP AND DETERMINISTIC CLEANUP**. Until then C0 is under review.
 No public API, CLI, package-format, persistence, or release expansion is implied.
+The unchanged published v0.4.0-alpha.1 contains neither Phase 10 nor Phase 11.
 See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md).
 
 The [historical First Alpha v0.3.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.3.0-alpha.1)
@@ -106,6 +106,7 @@ the component's full roadmap or production hardening is complete.
 | AI Runtime | Phase 8 bounded AI/tool foundation CLOSED / PASS; real-provider acceptance PASS; published in v0.4.0-alpha.1 |
 | Agent lifecycle | Phase 9 CLOSED / PASS; internal/pre-stable operation and application-host composition; published in v0.4.0-alpha.1 |
 | Bounded composition | Internal/pre-stable synchronous Sequences on current main; functionally complete; C0 integration + strict exact push-main CI establishes closure; not included in v0.4.0-alpha.1 |
+| Native process scope | Phase 11 A1/B1/B2/B3/B4 integrated; C0 documentation/evidence closure under review; no public API or CLI expansion; not included in v0.4.0-alpha.1 |
 
 ---
 

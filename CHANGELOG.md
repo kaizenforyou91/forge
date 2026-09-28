@@ -38,16 +38,16 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   35063351382 passed attempt 1, including native Windows acceptance. The B3 slice
   adds no ProcessRunner integration, public API, CLI, package-format or persistence
   change. go.mod/go.sum and Linux mechanisms are unchanged.
-- Separately authorized P11-B4 integrates the accepted B1/B2/B3 mechanisms into
+- P11-B4 integrates the accepted B1/B2/B3 mechanisms into
   production ProcessRunner/RunningProcess. Linux/Windows own the native scope;
   natural leader exit triggers descendant cleanup without reclassifying the
   direct-child result. Scope finalization, child completion, bounded output drains,
   and the joined cancellation watcher precede lease release and terminal publication.
   Windows retains the existing restricted environment and EOF stdin. macOS/other
   GOOS retain historical direct-child behavior. No public API, CLI, package-format,
-  persistence or dependency change. B4 integration plus strict exact push-main CI
-  establishes CLOSED / PASS — INTEGRATED; P11-C0 remains NOT AUTHORIZED / NOT STARTED.
-  No Phase 11 closure or publication is authorized.
+  persistence or dependency change. B4 is CLOSED / PASS — INTEGRATED at merge
+  `60eb464eb7e00ec79329485a0e3ab3a72c5afbe9`; Phase 11 closure remains gated
+  on C0 integration and its strict exact push-main CI. No publication is authorized.
   P11-B4-R1 strengthens Windows terminal ordering after hosted acceptance exposed
   executable cleanup before native Job quiescence. Forge now captures and closes
   the direct-process handle, waits for the still-owned Job to signal, verifies
@@ -60,6 +60,14 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   two may release the executable lease. Windows post-create cleanup now performs
   control, observation, result capture, process-handle close, Job quiescence,
   Job finalization and output joining before publishing a safe disposition.
+- P11-C0 performs final Phase 11 architecture and evidence reconciliation only;
+  it adds zero runtime capability. P11-B4 is integrated by merge
+  `60eb464eb7e00ec79329485a0e3ab3a72c5afbe9` (tree
+  `81324b1a7630f8fe8424e93926b1c6ecc2c1b3e1`) and strict push-main CI
+  `36384134201` passed attempt 1 on that exact head. C0 integration plus its own
+  strict exact push-main CI is the final gate for **CLOSED / PASS — NATIVE
+  PROCESS SCOPE OWNERSHIP AND DETERMINISTIC CLEANUP**. This branch and PR remain
+  documentation/evidence under review until that separate integration succeeds.
 
 - Documentation-only post-publication reconciliation (RR-005); no runtime changes.
 - Defined the Phase 10 bounded synchronous-sequence architecture (P10-A1);

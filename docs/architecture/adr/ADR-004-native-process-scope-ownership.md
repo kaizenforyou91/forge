@@ -11,15 +11,15 @@
 - P11-B1: **CLOSED / PASS — INTEGRATED** (private coordination only).
 - P11-B2: **CLOSED / PASS — INTEGRATED** (private Linux mechanism/proof).
 - P11-B3: **CLOSED / PASS — INTEGRATED** (private Windows mechanism/proof).
-- P11-B4: **SEPARATELY AUTHORIZED — PRODUCTION RUNNER INTEGRATION**.
-- P11-C0: **NOT AUTHORIZED / NOT STARTED**.
+- P11-B4: **CLOSED / PASS — INTEGRATED** (production runner integration).
+- P11-C0: **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
 
 Control Room approval supersedes the A0 selection report's historical statement
 that Phase 11 was not defined. Selection is not being reopened. This record
 defines the accepted architecture. B1 supplies integrated private coordination;
-B2/B3 supply integrated Linux/Windows mechanisms and native proof. B4 separately
-composes them into the production runner, with its closure conditional on integration
-and strict exact push-main CI. C0 and publication remain unauthorized.
+B2/B3 supply integrated Linux/Windows mechanisms and native proof, and B4 composes
+them into the production runner. C0 is the final documentation/evidence closure
+package; only its integration and strict exact push-main CI close Phase 11.
 
 ## Baseline and existing behavior
 
@@ -40,7 +40,8 @@ materialized executable directly. [RunningProcess](../../../runtime/running_proc
 owns direct-child cancellation/termination, one wait/reap path, bounded output,
 and coordinated [execution-lease](../../../runtime/executable_lease.go) release.
 Its existing Terminate requests immediate termination, not graceful shutdown.
-Production-runner descendant scope ownership is not currently integrated. The AI lifecycle in
+At that historical A1 baseline, production-runner descendant scope ownership was
+not integrated. The AI lifecycle in
 ADR-002/ADR-003 is separate and is not a native-process supervisor.
 
 ## Objective and invariant
@@ -250,10 +251,15 @@ remain separate accepted debt. The A0 trusted-key identity and compiler output
 findings require separate triage, not opportunistic remediation in this phase.
 None of this reopens Phases 6–10 or implies Beta/production readiness.
 
+**Verified Executable Launch Binding** remains the selected future security
+direction. Phase 11 proves native process-scope ownership and deterministic
+cleanup; it does not bind process creation to persistent verified-object identity
+or defend against same-user mutation of the executable between validation and launch.
+
 ## Package sequence and proof gates
 
-These are bounded package boundaries. A1/B1/B2/B3 are integrated; B4 production
-integration is separately authorized. C0 remains gated.
+These are bounded package boundaries. A1/B1/B2/B3/B4 are integrated. C0 remains
+the separately reviewed documentation/evidence closure gate.
 
 | Package | Proposed family / purpose | Required proof | Status |
 |---|---|---|---|
@@ -261,8 +267,8 @@ integration is separately authorized. C0 remains gated.
 | P11-B1 | Private platform-neutral scope ownership and terminal coordination | Single owner/control winner; partial-start and resource-release invariants | CLOSED / PASS — INTEGRATED |
 | P11-B2 | Private Linux runtime platform mechanisms and tests | Pre-exec grouping; non-reaping observation; safe PGID lifetime; native Linux evidence | CLOSED / PASS — INTEGRATED |
 | P11-B3 | Private Windows runtime platform mechanisms and tests | Creation-time job membership; nested-job failures; handle cleanup | CLOSED / PASS — INTEGRATED |
-| P11-B4 | ProcessRunner/RunningProcess integration and compatibility tests | Direct-child results, scope termination, output, cancellation and lease ordering | Separately authorized; integration + strict exact push-main CI establishes closure |
-| P11-C0 | Documentation and final architecture/acceptance audit | Reviewed integration and strict exact push-main acceptance | NOT AUTHORIZED / NOT STARTED |
+| P11-B4 | ProcessRunner/RunningProcess integration and compatibility tests | Direct-child results, scope termination, output, cancellation and lease ordering | CLOSED / PASS — INTEGRATED |
+| P11-C0 | Documentation and final architecture/acceptance audit | Reviewed integration and strict exact push-main acceptance | Implemented/documented under review; integration + strict exact push-main CI establishes Phase 11 closure |
 
 B1 depends on separately reviewed A1. B2/B3 depend on the accepted B1 ownership
 contract. B4 depends on accepted platform proofs; C0 depends on integrated B4.
@@ -323,8 +329,8 @@ B1 is CLOSED / PASS — INTEGRATED at main
 `cf1bb4069210f63ba7bf415b93c992ab753350c5`, tree
 `fa8467438a3b5712b425d79dd12c747a2d8e2411`, strict push-main CI
 [34941814984](https://github.com/kaizenforyou91/forge/actions/runs/34941814984),
-attempt 1 PASS. B2/B3 are now integrated; B4 is separately authorized below.
-C0 remains NOT AUTHORIZED / NOT STARTED. Phase 11 is not closed.
+attempt 1 PASS. B2/B3/B4 are now integrated. C0 is the final closure package
+under review; Phase 11 is not yet closed.
 
 ## B2 Linux mechanism and identifier-lifetime proof
 
@@ -395,8 +401,8 @@ B2 is CLOSED / PASS — INTEGRATED at main
 [Strict push-main CI 34949872571](https://github.com/kaizenforyou91/forge/actions/runs/34949872571)
 passed attempt 1: native Ubuntu acceptance/race and Windows acceptance. B1 files, ProcessRunner, RunningProcess, ProcessResult,
 errors, output bounds and lease code are unchanged; no production runner path
-used B2 at that historical checkpoint. B3 is now integrated and B4 separately
-authorized below. C0 remains NOT AUTHORIZED / NOT STARTED; macOS remains direct-child only.
+used B2 at that historical checkpoint. Subsequent B3/B4 integration is recorded
+below; macOS remains direct-child only.
 Success still means accepted control, not immediate cessation, universal reap,
 closed inherited handles or containment of deliberately escaped processes.
 
@@ -501,7 +507,7 @@ these tests without skips; Linux acceptance/race remain regression gates.
 B3 integration plus strict exact push-main CI establishes **CLOSED / PASS —
 INTEGRATED**. PR/native proof alone is not integration or Phase 11 closure.
 At the historical B3 checkpoint B4/C0 were **NOT AUTHORIZED / NOT STARTED**.
-B3 is now integrated; B4 is separately authorized below. macOS retains historical
+B3 and B4 are now integrated. macOS retains historical
 direct-child behavior; other GOOS are unclaimed. There is no public API, CLI,
 package-format, persistence, background-service or AI-authority expansion.
 
@@ -571,8 +577,25 @@ through the actual production runner. Existing compatibility tests remain, with
 native completion assertions adapted to both exec.Cmd and process-handle ownership.
 No native mechanism, new dependency, public API, CLI, package format, persistence,
 macOS strengthening, executable binding or hostile-process containment is added.
-B4 integration plus strict exact push-main CI establishes **CLOSED / PASS — INTEGRATED**.
-P11-C0 remains **NOT AUTHORIZED / NOT STARTED**; this record does not close Phase 11.
+B4 is **CLOSED / PASS — INTEGRATED**. This C0 record does not itself close Phase 11;
+C0 integration plus its own strict exact push-main CI remains the final gate.
+
+### B4 canonical integration evidence
+
+PR #35 ended at head `9266889fcd0b53ef07566605d316d4b74c53c30f`, tree
+`81324b1a7630f8fe8424e93926b1c6ecc2c1b3e1`, with 13 changed files and
++1443/-217. [PR CI 36371799917](https://github.com/kaizenforyou91/forge/actions/runs/36371799917)
+was `pull_request`, attempt 1, on that exact head: Ubuntu acceptance
+`108769536997`, Windows acceptance `108769537105`, and Ubuntu race
+`108769536899` all passed.
+
+The canonical merge is `60eb464eb7e00ec79329485a0e3ab3a72c5afbe9`, with
+the same tree and parents `0439ac342219482520aaeb236c02ecc4cb3807d9` and
+`9266889fcd0b53ef07566605d316d4b74c53c30f`.
+[Push-main CI 36384134201](https://github.com/kaizenforyou91/forge/actions/runs/36384134201)
+was `push` on `main`, attempt 1, exact merge head: Ubuntu acceptance
+`108805831444`, Windows acceptance `108805831421`, and Ubuntu race
+`108805831319` all passed. PR CI and push-main CI are distinct evidence.
 
 ## Acceptance model
 
@@ -611,10 +634,11 @@ Phase 11. Its annotated tag object is
 draft=false, prerelease=true, assets=0. No version, tag, release, or asset action
 is selected. No live OpenAI call or API-key access is required.
 
-Phase 11 is defined and not closed. A1/B1/B2/B3 are integrated. B4 supplies
-separately authorized production integration; its integration and C0 closure
-transactions require their own review and authorization. A0's superseded status remains historical;
-it is not a reason to repeat architecture selection.
+Phase 11 is defined and not yet closed. A1/B1/B2/B3/B4 are integrated. C0 is
+implemented/documented under review; its integration and strict exact push-main
+CI establish **CLOSED / PASS — NATIVE PROCESS SCOPE OWNERSHIP AND DETERMINISTIC
+CLEANUP**. A0's superseded status remains historical; it is not a reason to repeat
+architecture selection.
 
 ## OS references and design consequences
 
