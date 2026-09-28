@@ -547,6 +547,15 @@ accounting, process-close or Job-close failure remains observable and prevents
 lease release; elapsed time, output EOF and `TerminateJobObject` success are never
 accepted as quiescence. The same ordering is used by post-create failure cleanup.
 
+P11-B4-R2 makes executable-lease disposition explicit for every failed Start
+after lease acquisition. Failures before native creation release after ordinary
+local cleanup. Failures after native creation release only when the platform
+terminal sequence proves its complete ownership obligations; otherwise the lease
+remains retained and the joined Start failure stays observable. On Windows this
+includes B3 launch-cleanup failures, parent-stdio/GetProcessId failures and scope
+admission failures. No error-string inference, filesystem retry, detached worker
+or default-to-release path participates in this decision.
+
 The joined per-process cancellation watcher performs only gated scope control.
 Windows stdout/stderr each drain continuously into the existing 1 MiB writer;
 a two-second post-exit failsafe closes only owned readers and joins both helpers,

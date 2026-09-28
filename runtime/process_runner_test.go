@@ -1136,9 +1136,9 @@ func TestProcessRunnerScopeFailuresPreserveResult(t *testing.T) {
 // These fake operations test terminal failure ordering without leaving a real
 // child alive when an intentionally injected native control operation fails.
 type runnerOrderedExecution struct {
-	events                *[]string
-	observeErr, finishErr error
-	leaseSafe             bool
+	events                            *[]string
+	observeErr, prepareErr, finishErr error
+	leaseSafe                         bool
 }
 
 func (e *runnerOrderedExecution) pid() int { return 123 }
@@ -1148,7 +1148,77 @@ func (e *runnerOrderedExecution) observe() error {
 }
 func (e *runnerOrderedExecution) prepareFinalize() (int, bool, error) {
 	*e.events = append(*e.events, "quiesce")
-	return 23, true, nil
+	return 23, true, e.prepareErr
+}
+
+func TestFailedProcessExecutionLeaseDisposition(t *testing.T) {
+	startFailure := errors.New("post-create start failure")
+	tests := []struct {
+		name        string
+		prepareErr  error
+		finalizeErr error
+		finishErr   error
+		leaseSafe   bool
+		want        processStartLeaseDisposition
+	}{
+		{name: "complete terminal proof", leaseSafe: true, want: processStartLeaseReleaseSafe},
+		{name: "failed Job quiescence", prepareErr: errors.New("Job quiescence failure"), want: processStartLeaseRetain},
+		{name: "failed process handle close", prepareErr: errors.New("process handle close failure"), want: processStartLeaseRetain},
+		{name: "failed Job finalization", finalizeErr: errors.New("Job finalization failure"), want: processStartLeaseRetain},
+		{name: "failed output join", finishErr: errors.New("output join failure"), want: processStartLeaseRetain},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			events := []string{}
+			execution := &runnerOrderedExecution{
+				events: &events, prepareErr: test.prepareErr,
+				finishErr: test.finishErr, leaseSafe: test.leaseSafe,
+			}
+			platform := &runnerOrderedScope{events: &events, finalizeErr: test.finalizeErr}
+			disposition, err := completeFailedProcessExecution(execution, platform, startFailure)
+			if disposition != test.want {
+				t.Fatalf("lease disposition = %v, want %v", disposition, test.want)
+			}
+			if !errors.Is(err, startFailure) {
+				t.Fatalf("start failure lost: %v", err)
+			}
+			for _, failure := range []error{test.prepareErr, test.finalizeErr, test.finishErr} {
+				if failure != nil && !errors.Is(err, failure) {
+					t.Fatalf("terminal failure %v lost: %v", failure, err)
+				}
+			}
+			if !reflect.DeepEqual(events, []string{"control", "observe", "quiesce", "finalize", "finish"}) {
+				t.Fatalf("post-create failure order: %v", events)
+			}
+			if platform.controls != 1 || platform.finalizes != 1 {
+				t.Fatalf("platform calls = control %d, finalize %d", platform.controls, platform.finalizes)
+			}
+
+			materialized := materializeTestPackage(t, []byte("not executed"))
+			lease, leaseErr := materialized.acquireExecutionLease()
+			if leaseErr != nil {
+				t.Fatal(leaseErr)
+			}
+			if got := releaseLeaseAfterStartFailure(lease, disposition, err); !errors.Is(got, startFailure) {
+				t.Fatalf("release result lost start failure: %v", got)
+			}
+			if test.want == processStartLeaseReleaseSafe {
+				if materialized.leaseActive {
+					t.Fatal("safe terminal proof retained lease")
+				}
+			} else {
+				if !materialized.leaseActive {
+					t.Fatal("unsafe terminal failure released lease")
+				}
+				if releaseErr := lease.release(); releaseErr != nil {
+					t.Fatal(releaseErr)
+				}
+			}
+			if closeErr := materialized.Close(); closeErr != nil {
+				t.Fatal(closeErr)
+			}
+		})
+	}
 }
 func (e *runnerOrderedExecution) finish() (int, error) {
 	*e.events = append(*e.events, "finish")
@@ -1324,8 +1394,11 @@ func TestProcessExecutionRejectsCanceledAdmission(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	out, errout := newBoundedOutputWriter(runtimeProcessOutputLimit), newBoundedOutputWriter(runtimeProcessOutputLimit)
-	execution, owner, err := startProcessExecution(ctx, "must-not-start", t.TempDir(), out, errout)
+	execution, owner, disposition, err := startProcessExecution(ctx, "must-not-start", t.TempDir(), out, errout)
 	if execution != nil || owner != nil || !errors.Is(err, context.Canceled) {
 		t.Fatalf("pre-canceled admission: %v %v %v", execution, owner, err)
+	}
+	if disposition != processStartLeaseReleaseSafe {
+		t.Fatalf("pre-canceled lease disposition = %v", disposition)
 	}
 }

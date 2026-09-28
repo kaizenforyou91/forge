@@ -60,6 +60,7 @@ func (r *ProcessRunner) Start(
 	if lease.targetOS != goruntime.GOOS || lease.targetArch != goruntime.GOARCH {
 		return nil, releaseLeaseAfterStartFailure(
 			lease,
+			processStartLeaseReleaseSafe,
 			fmt.Errorf(
 				"%w: lease targets %s/%s, host is %s/%s",
 				ErrMaterializedExecutableInvalid,
@@ -73,17 +74,17 @@ func (r *ProcessRunner) Start(
 
 	workDirectory, err := createRuntimeProcessWorkDirectory(lease.directory)
 	if err != nil {
-		return nil, releaseLeaseAfterStartFailure(lease, err)
+		return nil, releaseLeaseAfterStartFailure(lease, processStartLeaseReleaseSafe, err)
 	}
 	if err := validateExecutableForStart(lease); err != nil {
-		return nil, releaseLeaseAfterStartFailure(lease, err)
+		return nil, releaseLeaseAfterStartFailure(lease, processStartLeaseReleaseSafe, err)
 	}
 
 	stdout := newBoundedOutputWriter(runtimeProcessOutputLimit)
 	stderr := newBoundedOutputWriter(runtimeProcessOutputLimit)
-	execution, scope, err := startProcessExecution(ctx, lease.path, workDirectory, stdout, stderr)
+	execution, scope, disposition, err := startProcessExecution(ctx, lease.path, workDirectory, stdout, stderr)
 	if err != nil {
-		return nil, releaseLeaseAfterStartFailure(lease,
+		return nil, releaseLeaseAfterStartFailure(lease, disposition,
 			fmt.Errorf("%w: start owned process: %w", ErrProcessStartFailed, err))
 	}
 	process := &RunningProcess{
@@ -98,11 +99,18 @@ func (r *ProcessRunner) Start(
 	return process, nil
 }
 
-func releaseLeaseAfterStartFailure(lease *executableLease, primary error) error {
-	if releaseErr := lease.release(); releaseErr != nil {
-		return errors.Join(primary, releaseErr)
+func releaseLeaseAfterStartFailure(lease *executableLease, disposition processStartLeaseDisposition, primary error) error {
+	switch disposition {
+	case processStartLeaseReleaseSafe:
+		if releaseErr := lease.release(); releaseErr != nil {
+			return errors.Join(primary, releaseErr)
+		}
+		return primary
+	case processStartLeaseRetain:
+		return primary
+	default:
+		return errors.Join(primary, fmt.Errorf("%w: missing failed-start lease disposition", ErrProcessStartFailed))
 	}
-	return primary
 }
 
 func createRuntimeProcessWorkDirectory(directory string) (string, error) {

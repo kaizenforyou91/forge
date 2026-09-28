@@ -54,6 +54,12 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   native accounting reports zero active processes, then finalizes the Job, joins
   output helpers and releases the executable lease. A failed proof retains the
   lease and returns the existing joined wait error; no filesystem retry is used.
+  P11-B4-R2 applies the same rule to every failed Start after native process
+  creation. A private release disposition now distinguishes pre-launch failure,
+  completed terminal ownership and incomplete terminal ownership; only the first
+  two may release the executable lease. Windows post-create cleanup now performs
+  control, observation, result capture, process-handle close, Job quiescence,
+  Job finalization and output joining before publishing a safe disposition.
 
 - Documentation-only post-publication reconciliation (RR-005); no runtime changes.
 - Defined the Phase 10 bounded synchronous-sequence architecture (P10-A1);

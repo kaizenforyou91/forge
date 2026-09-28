@@ -18,23 +18,23 @@ type directProcessScope struct{ process *os.Process }
 func (s *directProcessScope) terminate() error { return s.process.Kill() }
 func (s *directProcessScope) finalize() error  { s.process = nil; return nil }
 
-func startProcessExecution(ctx context.Context, path, directory string, stdout, stderr *boundedOutputWriter) (processExecution, *processScopeOwner, error) {
+func startProcessExecution(ctx context.Context, path, directory string, stdout, stderr *boundedOutputWriter) (processExecution, *processScopeOwner, processStartLeaseDisposition, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, processStartLeaseReleaseSafe, err
 	}
 	cmd := processCommand(path, directory, stdout, stderr)
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, processStartLeaseReleaseSafe, err
 	}
 	if err := cmd.Start(); err != nil {
-		return nil, nil, err
+		return nil, nil, processStartLeaseReleaseSafe, err
 	}
 	e := &directProcessExecution{cmd: cmd}
-	owner, err := admitProcessExecution(e, &directProcessScope{process: cmd.Process})
+	owner, disposition, err := admitProcessExecution(e, &directProcessScope{process: cmd.Process})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, disposition, err
 	}
-	return e, owner, nil
+	return e, owner, processStartLeaseDispositionUnset, nil
 }
 func (e *directProcessExecution) pid() int       { return e.cmd.Process.Pid }
 func (e *directProcessExecution) observe() error { e.waitErr = e.cmd.Wait(); return nil }

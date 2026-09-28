@@ -34,6 +34,7 @@ type windowsStartCleanup struct {
 	processClosed   bool
 	jobClosePending bool
 	jobQuiescent    bool
+	resultRead      bool
 	processCloses   int
 	jobCloses       int
 	processCloseErr error
@@ -116,7 +117,11 @@ func (c *windowsStartCleanup) closeForB3(handle windows.Handle) error {
 	if handle != c.process {
 		return c.closeHandle(handle)
 	}
-	err := errors.Join(waitWindowsExecution(handle), c.closeHandle(handle))
+	waitErr := waitWindowsExecution(handle)
+	var code uint32
+	resultErr := windows.GetExitCodeProcess(handle, &code)
+	err := errors.Join(waitErr, resultErr, c.closeHandle(handle))
+	c.resultRead = resultErr == nil
 	c.processClosed = true
 	c.processCloses++
 	c.processCloseErr = err
@@ -131,6 +136,20 @@ func (c *windowsStartCleanup) closeForB3(handle windows.Handle) error {
 		c.jobClosePending = false
 	}
 	return err
+}
+
+func (c *windowsStartCleanup) nativeProcessCreated() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.process != 0
+}
+
+func (c *windowsStartCleanup) safeToReleaseLease(outputJoined bool) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.resultRead && outputJoined && c.processClosed &&
+		c.processCloses == 1 && c.processCloseErr == nil &&
+		c.jobQuiescent && c.jobCloses == 1 && c.jobCloseErr == nil
 }
 
 // Preserve the B3 launch algorithm. Its existing per-call close seam composes
@@ -159,13 +178,13 @@ func startWindowsExecution(ctx context.Context, spec *windowsProcessScopeLaunchS
 	return launch, cleanup, err
 }
 
-func startProcessExecution(ctx context.Context, path, directory string, stdout, stderr *boundedOutputWriter) (processExecution, *processScopeOwner, error) {
+func startProcessExecution(ctx context.Context, path, directory string, stdout, stderr *boundedOutputWriter) (processExecution, *processScopeOwner, processStartLeaseDisposition, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, processStartLeaseReleaseSafe, err
 	}
 	stdin, err := os.Open(os.DevNull)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, processStartLeaseReleaseSafe, err
 	}
 	var readers, writers [2]*os.File
 	closeFiles := func() error {
@@ -189,7 +208,7 @@ func startProcessExecution(ctx context.Context, path, directory string, stdout, 
 	for i := range readers {
 		readers[i], writers[i], err = os.Pipe()
 		if err != nil {
-			return nil, nil, errors.Join(err, closeFiles())
+			return nil, nil, processStartLeaseReleaseSafe, errors.Join(err, closeFiles())
 		}
 	}
 	launch, cleanup, err := startWindowsExecution(ctx, &windowsProcessScopeLaunchSpec{
@@ -198,7 +217,12 @@ func startProcessExecution(ctx context.Context, path, directory string, stdout, 
 		stdio:       [3]windows.Handle{windows.Handle(stdin.Fd()), windows.Handle(writers[0].Fd()), windows.Handle(writers[1].Fd())},
 	}, windowsScopeSystem())
 	if err != nil {
-		return nil, nil, errors.Join(err, closeFiles())
+		closeErr := closeFiles()
+		disposition := processStartLeaseReleaseSafe
+		if cleanup.nativeProcessCreated() && (!cleanup.safeToReleaseLease(true) || closeErr != nil) {
+			disposition = processStartLeaseRetain
+		}
+		return nil, nil, disposition, errors.Join(err, closeErr)
 	}
 	e := &windowsProcessExecution{
 		process: launch.process, scope: launch.scope,
@@ -216,17 +240,14 @@ func startProcessExecution(ctx context.Context, path, directory string, stdout, 
 	e.processID = int(pid)
 	err = errors.Join(err, pidErr)
 	if err != nil {
-		controlErr := launch.scope.terminate()
-		observeErr := e.observe()
-		finalizeErr := launch.scope.finalize()
-		_, finishErr := e.finish()
-		return nil, nil, errors.Join(err, controlErr, observeErr, finalizeErr, finishErr)
+		disposition, cleanupErr := completeFailedProcessExecution(e, launch.scope, err)
+		return nil, nil, disposition, cleanupErr
 	}
-	owner, err := admitProcessExecution(e, launch.scope)
+	owner, disposition, err := admitProcessExecution(e, launch.scope)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, disposition, err
 	}
-	return e, owner, nil
+	return e, owner, processStartLeaseDispositionUnset, nil
 }
 
 func (e *windowsProcessExecution) pid() int       { return e.processID }
@@ -243,6 +264,9 @@ func (e *windowsProcessExecution) prepareFinalize() (int, bool, error) {
 	if err == nil {
 		exitCode = int(code)
 		e.exitCode, e.resultRead = exitCode, true
+		e.cleanup.mu.Lock()
+		e.cleanup.resultRead = true
+		e.cleanup.mu.Unlock()
 	}
 	err = errors.Join(err, e.cleanup.closeProcess(e.process))
 	e.process = 0
@@ -299,11 +323,7 @@ func (e *windowsProcessExecution) completed() (int, int, bool) {
 }
 
 func (e *windowsProcessExecution) safeToReleaseLease() bool {
-	e.cleanup.mu.Lock()
-	defer e.cleanup.mu.Unlock()
-	return e.resultRead && e.finished && e.cleanup.processClosed &&
-		e.cleanup.processCloses == 1 && e.cleanup.processCloseErr == nil &&
-		e.cleanup.jobQuiescent && e.cleanup.jobCloses == 1 && e.cleanup.jobCloseErr == nil
+	return e.resultRead && e.cleanup.safeToReleaseLease(e.finished)
 }
 
 func (e *windowsProcessExecution) terminalEvidence() processTerminalEvidence {

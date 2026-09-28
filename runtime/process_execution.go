@@ -19,6 +19,14 @@ type processExecution interface {
 	terminalEvidence() processTerminalEvidence
 }
 
+type processStartLeaseDisposition uint8
+
+const (
+	processStartLeaseDispositionUnset processStartLeaseDisposition = iota
+	processStartLeaseReleaseSafe
+	processStartLeaseRetain
+)
+
 type processTerminalEvidence struct {
 	directProcessClosed bool
 	directProcessCloses int
@@ -53,20 +61,33 @@ func commandExit(c *exec.Cmd, err error) (int, error) {
 // admitProcessExecution has exclusive access to a fresh platform and owner.
 // Even a bookkeeping failure after native creation retains synchronous wait
 // ownership. No cancellation watcher exists until this function succeeds.
-func admitProcessExecution(e processExecution, platform processScopePlatform) (*processScopeOwner, error) {
+func admitProcessExecution(e processExecution, platform processScopePlatform) (*processScopeOwner, processStartLeaseDisposition, error) {
 	owner, err := newProcessScopeOwner(platform)
 	if err == nil {
 		err = owner.activate()
 	}
 	if err == nil {
-		return owner, nil
+		return owner, processStartLeaseDispositionUnset, nil
 	}
+	disposition, cleanupErr := completeFailedProcessExecution(e, platform, err)
+	return nil, disposition, cleanupErr
+}
+
+// completeFailedProcessExecution synchronously discharges ownership after a
+// native process has been created but cannot be returned to the caller. The
+// executable lease is releasable only when the platform execution can prove
+// every terminal obligation completed.
+func completeFailedProcessExecution(e processExecution, platform processScopePlatform, primary error) (processStartLeaseDisposition, error) {
 	controlErr := platform.terminate()
 	observeErr := e.observe()
 	_, _, quiescenceErr := e.prepareFinalize()
 	finalizeErr := platform.finalize()
 	_, finishErr := e.finish()
-	return nil, errors.Join(err, controlErr, observeErr, quiescenceErr, finalizeErr, finishErr)
+	disposition := processStartLeaseRetain
+	if e.safeToReleaseLease() {
+		disposition = processStartLeaseReleaseSafe
+	}
+	return disposition, errors.Join(primary, controlErr, observeErr, quiescenceErr, finalizeErr, finishErr)
 }
 
 func naturalScopeCleanup(owner *processScopeOwner) error {

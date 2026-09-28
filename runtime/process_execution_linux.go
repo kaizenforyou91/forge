@@ -4,7 +4,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"os/exec"
 
 	"golang.org/x/sys/unix"
@@ -15,20 +14,20 @@ type linuxProcessExecution struct {
 	scope *linuxProcessScopePlatform
 }
 
-func startProcessExecution(ctx context.Context, path, directory string, stdout, stderr *boundedOutputWriter) (processExecution, *processScopeOwner, error) {
+func startProcessExecution(ctx context.Context, path, directory string, stdout, stderr *boundedOutputWriter) (processExecution, *processScopeOwner, processStartLeaseDisposition, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, processStartLeaseReleaseSafe, err
 	}
 	cmd := processCommand(path, directory, stdout, stderr)
 	prepared, err := prepareLinuxProcessScopeCommand(cmd)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, processStartLeaseReleaseSafe, err
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, processStartLeaseReleaseSafe, err
 	}
 	if err = cmd.Start(); err != nil {
-		return nil, nil, err
+		return nil, nil, processStartLeaseReleaseSafe, err
 	}
 	// cmd/receipt are exclusive locals: no attribute mutation, receipt reuse,
 	// or reaper can invalidate the accepted B2 binding after successful Start.
@@ -39,18 +38,16 @@ func startProcessExecution(ctx context.Context, path, directory string, stdout, 
 		// Use the same B2 platform solely for synchronous failure cleanup; its
 		// identity is still this unreaped child's PID, never caller input.
 		cleanup := &linuxProcessScopePlatform{pgid: cmd.Process.Pid, kill: unix.Kill, waitid: unix.Waitid}
-		controlErr := cleanup.terminate()
-		observeErr := cleanup.waitLeaderExitNoReap()
-		finalizeErr := cleanup.finalize()
-		_, waitErr := commandExit(cmd, cmd.Wait())
-		return nil, nil, errors.Join(err, controlErr, observeErr, finalizeErr, waitErr)
+		e := &linuxProcessExecution{cmd: cmd, scope: cleanup}
+		disposition, cleanupErr := completeFailedProcessExecution(e, cleanup, err)
+		return nil, nil, disposition, cleanupErr
 	}
 	e := &linuxProcessExecution{cmd: cmd, scope: scope}
-	owner, err := admitProcessExecution(e, scope)
+	owner, disposition, err := admitProcessExecution(e, scope)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, disposition, err
 	}
-	return e, owner, nil
+	return e, owner, processStartLeaseDispositionUnset, nil
 }
 
 func (e *linuxProcessExecution) pid() int       { return e.cmd.Process.Pid }
