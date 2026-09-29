@@ -672,13 +672,16 @@ P11-B1: **CLOSED / PASS — INTEGRATED**.
 P11-B2: **CLOSED / PASS — INTEGRATED**.
 P11-B3: **CLOSED / PASS — INTEGRATED**.
 P11-B4: **CLOSED / PASS — INTEGRATED**.
-P11-C0: **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
+P11-C0: **CLOSED / PASS — INTEGRATED**.
 
 Objective: own one native launch scope from creation through termination and
 cleanup while preserving direct-child results, caller cancellation, and existing
 launch authority. B1 supplies coordination; B2/B3 supply private Linux/Windows
-primitives. B4 supplies integrated production scope ownership. Phase 11 itself
-still requires C0 integration and exact push-main CI.
+primitives. B4 supplies integrated production scope ownership. C0 integrated at
+`1e0c8dee7d9bbe59d7726e9c08a5626b4f46f0be`; strict push-main CI
+`36396310427`, attempt 1, passed Ubuntu/Windows acceptance and Ubuntu race.
+Phase 11 is **CLOSED / PASS — NATIVE PROCESS SCOPE OWNERSHIP AND DETERMINISTIC
+CLEANUP**.
 
 [ADR-004: Native Process Scope Ownership and Deterministic Cleanup](docs/architecture/adr/ADR-004-native-process-scope-ownership.md)
 records the accepted detailed contract. Historical A1 preparation baseline:
@@ -709,21 +712,51 @@ application lifecycle owner; Architecture Freeze remains unchanged.
 | P11-B2 | Private Linux group and identifier-lifetime mechanism/proof | CLOSED / PASS — INTEGRATED |
 | P11-B3 | Windows creation-time job membership and resource ownership | CLOSED / PASS — INTEGRATED |
 | P11-B4 | Runtime integration and compatibility evidence | CLOSED / PASS — INTEGRATED |
-| P11-C0 | Final architecture/integration closure | Implemented/documented under review; integration + strict exact push-main CI establishes Phase 11 closure |
+| P11-C0 | Final architecture/integration closure | CLOSED / PASS — INTEGRATED |
 
 Existing Phases 6–10 stay closed. Executable object binding, same-user package
 mutation, Windows filesystem parity, durable trust, and provenance remain separate
 accepted debt. The A0 sentence that Phase 11 was not defined describes the earlier
 selection output only; Control Room approval supersedes it. No A0 rerun is needed.
 
-**Verified Executable Launch Binding** remains the selected future security
-direction for binding execution to the verified object and addressing same-user
-mutation. Phase 11 closes native scope ownership and deterministic cleanup only;
-it does not supply persistent executable provenance or that binding guarantee.
+**Verified Executable Launch Object Binding** is now the defined Phase 12
+architecture direction. P12-A0 is CLOSED / PASS — SELECTION ACCEPTED; P12-A1 is
+the architecture-only package under review. B1/B2/B3/B4/C0 are NOT AUTHORIZED /
+NOT STARTED. Phase 11 closes native scope ownership and deterministic cleanup
+only; it does not supply persistent executable provenance or launch binding.
 
-Published v0.4.0-alpha.1 contains neither Phase 10 nor Phase 11 and stays immutable.
-No release or version is selected. C0 does not authorize Beta readiness,
-production readiness, publication, or another phase.
+Published v0.4.0-alpha.1 contains none of Phases 10, 11, or 12 and stays immutable.
+No release or version is selected. Phase 12 does not authorize Beta readiness,
+production readiness, publication, or implementation.
+
+---
+
+# Phase 12 — Verified Executable Launch Object Binding
+
+**DEFINED. P12-A0: CLOSED / PASS — SELECTION ACCEPTED.**
+P12-A1: **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
+P12-B1/B2/B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
+
+Objective: bind native image admission to the exact open executable object whose
+bytes, host format, architecture, and filesystem identity Forge accepted. A hash,
+SameFile, inode, or file-ID check followed by an unprotected pathname launch is
+not sufficient. The private single-use verified launch owner retains object and
+platform binding authority until admission succeeds or start fails closed.
+
+[ADR-005: Verified Executable Launch Object Binding](docs/architecture/adr/ADR-005-verified-executable-launch-object-binding.md)
+freezes the threat model, lifetime and failure-disposition rules, Linux direct-
+descriptor proof gate, conditional Windows namespace proof, unsupported-platform
+boundary, deterministic acceptance tests, and package sequence. A1 adds no runtime
+behavior and authorizes no B package.
+
+| Package | Proposed purpose | Authorization |
+|---|---|---|
+| P12-A1 | Architecture freeze / ADR | Implemented/documented under review |
+| P12-B1 | Private verified-launch ownership core | NOT AUTHORIZED / NOT STARTED |
+| P12-B2 | Linux descriptor-bound native admission / proof | NOT AUTHORIZED / NOT STARTED |
+| P12-B3 | Windows mutation-exclusion and namespace proof | NOT AUTHORIZED / NOT STARTED |
+| P12-B4 | ProcessRunner integration / compatibility hardening | NOT AUTHORIZED / NOT STARTED |
+| P12-C0 | Final evidence / documentation closure | NOT AUTHORIZED / NOT STARTED |
 
 ### P11-B1 implementation record
 
