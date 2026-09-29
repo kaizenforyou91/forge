@@ -22,14 +22,18 @@ strict exact push-main CI establishes **CLOSED / PASS — BOUNDED WORKFLOW
 COMPOSITION (Synchronous Sequences)**. That gate passed on main
 `bad51ed6ea7f476432c656036288f660281dbd50`, strict push-main CI `34924714319`.
 
-**Phase 11 is DEFINED: Native Process Scope Ownership and Deterministic Cleanup.**
-P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**. P11-A1/B1/B2/B3/B4 are
-**CLOSED / PASS — INTEGRATED**. P11-C0 is the authorized final documentation and
-evidence closure package; its integration plus strict exact push-main CI establishes
-final Phase 11 closure. Until then C0 is **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
-The A0 undefined status is historical and superseded. See
+**Phase 11 is CLOSED / PASS — NATIVE PROCESS SCOPE OWNERSHIP AND DETERMINISTIC
+CLEANUP.** P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**;
+P11-A1/B1/B2/B3/B4/C0 are **CLOSED / PASS — INTEGRATED**. Canonical closure main
+is `1e0c8dee7d9bbe59d7726e9c08a5626b4f46f0be`; strict push-main CI
+`36396310427`, attempt 1, passed Ubuntu acceptance `108843419132`, Windows
+acceptance `108843419047`, and Ubuntu race `108843419168`. The A0 undefined
+status is historical and superseded. See
 [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md).
-Phase 11 closure remains pending C0 integration; no release work is authorized.
+
+**Phase 12 is DEFINED — VERIFIED EXECUTABLE LAUNCH OBJECT BINDING.** P12-A0 is
+**CLOSED / PASS — SELECTION ACCEPTED**. P12-A1 is **IMPLEMENTED / DOCUMENTED /
+UNDER REVIEW**. P12-B1/B2/B3/B4/C0 are **NOT AUTHORIZED / NOT STARTED**.
 
 ---
 
@@ -534,8 +538,8 @@ CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION (Synchronous Sequences).
 This closure gate passed at `bad51ed6ea7f476432c656036288f660281dbd50`,
 with strict push-main CI `34924714319`, attempt 1, completed/success.
 The immutable published release excludes Phase 10. The subsequent P11-A0
-selection was accepted; Phase 11 is defined below, A1/B1/B2/B3/B4 are integrated,
-and C0 is the final documentation/evidence closure gate.
+selection was accepted; Phase 11 is closed below with A1/B1/B2/B3/B4/C0
+integrated and exact closure evidence recorded.
 
 ### Selected Phase 10 architecture
 
@@ -622,8 +626,8 @@ Validated-object-to-path execution binding, same-user package mutation, Windows
 ACL/reparse/share-mode hardening, process-tree/graceful native shutdown,
 persistent trust lifecycle, key rotation/revocation, and provenance/SBOM
 completeness remain IMPORTANT but are NOT P10 blockers. Control Room selected
-native process scope ownership as Phase 11; P11-A1/B1/B2/B3/B4 are integrated.
-C0 remains the documentation/evidence closure gate.
+native process scope ownership as Phase 11; P11-A1/B1/B2/B3/B4/C0 are integrated
+and Phase 11 is closed.
 The other hardening families remain separate accepted debt. Closed
 Phase 10 authority does not expand through the later selection.
 
@@ -666,7 +670,8 @@ or new production guarantee is implied.
 
 # Phase 11 — Native Process Scope Ownership and Deterministic Cleanup
 
-**DEFINED. P11-A0: CLOSED / PASS — SELECTION ACCEPTED.**
+**CLOSED / PASS — NATIVE PROCESS SCOPE OWNERSHIP AND DETERMINISTIC CLEANUP.**
+P11-A0: **CLOSED / PASS — SELECTION ACCEPTED**.
 P11-A1: **CLOSED / PASS — INTEGRATED**.
 P11-B1: **CLOSED / PASS — INTEGRATED**.
 P11-B2: **CLOSED / PASS — INTEGRATED**.
@@ -797,8 +802,8 @@ Linux cross-compilation is compile-only. x/sys remains v0.13.0, promoted from
 indirect to direct use with go.sum unchanged. B2 is CLOSED / PASS — INTEGRATED
 at main `f7337587d72315a77dc21bc29ad18c71b49069ce`, strict push-main CI
 [34949872571](https://github.com/kaizenforyou91/forge/actions/runs/34949872571),
-attempt 1 PASS. B3 and B4 are now integrated; C0 is the documentation/evidence
-closure package under review. macOS remains direct-child only.
+attempt 1 PASS. B3, B4, and C0 are now integrated; Phase 11 is closed. macOS
+remains direct-child only.
 
 ### P11-B3 Windows mechanism and native proof gate
 
@@ -819,7 +824,7 @@ Ubuntu acceptance/race remain regression gates. B3 integration plus strict exact
 push-main CI establishes CLOSED / PASS — INTEGRATED. B1/B2 and production runner
 paths remain unchanged; no public API, CLI, format, persistence or dependency
 change. At the historical B3 package checkpoint, B4/C0 were NOT AUTHORIZED / NOT STARTED.
-B3 and B4 are now integrated. Phase 11 remains pending C0 integration.
+B3, B4, and C0 are now integrated; Phase 11 is closed.
 
 ---
 
@@ -846,8 +851,9 @@ acceptance `108805831421`, and Ubuntu race `108805831319`. Accepted PR CI
 [36371799917](https://github.com/kaizenforyou91/forge/actions/runs/36371799917)
 passed attempt 1 on head `9266889fcd0b53ef07566605d316d4b74c53c30f`:
 Ubuntu acceptance `108769536997`, Windows acceptance `108769537105`, and Ubuntu
-race `108769536899`. The PR scope was 13 files, +1443/-217. P11-C0 remains the
-documentation/evidence closure package under review; Phase 11 closure is pending.
+race `108769536899`. The PR scope was 13 files, +1443/-217. P11-C0 subsequently
+integrated at `1e0c8dee7d9bbe59d7726e9c08a5626b4f46f0be`; strict push-main CI
+`36396310427`, attempt 1, passed all three required jobs and closed Phase 11.
 
 # Engineering Milestones
 
@@ -982,7 +988,8 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 8 — AI Runtime | CLOSED / PASS — bounded AI/tool foundation, real-provider PASS; published in v0.4.0-alpha.1 |
 | Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE |
 | Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION; A1/B1/B2/B3/C0 integrated, exact main CI passed |
-| Phase 11 — Native Process Scope Ownership and Deterministic Cleanup | A0 accepted; A1/B1/B2/B3/B4 CLOSED / PASS — INTEGRATED; C0 documentation/evidence closure under review |
+| Phase 11 — Native Process Scope Ownership and Deterministic Cleanup | CLOSED / PASS; A0 accepted and A1/B1/B2/B3/B4/C0 integrated; exact main CI passed |
+| Phase 12 — Verified Executable Launch Object Binding | DEFINED; A0 accepted; A1 implemented/documented under review; B1/B2/B3/B4/C0 not authorized/not started |
 
 ## Engineering Milestones
 
@@ -1466,7 +1473,8 @@ P10-C0: final documentation/audit package; integration + strict exact push-main 
 → Phase 9 — Bounded Agent Execution Lifecycle: CLOSED / PASS; included, internal/pre-stable
 → Phase 9 Packages: A1/B1/B2/B3/C0 CLOSED / PASS — INTEGRATED; no further runtime package required
 → Phase 10 — Bounded Workflow Composition (Synchronous Sequences): A1/B1/B2/B3 integrated; functionally complete internal scope; C0 integration + strict exact push-main CI establishes closure
-→ Phase 11 — Native Process Scope Ownership and Deterministic Cleanup: A1/B1/B2/B3/B4 integrated; C0 documentation/evidence integration + strict exact push-main CI is the closure gate
+→ Phase 11 — Native Process Scope Ownership and Deterministic Cleanup: CLOSED / PASS; A1/B1/B2/B3/B4/C0 integrated; strict exact push-main CI passed
+→ Phase 12 — Verified Executable Launch Object Binding: DEFINED; A0 accepted; A1 architecture under review; implementation packages not authorized
 → Autonomous Agents / Memory / Workflow Engine / Scheduler: Future
 → Release: 0.4.0-alpha.1 PUBLISHED; RR-004-PUB CLOSED / PASS
 → RR-005 — post-publication documentation reconciliation; documentation-only, no runtime changes; PR #24 merge + strict push-main CI are the closure gate
