@@ -35,12 +35,12 @@ persistence, or release expansion is implied.
 See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md).
 
 **Phase 12 is DEFINED: Verified Executable Launch Object Binding.** P12-A0 is
-**CLOSED / PASS — SELECTION ACCEPTED**. P12-A1 is an architecture-only package
-under review; B1/B2/B3/B4/C0 are **NOT AUTHORIZED / NOT STARTED**. The selected
-architecture retains an accepted executable object through native admission,
-requires direct descriptor-bound Linux proof, and makes strengthened Windows
-support conditional on file-identity, mutation-exclusion, namespace, reparse,
-CreateProcessW, and Job-compatibility proof. It adds no runtime capability yet.
+**CLOSED / PASS — SELECTION ACCEPTED** and P12-A1 is **CLOSED / PASS —
+INTEGRATED**. P12-B1 is the implemented, under-review private platform-neutral
+ownership core; it coordinates single-use native-created, admission-proven, and
+exactly-once finalization evidence without changing any production execution path.
+It adds no native admission mechanism. P12-B2/B3/B4/C0 remain **NOT AUTHORIZED /
+NOT STARTED**; no Linux or Windows strengthened binding is claimed yet.
 See [ADR-005](docs/architecture/adr/ADR-005-verified-executable-launch-object-binding.md).
 
 The unchanged published v0.4.0-alpha.1 contains none of Phases 10, 11, or 12.
@@ -114,7 +114,7 @@ the component's full roadmap or production hardening is complete.
 | Agent lifecycle | Phase 9 CLOSED / PASS; internal/pre-stable operation and application-host composition; published in v0.4.0-alpha.1 |
 | Bounded composition | Internal/pre-stable synchronous Sequences on current main; functionally complete; C0 integration + strict exact push-main CI establishes closure; not included in v0.4.0-alpha.1 |
 | Native process scope | Phase 11 CLOSED / PASS; Linux process-group and Windows Job ownership integrated; no public API or CLI expansion; not included in v0.4.0-alpha.1 |
-| Verified launch binding | Phase 12 defined; A0 selection accepted and A1 architecture under review; implementation not authorized; not included in v0.4.0-alpha.1 |
+| Verified launch binding | Phase 12 defined; A0/A1 integrated and private platform-neutral B1 ownership core under review; no native binding or production wiring; not included in v0.4.0-alpha.1 |
 
 ---
 

@@ -2,13 +2,13 @@
 
 ## Status and authorization
 
-**CONTROL ROOM ARCHITECTURE SELECTED; P12-A1 IMPLEMENTED / DOCUMENTED / UNDER REVIEW.**
+**CONTROL ROOM ARCHITECTURE SELECTED; P12-A1 CLOSED / PASS — INTEGRATED; P12-B1 IMPLEMENTED / UNDER REVIEW.**
 
 - P12-A0: **CLOSED / PASS — SELECTION ACCEPTED**.
 - Phase 12: **DEFINED — VERIFIED EXECUTABLE LAUNCH OBJECT BINDING**.
-- P12-A1: architecture/ADR only; integration and strict exact push-main CI are
-  required before it may be classified CLOSED / PASS — INTEGRATED.
-- P12-B1/B2/B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
+- P12-A1: **CLOSED / PASS — INTEGRATED**.
+- P12-B1: private platform-neutral ownership core, **IMPLEMENTED / UNDER REVIEW**.
+- P12-B2/B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
 
 This ADR freezes architecture. It implements no launch mechanism and makes no
 strengthened platform claim. Each implementation package remains separately gated.
@@ -309,14 +309,41 @@ not a substitute.
 
 | Package | Purpose | Required gate | Status |
 |---|---|---|---|
-| P12-A1 | Architecture freeze / this ADR | Accurate invariant, threat model, profiles, lifetime and tests | Implemented/documented under review |
-| P12-B1 | Private verified-launch ownership core | Single use, admission state, deterministic finalization, failure disposition; no native mechanism | NOT AUTHORIZED / NOT STARTED |
+| P12-A1 | Architecture freeze / this ADR | Accurate invariant, threat model, profiles, lifetime and tests | CLOSED / PASS — INTEGRATED |
+| P12-B1 | Private verified-launch ownership core | Single use, admission state, deterministic finalization, failure disposition; no native mechanism | Implemented / under review |
 | P12-B2 | Linux descriptor-bound admission / proof | Actual replacement resistance, direct-object execution, no FD leak, safe Go and Phase 11 integration | NOT AUTHORIZED / NOT STARTED |
 | P12-B3 | Windows mutation-exclusion and namespace proof | Identity, namespace, reparse, CreateProcessW, Job, inheritance, filesystem profile | NOT AUTHORIZED / NOT STARTED |
 | P12-B4 | Production ProcessRunner integration | End-to-end coordinated replacement tests, lifecycle regressions, fail-closed partial start | NOT AUTHORIZED / NOT STARTED |
 | P12-C0 | Final evidence / documentation closure | Truthful platform matrix and exact integrated-main CI | NOT AUTHORIZED / NOT STARTED |
 
-Completion of A1 authorizes no B package.
+Completion of A1 did not automatically authorize a B package. Control Room
+separately authorized B1; B2/B3/B4/C0 remain gated.
+
+## P12-B1 implementation record
+
+`runtime/verified_launch.go` implements one private pointer-owned, single-use
+coordination owner and a one-operation private platform contract whose only
+authority is synchronous binding-resource finalization. The owner starts no
+goroutine and performs no filesystem, syscall, process-creation, PID, path, FD,
+or handle operation. No production execution path uses it in B1.
+
+The explicit lifecycle is PREPARED to FINALIZED, with independent monotonic
+evidence for native process creation and verified admission. Native creation does
+not imply admission; admission cannot be recorded before creation; finalization
+does not fabricate either fact. Finalization makes one serialized platform call,
+caches its returned result, retires the platform reference, and never retries.
+A propagating trusted-platform panic leaves explicit interrupted evidence and
+poisons the retired authority against a second release attempt.
+
+The immutable-by-value private status snapshot contains only phase, creation,
+admission, and finalization outcome evidence. It exposes no platform resource.
+Later B4 integration can combine these facts with Phase 11 terminal evidence to
+derive the frozen start-failure dispositions without a default-to-release guess.
+Deterministic fake-platform tests cover invalid and typed-nil construction,
+ordering, single transitions, preservation across finalization, returned failure,
+panic interruption, concurrent evidence reports, concurrent finalization, exact
+call counts, and control/finalization serialization. B1 adds zero native binding
+mechanism and makes no strengthened Linux or Windows claim.
 
 ## Public surface and dependencies
 
