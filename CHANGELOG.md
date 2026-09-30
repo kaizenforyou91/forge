@@ -5,15 +5,24 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 ## Unreleased
 
+- P12-A1 is CLOSED / PASS — INTEGRATED. P12-B1 adds only the private,
+  platform-neutral verified-launch ownership core: single-use native-created and
+  admission-proven evidence, synchronous exactly-once finalization, cached failure
+  or interruption evidence, retired platform authority, and deterministic
+  concurrency tests. It adds no native admission mechanism, filesystem or syscall
+  work, ProcessRunner wiring, public API, CLI, format, persistence, authority, or
+  dependency change. P12-B2/B3/B4/C0 remain NOT AUTHORIZED / NOT STARTED.
 - P12-A0 is CLOSED / PASS — SELECTION ACCEPTED and defines Phase 12 — Verified
-  Executable Launch Object Binding. P12-A1 freezes architecture only: one private,
+  Executable Launch Object Binding. P12-A1 is CLOSED / PASS — INTEGRATED and
+  freezes architecture only: one private,
   single-use verified launch object retains accepted executable and platform
   identity evidence through native admission. Linux requires direct descriptor-
   bound admission proof; strengthened Windows support remains conditional on
   documented file-identity, mutation-exclusion, namespace, reparse,
   CreateProcessW, and Phase 11 Job-compatibility proof. macOS/other GOOS retain
-  historical path behavior. P12-B1/B2/B3/B4/C0 remain separately gated and are
-  NOT AUTHORIZED / NOT STARTED. A1 adds zero runtime behavior and no public API,
+  historical path behavior. B1 was separately authorized as the private
+  coordination core; P12-B2/B3/B4/C0 remain NOT AUTHORIZED / NOT STARTED. A1
+  adds zero runtime behavior and no public API,
   CLI, package-format, trust, persistence, network-authority, or dependency change.
 - Phase 11 is CLOSED / PASS — NATIVE PROCESS SCOPE OWNERSHIP AND DETERMINISTIC
   CLEANUP. P11-C0 integrated at `1e0c8dee7d9bbe59d7726e9c08a5626b4f46f0be`
