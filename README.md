@@ -26,17 +26,24 @@ The long-term vision of Forge is to become a modern application platform where a
 > real-provider validation. Phase 9 is **CLOSED / PASS — BOUNDED AGENT EXECUTION
 > LIFECYCLE**, internal/pre-stable and included in the published release.
 
-**Phase 11 is DEFINED: Native Process Scope Ownership and Deterministic Cleanup.**
-P11-A0 is **CLOSED / PASS — SELECTION ACCEPTED**; P11-A1/B1/B2/B3/B4 are
-**CLOSED / PASS — INTEGRATED**. Linux uses pre-exec process groups and Windows
-uses creation-time private Jobs with native quiescence proof before executable
-lease release. Direct-child results remain authoritative; macOS/other GOOS retain
-historical direct-child behavior. P11-C0 is the final documentation/evidence audit;
-its integration plus strict exact push-main CI establishes **CLOSED / PASS — NATIVE
-PROCESS SCOPE OWNERSHIP AND DETERMINISTIC CLEANUP**. Until then C0 is under review.
-No public API, CLI, package-format, persistence, or release expansion is implied.
-The unchanged published v0.4.0-alpha.1 contains neither Phase 10 nor Phase 11.
+**Phase 11 is CLOSED / PASS — Native Process Scope Ownership and Deterministic
+Cleanup.** A1/B1/B2/B3/B4/C0 are integrated. Linux uses pre-exec process groups
+and Windows uses creation-time private Jobs with native quiescence proof before
+executable lease release. Direct-child results remain authoritative; macOS/other
+GOOS retain historical direct-child behavior. No public API, CLI, package-format,
+persistence, or release expansion is implied.
 See [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md).
+
+**Phase 12 is DEFINED: Verified Executable Launch Object Binding.** P12-A0 is
+**CLOSED / PASS — SELECTION ACCEPTED**. P12-A1 is an architecture-only package
+under review; B1/B2/B3/B4/C0 are **NOT AUTHORIZED / NOT STARTED**. The selected
+architecture retains an accepted executable object through native admission,
+requires direct descriptor-bound Linux proof, and makes strengthened Windows
+support conditional on file-identity, mutation-exclusion, namespace, reparse,
+CreateProcessW, and Job-compatibility proof. It adds no runtime capability yet.
+See [ADR-005](docs/architecture/adr/ADR-005-verified-executable-launch-object-binding.md).
+
+The unchanged published v0.4.0-alpha.1 contains none of Phases 10, 11, or 12.
 
 The [historical First Alpha v0.3.0-alpha.1](https://github.com/kaizenforyou91/forge/releases/tag/v0.3.0-alpha.1)
 remains unchanged, with zero uploaded binary assets and without the later
@@ -106,7 +113,8 @@ the component's full roadmap or production hardening is complete.
 | AI Runtime | Phase 8 bounded AI/tool foundation CLOSED / PASS; real-provider acceptance PASS; published in v0.4.0-alpha.1 |
 | Agent lifecycle | Phase 9 CLOSED / PASS; internal/pre-stable operation and application-host composition; published in v0.4.0-alpha.1 |
 | Bounded composition | Internal/pre-stable synchronous Sequences on current main; functionally complete; C0 integration + strict exact push-main CI establishes closure; not included in v0.4.0-alpha.1 |
-| Native process scope | Phase 11 A1/B1/B2/B3/B4 integrated; C0 documentation/evidence closure under review; no public API or CLI expansion; not included in v0.4.0-alpha.1 |
+| Native process scope | Phase 11 CLOSED / PASS; Linux process-group and Windows Job ownership integrated; no public API or CLI expansion; not included in v0.4.0-alpha.1 |
+| Verified launch binding | Phase 12 defined; A0 selection accepted and A1 architecture under review; implementation not authorized; not included in v0.4.0-alpha.1 |
 
 ---
 

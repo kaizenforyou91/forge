@@ -5,6 +5,21 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 ## Unreleased
 
+- P12-A0 is CLOSED / PASS — SELECTION ACCEPTED and defines Phase 12 — Verified
+  Executable Launch Object Binding. P12-A1 freezes architecture only: one private,
+  single-use verified launch object retains accepted executable and platform
+  identity evidence through native admission. Linux requires direct descriptor-
+  bound admission proof; strengthened Windows support remains conditional on
+  documented file-identity, mutation-exclusion, namespace, reparse,
+  CreateProcessW, and Phase 11 Job-compatibility proof. macOS/other GOOS retain
+  historical path behavior. P12-B1/B2/B3/B4/C0 remain separately gated and are
+  NOT AUTHORIZED / NOT STARTED. A1 adds zero runtime behavior and no public API,
+  CLI, package-format, trust, persistence, network-authority, or dependency change.
+- Phase 11 is CLOSED / PASS — NATIVE PROCESS SCOPE OWNERSHIP AND DETERMINISTIC
+  CLEANUP. P11-C0 integrated at `1e0c8dee7d9bbe59d7726e9c08a5626b4f46f0be`
+  and strict push-main CI `36396310427` passed attempt 1 on that exact head with
+  Ubuntu acceptance, Windows acceptance, and Ubuntu race PASS.
+
 - P11-A0 selected Native Process Scope Ownership and Deterministic Cleanup as
   the next architecture wave; Control Room accepted the selection and defined
   Phase 11. P11-A1 is CLOSED / PASS — INTEGRATED; it defined architecture only,
