@@ -2,16 +2,23 @@
 
 ## Status and authorization
 
-**CONTROL ROOM ARCHITECTURE SELECTED; P12-A1 CLOSED / PASS — INTEGRATED; P12-B1 IMPLEMENTED / UNDER REVIEW.**
+**CONTROL ROOM ARCHITECTURE RETAINED; PHASE 12 DEFERRED CLOSURE UNDER REVIEW.**
 
 - P12-A0: **CLOSED / PASS — SELECTION ACCEPTED**.
-- Phase 12: **DEFINED — VERIFIED EXECUTABLE LAUNCH OBJECT BINDING**.
+- Phase 12: **DEFERRED CLOSURE UNDER REVIEW — VERIFIED EXECUTABLE LAUNCH OBJECT
+  BINDING**.
 - P12-A1: **CLOSED / PASS — INTEGRATED**.
-- P12-B1: private platform-neutral ownership core, **IMPLEMENTED / UNDER REVIEW**.
-- P12-B2/B3/B4/C0: **NOT AUTHORIZED / NOT STARTED**.
+- P12-B1: private platform-neutral ownership core, **CLOSED / PASS — INTEGRATED,
+  DORMANT**.
+- P12-B2: **CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**.
+- P12-B3: **CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**.
+- P12-B4: **BLOCKED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT**.
+- P12-R0: **CLOSED / PASS — REASSESSMENT ACCEPTED**.
+- P12-C0: **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
 
-This ADR freezes architecture. It implements no launch mechanism and makes no
-strengthened platform claim. Each implementation package remains separately gated.
+This ADR preserves the frozen architecture. Current main implements no native
+launch-binding mechanism and makes no strengthened platform claim. C0 records the
+deferred closure without weakening the invariant.
 
 ## Baseline and problem
 
@@ -310,14 +317,15 @@ not a substitute.
 | Package | Purpose | Required gate | Status |
 |---|---|---|---|
 | P12-A1 | Architecture freeze / this ADR | Accurate invariant, threat model, profiles, lifetime and tests | CLOSED / PASS — INTEGRATED |
-| P12-B1 | Private verified-launch ownership core | Single use, admission state, deterministic finalization, failure disposition; no native mechanism | Implemented / under review |
-| P12-B2 | Linux descriptor-bound admission / proof | Actual replacement resistance, direct-object execution, no FD leak, safe Go and Phase 11 integration | NOT AUTHORIZED / NOT STARTED |
-| P12-B3 | Windows mutation-exclusion and namespace proof | Identity, namespace, reparse, CreateProcessW, Job, inheritance, filesystem profile | NOT AUTHORIZED / NOT STARTED |
-| P12-B4 | Production ProcessRunner integration | End-to-end coordinated replacement tests, lifecycle regressions, fail-closed partial start | NOT AUTHORIZED / NOT STARTED |
-| P12-C0 | Final evidence / documentation closure | Truthful platform matrix and exact integrated-main CI | NOT AUTHORIZED / NOT STARTED |
+| P12-B1 | Private verified-launch ownership core | Single use, admission state, deterministic finalization, failure disposition; no native mechanism | CLOSED / PASS — INTEGRATED, DORMANT |
+| P12-B2 | Linux descriptor-bound admission / proof | Actual replacement resistance, direct-object execution, no FD leak, safe Go and Phase 11 integration | CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION |
+| P12-B3 | Windows mutation-exclusion and namespace proof | Identity, namespace, reparse, CreateProcessW, Job, inheritance, filesystem profile | CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION |
+| P12-B4 | Production ProcessRunner integration | End-to-end coordinated replacement tests, lifecycle regressions, fail-closed partial start | BLOCKED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT |
+| P12-C0 | Deferred closure evidence and documentation | Truthful feasibility record and exact integrated-main CI | IMPLEMENTED / DOCUMENTED / UNDER REVIEW |
 
 Completion of A1 did not automatically authorize a B package. Control Room
-separately authorized B1; B2/B3/B4/C0 remain gated.
+separately authorized B1, B2, and B3. B2 and B3 ended at their required
+feasibility stops without implementation; B4 was not authorized or executed.
 
 ## P12-B1 implementation record
 
@@ -344,6 +352,85 @@ ordering, single transitions, preservation across finalization, returned failure
 panic interruption, concurrent evidence reports, concurrent finalization, exact
 call counts, and control/finalization serialization. B1 adds zero native binding
 mechanism and makes no strengthened Linux or Windows claim.
+
+## Feasibility outcome and deferred closure
+
+ADR-005 remains the authoritative desired security invariant. Its architecture
+is security-valid, but feasibility stopped on both primary target platforms
+within Forge's supported toolchain and documented-native-API boundaries. This is
+an architecture and platform boundary, not a test failure, flaky result, reduced
+threat model, or partial implementation.
+
+P12-B2 established that Linux `execveat(fd, "", argv, envp, AT_EMPTY_PATH)` can
+select a retained descriptor object at the kernel boundary. The supported Go
+child-start APIs cannot safely and sustainably combine that operation with the
+runtime-managed fork protocol, pre-user-code `setpgid`, controlled cwd, argv,
+environment and stdio, descriptor remapping and closure, synchronous exec-failure
+evidence, and Phase 11 ownership. Private runtime hooks, `go:linkname`, copied
+standard-library fork internals, unsafe post-fork Go, unsupported clone/vfork,
+procfs binding, and an unbound helper-process workaround remain rejected. An
+independent blocker also remains: an ordinary retained file descriptor preserves
+object identity but does not guarantee accepted-byte immutability against every
+pre-existing mutation authority. B2 produced no tracked implementation.
+
+P12-B3 evaluated documented Windows behavior on build `10.0.26100` and local
+NTFS. A restrictive non-inheritable file handle blocked a new writer, deletion,
+and rename; held directory authority blocked the tested containing-directory
+rename; a pre-existing writable mapping caused restrictive acquisition to fail
+closed; `FILE_ID_INFO` was available; and `CreateProcessW` remained compatible
+with the candidate protection. The complete invariant was still unproven:
+`CreateProcessW` accepts a name or path rather than the verified handle, returns
+no documented admitted-image `FILE_ID_INFO`, and documented operations did not
+prove complete ancestor and reparse namespace non-redirection. A post-create
+path, hash, or file-ID comparison remains corroboration rather than admission
+proof. B3 produced no tracked implementation.
+
+The shared missing proof chain is:
+
+```text
+accepted bytes and object identity
+  → immutable binding authority
+  → supported native admission
+  → authoritative admission evidence
+```
+
+B1 remains integrated and dormant. Its private single-use ownership and evidence
+model changes no production path, exposes no public API, and creates no process,
+network, or filesystem authority. It remains reusable for a future original-
+object or immutable-snapshot architecture, so deferral does not require removal.
+P12-B4 was never implemented: production `ProcessRunner` has no verified-launch
+integration, and current main makes no strengthened verified-launch claim.
+
+Phase 12 closes only after P12-C0 integration and strict exact push-main CI. The
+target status is **CLOSED / BLOCKED-DEFERRED — FROZEN INVARIANT RETAINED; NO
+VERIFIED-LAUNCH CLAIM**. This means the property remains desirable but current
+supported platform and toolchain primitives cannot establish it within Forge's
+accepted boundaries. It does not mean the specification failed, implementation
+partially shipped, path-based launch became verified, or the threat model was
+reduced.
+
+### Reassessment triggers
+
+Linux reassessment requires a supported Go API or toolchain facility that
+provides an executable descriptor target or `execveat` equivalent while retaining
+the runtime-supported fork protocol, pre-exec `setpgid`, controlled argv,
+environment, cwd and stdio, deterministic descriptor remapping and closure,
+synchronous exec-failure reporting, no leaked executable descriptor, and no user
+Go callback after fork.
+
+Windows reassessment requires a documented supported API that either creates a
+process from an already-open executable handle or returns authoritative admitted-
+image identity tied to a specified open file object. It must compose with
+`STARTUPINFOEX`, `JOB_LIST`, `HANDLE_LIST`, non-inherited binding handles,
+documented namespace and reparse behavior, and non-administrator operation.
+
+If those native-admission prerequisites become viable, a separately selected
+future direction may begin as **P13-A0 — Verified Immutable Execution Snapshot
+Selection**, with a new ADR. A sealed Linux memfd could address snapshot byte
+immutability, but it does not by itself solve supported Go descriptor execution.
+ADR-005 is not rewritten into snapshot semantics. Windows executable mutation
+exclusion is likewise a potentially useful, separately named weaker hardening
+family; it is not Verified Executable Launch Object Binding.
 
 ## Public surface and dependencies
 

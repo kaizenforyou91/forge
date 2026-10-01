@@ -5,6 +5,16 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 ## Unreleased
 
+- P12-C0 records the documentation/evidence-only deferred closure of Phase 12.
+  P12-B2 and P12-B3 are CLOSED / FEASIBILITY STOP with no implementation;
+  P12-B1 remains integrated, private, and dormant; P12-B4 was not executed
+  because no truthful native binding mechanism exists within the accepted
+  platform and toolchain boundaries. ADR-005's exact accepted-object,
+  complete-byte, native-admission invariant remains unchanged, and current main
+  makes no strengthened verified-launch claim. This adds zero runtime behavior,
+  source, test, workflow, API, CLI, format, trust, persistence, authority, or
+  dependency change. C0 integration plus strict exact push-main CI remains the
+  final BLOCKED-DEFERRED closure gate.
 - P12-A1 is CLOSED / PASS — INTEGRATED. P12-B1 adds only the private,
   platform-neutral verified-launch ownership core: single-use native-created and
   admission-proven evidence, synchronous exactly-once finalization, cached failure
