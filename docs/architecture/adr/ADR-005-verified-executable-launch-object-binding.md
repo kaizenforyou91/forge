@@ -2,19 +2,20 @@
 
 ## Status and authorization
 
-**CONTROL ROOM ARCHITECTURE RETAINED; PHASE 12 DEFERRED CLOSURE UNDER REVIEW.**
+**PHASE 12 CLOSED / BLOCKED-DEFERRED — FROZEN INVARIANT RETAINED; NO
+VERIFIED-LAUNCH CLAIM.**
 
 - P12-A0: **CLOSED / PASS — SELECTION ACCEPTED**.
-- Phase 12: **DEFERRED CLOSURE UNDER REVIEW — VERIFIED EXECUTABLE LAUNCH OBJECT
-  BINDING**.
+- Phase 12: **CLOSED / BLOCKED-DEFERRED — FROZEN INVARIANT RETAINED; NO
+  VERIFIED-LAUNCH CLAIM**.
 - P12-A1: **CLOSED / PASS — INTEGRATED**.
 - P12-B1: private platform-neutral ownership core, **CLOSED / PASS — INTEGRATED,
   DORMANT**.
 - P12-B2: **CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**.
 - P12-B3: **CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**.
-- P12-B4: **BLOCKED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT**.
+- P12-B4: **CLOSED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT**.
 - P12-R0: **CLOSED / PASS — REASSESSMENT ACCEPTED**.
-- P12-C0: **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
+- P12-C0: **CLOSED / PASS — DEFERRED CLOSURE INTEGRATED**.
 
 This ADR preserves the frozen architecture. Current main implements no native
 launch-binding mechanism and makes no strengthened platform claim. C0 records the
@@ -320,8 +321,8 @@ not a substitute.
 | P12-B1 | Private verified-launch ownership core | Single use, admission state, deterministic finalization, failure disposition; no native mechanism | CLOSED / PASS — INTEGRATED, DORMANT |
 | P12-B2 | Linux descriptor-bound admission / proof | Actual replacement resistance, direct-object execution, no FD leak, safe Go and Phase 11 integration | CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION |
 | P12-B3 | Windows mutation-exclusion and namespace proof | Identity, namespace, reparse, CreateProcessW, Job, inheritance, filesystem profile | CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION |
-| P12-B4 | Production ProcessRunner integration | End-to-end coordinated replacement tests, lifecycle regressions, fail-closed partial start | BLOCKED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT |
-| P12-C0 | Deferred closure evidence and documentation | Truthful feasibility record and exact integrated-main CI | IMPLEMENTED / DOCUMENTED / UNDER REVIEW |
+| P12-B4 | Production ProcessRunner integration | End-to-end coordinated replacement tests, lifecycle regressions, fail-closed partial start | CLOSED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT |
+| P12-C0 | Deferred closure evidence and documentation | Truthful feasibility record and exact integrated-main CI | CLOSED / PASS — DEFERRED CLOSURE INTEGRATED |
 
 Completion of A1 did not automatically authorize a B package. Control Room
 separately authorized B1, B2, and B3. B2 and B3 ended at their required
@@ -401,9 +402,17 @@ object or immutable-snapshot architecture, so deferral does not require removal.
 P12-B4 was never implemented: production `ProcessRunner` has no verified-launch
 integration, and current main makes no strengthened verified-launch claim.
 
-Phase 12 closes only after P12-C0 integration and strict exact push-main CI. The
-target status is **CLOSED / BLOCKED-DEFERRED — FROZEN INVARIANT RETAINED; NO
-VERIFIED-LAUNCH CLAIM**. This means the property remains desirable but current
+That closure gate passed when PR #39 head
+`ca04feca740e695731fb07203b1169a866d24ff0` merged as
+`917def87aebb4d4351448f4bd84bd7f6c8357179`, tree
+`e8290f89c69135ea965c26061582e758091f658c`, with parents
+`8a3b13af37a5d8742e5a105a5d38b7a0bdfb6f85` and
+`ca04feca740e695731fb07203b1169a866d24ff0`. Strict push-main CI
+`36985492452` passed attempt 1 on the exact merge head: Ubuntu acceptance
+`110769456688`, Windows acceptance `110769457708`, and Ubuntu race
+`110769457050` all passed. Phase 12 is therefore **CLOSED / BLOCKED-DEFERRED —
+FROZEN INVARIANT RETAINED; NO VERIFIED-LAUNCH CLAIM**. This means the property
+remains desirable but current
 supported platform and toolchain primitives cannot establish it within Forge's
 accepted boundaries. It does not mean the specification failed, implementation
 partially shipped, path-based launch became verified, or the threat model was
