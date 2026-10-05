@@ -5,7 +5,12 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 ## Unreleased
 
-- P12-C0 records the documentation/evidence-only deferred closure of Phase 12.
+- P12-C0 records the documentation/evidence-only deferred closure of Phase 12
+  and is CLOSED / PASS — DEFERRED CLOSURE INTEGRATED. C0 merged as
+  `917def87aebb4d4351448f4bd84bd7f6c8357179` and strict push-main CI
+  `36985492452` passed attempt 1 on that exact head with Ubuntu acceptance,
+  Windows acceptance, and Ubuntu race PASS. Phase 12 is **CLOSED /
+  BLOCKED-DEFERRED — FROZEN INVARIANT RETAINED; NO VERIFIED-LAUNCH CLAIM**.
   P12-B2 and P12-B3 are CLOSED / FEASIBILITY STOP with no implementation;
   P12-B1 remains integrated, private, and dormant; P12-B4 was not executed
   because no truthful native binding mechanism exists within the accepted
@@ -13,8 +18,8 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   complete-byte, native-admission invariant remains unchanged, and current main
   makes no strengthened verified-launch claim. This adds zero runtime behavior,
   source, test, workflow, API, CLI, format, trust, persistence, authority, or
-  dependency change. C0 integration plus strict exact push-main CI remains the
-  final BLOCKED-DEFERRED closure gate.
+  dependency change. The final deferred-closure gate passed without adding a
+  native binding mechanism.
 - P12-A1 is CLOSED / PASS — INTEGRATED. P12-B1 adds only the private,
   platform-neutral verified-launch ownership core: single-use native-created and
   admission-proven evidence, synchronous exactly-once finalization, cached failure

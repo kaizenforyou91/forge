@@ -31,13 +31,15 @@ acceptance `108843419047`, and Ubuntu race `108843419168`. The A0 undefined
 status is historical and superseded. See
 [ADR-004](docs/architecture/adr/ADR-004-native-process-scope-ownership.md).
 
-**Phase 12 deferred closure is under review — VERIFIED EXECUTABLE LAUNCH OBJECT
-BINDING.** P12-A0 is **CLOSED / PASS — SELECTION ACCEPTED**. P12-A1 and P12-B1
+**Phase 12 is CLOSED / BLOCKED-DEFERRED — FROZEN INVARIANT RETAINED; NO
+VERIFIED-LAUNCH CLAIM.** P12-A0 is **CLOSED / PASS — SELECTION ACCEPTED**.
+P12-A1 and P12-B1
 are **CLOSED / PASS — INTEGRATED**, with B1 dormant. P12-B2 and P12-B3 are
-**CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**. P12-B4 is **BLOCKED / NOT
-EXECUTED — NATIVE PREREQUISITES ABSENT**. P12-C0 is **IMPLEMENTED / DOCUMENTED /
-UNDER REVIEW**. Phase 12 becomes CLOSED / BLOCKED-DEFERRED only after C0
-integration and strict exact push-main CI.
+**CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**. P12-B4 is **CLOSED / NOT
+EXECUTED — NATIVE PREREQUISITES ABSENT**. P12-C0 is **CLOSED / PASS — DEFERRED
+CLOSURE INTEGRATED** at merge `917def87aebb4d4351448f4bd84bd7f6c8357179`;
+strict push-main CI `36985492452` passed attempt 1 on that exact head with all
+three required jobs PASS.
 
 ---
 
@@ -731,9 +733,9 @@ selection output only; Control Room approval supersedes it. No A0 rerun is neede
 **Verified Executable Launch Object Binding** remains the frozen Phase 12
 security direction. P12-A0 is CLOSED / PASS — SELECTION ACCEPTED; P12-A1 and
 P12-B1 are CLOSED / PASS — INTEGRATED, with B1 retained dormant. P12-B2 and
-P12-B3 are CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION. P12-B4 is BLOCKED /
-NOT EXECUTED — NATIVE PREREQUISITES ABSENT. P12-C0 is the documentation-only
-deferred closure under review. Phase 11 closes native scope ownership and
+P12-B3 are CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION. P12-B4 is CLOSED /
+NOT EXECUTED — NATIVE PREREQUISITES ABSENT. P12-C0 is CLOSED / PASS — DEFERRED
+CLOSURE INTEGRATED. Phase 11 closes native scope ownership and
 deterministic cleanup only; it does not supply persistent executable provenance
 or verified launch binding.
 
@@ -745,13 +747,14 @@ production readiness, publication, or implementation.
 
 # Phase 12 — Verified Executable Launch Object Binding
 
-**DEFERRED CLOSURE UNDER REVIEW. P12-A0: CLOSED / PASS — SELECTION ACCEPTED.**
+**CLOSED / BLOCKED-DEFERRED — FROZEN INVARIANT RETAINED; NO VERIFIED-LAUNCH
+CLAIM. P12-A0: CLOSED / PASS — SELECTION ACCEPTED.**
 P12-A1: **CLOSED / PASS — INTEGRATED**.
 P12-B1: **CLOSED / PASS — INTEGRATED, DORMANT**.
 P12-B2: **CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**.
 P12-B3: **CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**.
-P12-B4: **BLOCKED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT**.
-P12-C0: **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
+P12-B4: **CLOSED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT**.
+P12-C0: **CLOSED / PASS — DEFERRED CLOSURE INTEGRATED**.
 
 Objective: bind native image admission to the exact open executable object whose
 bytes, host format, architecture, and filesystem identity Forge accepted. A hash,
@@ -771,8 +774,18 @@ behavior and authorizes no B package.
 | P12-B1 | Private verified-launch ownership core | CLOSED / PASS — INTEGRATED, DORMANT; no native mechanism or production wiring |
 | P12-B2 | Linux descriptor-bound native admission / proof | CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION |
 | P12-B3 | Windows mutation-exclusion and namespace proof | CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION |
-| P12-B4 | ProcessRunner integration / compatibility hardening | BLOCKED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT |
-| P12-C0 | Deferred closure evidence and documentation | IMPLEMENTED / DOCUMENTED / UNDER REVIEW |
+| P12-B4 | ProcessRunner integration / compatibility hardening | CLOSED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT |
+| P12-C0 | Deferred closure evidence and documentation | CLOSED / PASS — DEFERRED CLOSURE INTEGRATED |
+
+Canonical closure evidence is PR #39 at final head
+`ca04feca740e695731fb07203b1169a866d24ff0`, merged as
+`917def87aebb4d4351448f4bd84bd7f6c8357179` with tree
+`e8290f89c69135ea965c26061582e758091f658c` and parents
+`8a3b13af37a5d8742e5a105a5d38b7a0bdfb6f85` and
+`ca04feca740e695731fb07203b1169a866d24ff0`. Strict push-main CI
+`36985492452` passed attempt 1 on the exact merge head: Ubuntu acceptance
+`110769456688`, Windows acceptance `110769457708`, and Ubuntu race
+`110769457050` all passed.
 
 Phase 12 retains ADR-005's exact accepted-object, complete-byte, native-admission
 invariant. B2 found Linux kernel descriptor admission but no supported Go child-
@@ -1019,7 +1032,7 @@ Implementation progress is tracked separately through engineering milestones.
 | Phase 9 — Bounded Agent Execution Lifecycle | CLOSED / PASS — BOUNDED AGENT EXECUTION LIFECYCLE |
 | Phase 10 — Bounded Workflow Composition (Synchronous Sequences) | CLOSED / PASS — BOUNDED WORKFLOW COMPOSITION; A1/B1/B2/B3/C0 integrated, exact main CI passed |
 | Phase 11 — Native Process Scope Ownership and Deterministic Cleanup | CLOSED / PASS; A0 accepted and A1/B1/B2/B3/B4/C0 integrated; exact main CI passed |
-| Phase 12 — Verified Executable Launch Object Binding | Deferred closure under review; A0/A1/B1 integrated with B1 dormant; B2/B3 feasibility stops; B4 blocked/not executed; no verified-launch claim |
+| Phase 12 — Verified Executable Launch Object Binding | CLOSED / BLOCKED-DEFERRED; frozen invariant retained; A0/A1/B1 integrated with B1 dormant; B2/B3 feasibility stops; B4 closed/not executed; C0 integrated; no verified-launch claim |
 
 ## Engineering Milestones
 
@@ -1504,7 +1517,7 @@ P10-C0: final documentation/audit package; integration + strict exact push-main 
 → Phase 9 Packages: A1/B1/B2/B3/C0 CLOSED / PASS — INTEGRATED; no further runtime package required
 → Phase 10 — Bounded Workflow Composition (Synchronous Sequences): A1/B1/B2/B3 integrated; functionally complete internal scope; C0 integration + strict exact push-main CI establishes closure
 → Phase 11 — Native Process Scope Ownership and Deterministic Cleanup: CLOSED / PASS; A1/B1/B2/B3/B4/C0 integrated; strict exact push-main CI passed
-→ Phase 12 — Verified Executable Launch Object Binding: deferred closure under review; A0/A1/B1 integrated with B1 dormant; B2/B3 feasibility stops; B4 blocked/not executed; invariant retained and no verified-launch claim
+→ Phase 12 — Verified Executable Launch Object Binding: CLOSED / BLOCKED-DEFERRED; A0/A1/B1 integrated with B1 dormant; B2/B3 feasibility stops; B4 closed/not executed; C0 integrated; invariant retained and no verified-launch claim
 → Autonomous Agents / Memory / Workflow Engine / Scheduler: Future
 → Release: 0.4.0-alpha.1 PUBLISHED; RR-004-PUB CLOSED / PASS
 → RR-005 — post-publication documentation reconciliation; documentation-only, no runtime changes; PR #24 merge + strict push-main CI are the closure gate
