@@ -269,7 +269,7 @@ func TestFunctionRoundTripDiagnosticContext(t *testing.T) {
 						wantErr = context.DeadlineExceeded
 					}
 					if gotStage != stage || !errors.Is(err, wantErr) || len(s.wires) != posts || calls != handlers {
-						t.Fatal("context stage/category/bounds changed")
+						t.Fatalf("context stage/category/bounds changed: stage=%v want=%v error=%v (%T) want=%v wires=%d want=%d handlers=%d want=%d", gotStage, stage, err, err, wantErr, len(s.wires), posts, calls, handlers)
 					}
 					frDiagnosticSafe(t, result, gotStage, err)
 				})
@@ -334,6 +334,9 @@ func frClient(t *testing.T, steps ...frStep) *frScript {
 		step := steps[i]
 		if step.before != nil {
 			step.before(r)
+		}
+		if err := r.Context().Err(); err != nil {
+			return nil, err
 		}
 		if step.err != nil {
 			return nil, step.err
