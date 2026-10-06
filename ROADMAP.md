@@ -42,7 +42,15 @@ canonical-main CI `37279190953` attempt 1. P12-C0-R1-CI1 is **CLOSED / PASS**:
 test-only remediation PR #41 merged as
 `0a13ab776e66c35e3a9137b465ee1fce2abae8ff`, and fresh push-main CI
 `37402403722` passed attempt 1 on that exact head with all three required jobs
-PASS. P13 is **NOT AUTHORIZED / NOT STARTED**.
+PASS. No Phase 13 implementation package is authorized or started.
+
+**P13-A0 next-wave selection is IMPLEMENTED / DOCUMENTED / UNDER REVIEW.** The
+proposal recommends **Phase 13 — Bounded Execution Evidence and Trace Model**:
+a private, bounded, redacted execution-evidence foundation with no persistence,
+network export, new execution authority, public API, CLI behavior, or runtime
+implementation authorized. Phase 13 remains **NOT YET DEFINED /
+IMPLEMENTATION NOT AUTHORIZED** pending Owner selection review. See
+[P13-A0 Next-Wave Architecture Selection](docs/architecture/P13-A0-next-wave-selection.md).
 
 ---
 
@@ -761,7 +769,8 @@ P12-C0: **CLOSED / PASS — DEFERRED CLOSURE INTEGRATED**.
 P12-C0-R1: **CLOSED**; original canonical-main CI attempt 1 failed and remains
 historical evidence.
 P12-C0-R1-CI1: **CLOSED / PASS**.
-P13: **NOT AUTHORIZED / NOT STARTED**.
+P13-A0: **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
+Phase 13: **NOT YET DEFINED / IMPLEMENTATION NOT AUTHORIZED**.
 
 Objective: bind native image admission to the exact open executable object whose
 bytes, host format, architecture, and filesystem identity Forge accepted. A hash,
@@ -818,8 +827,8 @@ Reassessment requires either a supported Go executable-descriptor child-start AP
 with the full Phase 11 and failure-evidence contract, or a documented Windows API
 that creates from an open executable handle or attests admitted-image identity for
 one. B4 remains blocked; no partial production integration is planned. If those
-prerequisites emerge, a future separately selected **P13-A0 — Verified Immutable
-Execution Snapshot Selection** may evaluate a new ADR. A sealed snapshot can
+prerequisites emerge, a future separately selected **Verified Immutable Execution
+Snapshot** architecture gate may evaluate a new ADR. A sealed snapshot can
 address byte immutability but does not alone solve native admission. A separately
 named Windows Executable Mutation Exclusion family may also be considered, but it
 must not be described as verified object binding.

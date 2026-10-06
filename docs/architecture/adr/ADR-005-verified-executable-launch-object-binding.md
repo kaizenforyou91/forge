@@ -19,7 +19,8 @@ VERIFIED-LAUNCH CLAIM.**
 - P12-C0-R1: **CLOSED**; original canonical-main CI attempt 1 failed and remains
   historical evidence.
 - P12-C0-R1-CI1: **CLOSED / PASS**.
-- P13: **NOT AUTHORIZED / NOT STARTED**.
+- P13-A0 next-wave selection: **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
+- Phase 13: **NOT YET DEFINED / IMPLEMENTATION NOT AUTHORIZED**.
 
 This ADR preserves the frozen architecture. Current main implements no native
 launch-binding mechanism and makes no strengthened platform claim. C0 records the
@@ -463,9 +464,9 @@ image identity tied to a specified open file object. It must compose with
 documented namespace and reparse behavior, and non-administrator operation.
 
 If those native-admission prerequisites become viable, a separately selected
-future direction may begin as **P13-A0 — Verified Immutable Execution Snapshot
-Selection**, with a new ADR. A sealed Linux memfd could address snapshot byte
-immutability, but it does not by itself solve supported Go descriptor execution.
+future **Verified Immutable Execution Snapshot** architecture gate may create a
+new ADR. A sealed Linux memfd could address snapshot byte immutability, but it
+does not by itself solve supported Go descriptor execution.
 ADR-005 is not rewritten into snapshot semantics. Windows executable mutation
 exclusion is likewise a potentially useful, separately named weaker hardening
 family; it is not Verified Executable Launch Object Binding.
