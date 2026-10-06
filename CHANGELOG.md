@@ -5,12 +5,18 @@ Keep a Changelog, and release identities follow Semantic Versioning.
 
 ## Unreleased
 
-- P12-C0 records the documentation/evidence-only deferred closure of Phase 12
-  and is CLOSED / PASS — DEFERRED CLOSURE INTEGRATED. C0 merged as
-  `917def87aebb4d4351448f4bd84bd7f6c8357179` and strict push-main CI
-  `36985492452` passed attempt 1 on that exact head with Ubuntu acceptance,
-  Windows acceptance, and Ubuntu race PASS. Phase 12 is **CLOSED /
-  BLOCKED-DEFERRED — FROZEN INVARIANT RETAINED; NO VERIFIED-LAUNCH CLAIM**.
+- P12-C0 records the documentation/evidence-only deferred closure of Phase 12.
+  P12-C0-R1 merged as `e8a7100ec14e4da2124a439a10a51c77e67b5dd0`,
+  but its original canonical-main CI `37279190953` failed attempt 1 in Ubuntu
+  race because the scripted test transport could return a synthetic successful
+  response after observing context cancellation. P12-C0-R1-CI1 corrected only
+  that test determinism through PR #41; it merged as canonical main
+  `0a13ab776e66c35e3a9137b465ee1fce2abae8ff`. Fresh push-main CI
+  `37402403722` passed attempt 1 on that exact head: Ubuntu acceptance
+  `112072276131`, Windows acceptance `112072276373`, and Ubuntu race
+  `112072276420` all passed. The historical failure remains part of the closure
+  record. Phase 12 remains **CLOSED / BLOCKED-DEFERRED — FROZEN INVARIANT
+  RETAINED; NO VERIFIED-LAUNCH CLAIM**.
   P12-B2 and P12-B3 are CLOSED / FEASIBILITY STOP with no implementation;
   P12-B1 remains integrated, private, and dormant; P12-B4 was not executed
   because no truthful native binding mechanism exists within the accepted
@@ -18,8 +24,8 @@ Keep a Changelog, and release identities follow Semantic Versioning.
   complete-byte, native-admission invariant remains unchanged, and current main
   makes no strengthened verified-launch claim. This adds zero runtime behavior,
   source, test, workflow, API, CLI, format, trust, persistence, authority, or
-  dependency change. The final deferred-closure gate passed without adding a
-  native binding mechanism.
+  dependency change. P12-C0-R1-CI1 is CLOSED / PASS without adding a native
+  binding mechanism or changing production semantics.
 - P12-A1 is CLOSED / PASS — INTEGRATED. P12-B1 adds only the private,
   platform-neutral verified-launch ownership core: single-use native-created and
   admission-proven evidence, synchronous exactly-once finalization, cached failure
