@@ -37,9 +37,12 @@ P12-A1 and P12-B1
 are **CLOSED / PASS — INTEGRATED**, with B1 dormant. P12-B2 and P12-B3 are
 **CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**. P12-B4 is **CLOSED / NOT
 EXECUTED — NATIVE PREREQUISITES ABSENT**. P12-C0 is **CLOSED / PASS — DEFERRED
-CLOSURE INTEGRATED** at merge `917def87aebb4d4351448f4bd84bd7f6c8357179`;
-strict push-main CI `36985492452` passed attempt 1 on that exact head with all
-three required jobs PASS.
+CLOSURE INTEGRATED**. P12-C0-R1 is **CLOSED**, retaining historical failed
+canonical-main CI `37279190953` attempt 1. P12-C0-R1-CI1 is **CLOSED / PASS**:
+test-only remediation PR #41 merged as
+`0a13ab776e66c35e3a9137b465ee1fce2abae8ff`, and fresh push-main CI
+`37402403722` passed attempt 1 on that exact head with all three required jobs
+PASS. P13 is **NOT AUTHORIZED / NOT STARTED**.
 
 ---
 
@@ -755,6 +758,10 @@ P12-B2: **CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**.
 P12-B3: **CLOSED / FEASIBILITY STOP — NO IMPLEMENTATION**.
 P12-B4: **CLOSED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT**.
 P12-C0: **CLOSED / PASS — DEFERRED CLOSURE INTEGRATED**.
+P12-C0-R1: **CLOSED**; original canonical-main CI attempt 1 failed and remains
+historical evidence.
+P12-C0-R1-CI1: **CLOSED / PASS**.
+P13: **NOT AUTHORIZED / NOT STARTED**.
 
 Objective: bind native image admission to the exact open executable object whose
 bytes, host format, architecture, and filesystem identity Forge accepted. A hash,
@@ -777,7 +784,7 @@ behavior and authorizes no B package.
 | P12-B4 | ProcessRunner integration / compatibility hardening | CLOSED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT |
 | P12-C0 | Deferred closure evidence and documentation | CLOSED / PASS — DEFERRED CLOSURE INTEGRATED |
 
-Canonical closure evidence is PR #39 at final head
+Initial deferred-closure evidence is PR #39 at final head
 `ca04feca740e695731fb07203b1169a866d24ff0`, merged as
 `917def87aebb4d4351448f4bd84bd7f6c8357179` with tree
 `e8290f89c69135ea965c26061582e758091f658c` and parents
@@ -786,6 +793,17 @@ Canonical closure evidence is PR #39 at final head
 `36985492452` passed attempt 1 on the exact merge head: Ubuntu acceptance
 `110769456688`, Windows acceptance `110769457708`, and Ubuntu race
 `110769457050` all passed.
+
+Final evidence reconciliation preserves the later history. P12-C0-R1 merged as
+`e8a7100ec14e4da2124a439a10a51c77e67b5dd0`; its original canonical-main CI
+`37279190953` failed attempt 1 in Ubuntu race. The failure was isolated to
+scripted transport nondeterminism, not a production semantic defect. Test-only
+remediation PR #41 at head `d8a667deb39d6ddfa8772b8cb1e07ab50fcbe1b8`
+merged as canonical main `0a13ab776e66c35e3a9137b465ee1fce2abae8ff`.
+Fresh push-main CI `37402403722` passed attempt 1 on that exact head: Ubuntu
+acceptance `112072276131`, Windows acceptance `112072276373`, and Ubuntu race
+`112072276420` all passed. P12-C0-R1-CI1 is therefore CLOSED / PASS; the
+historical failure remains recorded.
 
 Phase 12 retains ADR-005's exact accepted-object, complete-byte, native-admission
 invariant. B2 found Linux kernel descriptor admission but no supported Go child-

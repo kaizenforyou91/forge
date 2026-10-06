@@ -16,6 +16,10 @@ VERIFIED-LAUNCH CLAIM.**
 - P12-B4: **CLOSED / NOT EXECUTED — NATIVE PREREQUISITES ABSENT**.
 - P12-R0: **CLOSED / PASS — REASSESSMENT ACCEPTED**.
 - P12-C0: **CLOSED / PASS — DEFERRED CLOSURE INTEGRATED**.
+- P12-C0-R1: **CLOSED**; original canonical-main CI attempt 1 failed and remains
+  historical evidence.
+- P12-C0-R1-CI1: **CLOSED / PASS**.
+- P13: **NOT AUTHORIZED / NOT STARTED**.
 
 This ADR preserves the frozen architecture. Current main implements no native
 launch-binding mechanism and makes no strengthened platform claim. C0 records the
@@ -417,6 +421,31 @@ supported platform and toolchain primitives cannot establish it within Forge's
 accepted boundaries. It does not mean the specification failed, implementation
 partially shipped, path-based launch became verified, or the threat model was
 reduced.
+
+### Final closure-evidence reconciliation
+
+P12-C0-R1 merged as `e8a7100ec14e4da2124a439a10a51c77e67b5dd0`.
+Its original canonical-main workflow `37279190953` failed attempt 1 in Ubuntu
+race at `TestFunctionRoundTripDiagnosticContext/true/second`. The failure was
+diagnosed as nondeterminism in the scripted test transport: after deterministically
+observing context cancellation, the fixture could still return a synthetic
+successful response. It was not a production semantic defect.
+
+P12-C0-R1-CI1 changed only that test fixture and its assertion diagnostics; it
+made no production behavior change and did not alter this ADR's invariant or
+feasibility conclusions. Remediation PR #41 at head
+`d8a667deb39d6ddfa8772b8cb1e07ab50fcbe1b8` merged as canonical main
+`0a13ab776e66c35e3a9137b465ee1fce2abae8ff`. Fresh push-main CI
+`37402403722` passed attempt 1 on that exact head: Ubuntu acceptance
+`112072276131`, Windows acceptance `112072276373`, and Ubuntu race
+`112072276420` all passed. P12-C0-R1-CI1 is therefore **CLOSED / PASS**. The
+original failed run remains part of the permanent evidence chain.
+
+This reconciliation completes evidence for the deferred closure. Phase 12
+remains **CLOSED / BLOCKED-DEFERRED — FROZEN INVARIANT RETAINED; NO
+VERIFIED-LAUNCH CLAIM**. It does not imply that native verified launch binding
+was implemented, that the B2/B3 feasibility stops were reversed, that B4 ran, or
+that the invariant was weakened.
 
 ### Reassessment triggers
 
