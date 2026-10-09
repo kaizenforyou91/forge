@@ -31,7 +31,7 @@ The conceptual private model is:
 
 ```text
 Run or Sequence owner
-  -> EvidenceOwner (one synchronous writer)
+  -> EvidenceOwner (one serialized writer at a time)
      -> bounded []EvidenceEvent
      -> EvidenceSnapshot (defensive copy)
 ```
@@ -76,10 +76,16 @@ the safe boundary if a later package explicitly authorizes them.
 1. Evidence configuration is validated during construction, before execution is
    admitted.
 2. A successful construction creates one private owner for one Run or Sequence.
-3. The executing caller is the sole event writer. The owner starts no goroutine.
+3. The executing caller writes running-path events. Before execution is claimed,
+   `Cancel` may instead publish the Ready-to-canceled transition. These paths
+   are serialized by the Run or Sequence lifecycle mutex: there is one active
+   writer at a time, not necessarily one goroutine for the owner's lifetime.
+   The evidence owner starts no goroutine.
 4. Evidence append and terminal publication are synchronous with the lifecycle
-   transition they describe and occur under the execution owner's established
-   ordering or an explicitly composed evidence mutex.
+   transition they describe. The lifecycle lock orders competing `Execute` and
+   `Cancel` calls; an evidence mutex may additionally protect concurrent
+   snapshots. Snapshot never calls back into the lifecycle owner or reverses
+   that lock order.
 5. Readers may request snapshots concurrently; they never receive backing
    storage or authority references.
 6. A completed or interrupted owner is immutable. No reset, retry, resume, or
@@ -117,8 +123,8 @@ The version-1 vocabulary is deliberately small:
 
 | Event | Allowed payload | Rule |
 |---|---|---|
-| `ExecutionAdmitted` | none | first event; fixed authority was accepted before work |
-| `ExecutionStarted` | none | follows admission before delegated work |
+| `ExecutionAdmitted` | none | first event only when `Execute` wins the Ready claim |
+| `ExecutionStarted` | none | follows admission before delegated work; absent if Ready cancellation wins |
 | `StepBoundary` | boundary, step index, step kind | Sequence only; begin/end for an admitted child |
 | `ProviderBoundary` | boundary, optional step index | begin immediately before provider delegation; end after synchronous return |
 | `AuthorizedToolBoundary` | boundary, optional step index | begin only after tool admission and before handler execution; end after return |
@@ -196,8 +202,15 @@ generic internal/provider failure category without retaining their content.
 ## Logical ordering
 
 - Sequence numbers start at 1 and increase by exactly one.
-- `ExecutionAdmitted` is first and `ExecutionStarted` precedes any provider,
-  tool, step, usage, cancellation, or terminal event.
+- If `Execute` wins the Ready claim, `ExecutionAdmitted` is first and
+  `ExecutionStarted` precedes any provider, tool, step, usage, cancellation, or
+  terminal event. A pre-canceled context still follows this claimed-execution
+  path, although delegated provider work may be prevented.
+- If `Cancel` wins while the Run or Sequence is Ready, no execution is admitted
+  or started. Under the lifecycle lock it publishes `CancellationObserved`
+  followed by `Terminal(canceled)` and closes the existing `Done` channel only
+  after terminal evidence is visible. A later `Execute` remains consumed and
+  cannot append events. No provider, tool, or step boundary is fabricated.
 - Provider/tool begin and end boundaries are properly nested. An authorized tool
   boundary occurs within its owning provider round trip and never grants or
   selects authority.
@@ -321,14 +334,20 @@ Snapshots have three fixed phases: invalid, in-progress, and final. Final has
 either a normally completed terminal classification or interrupted evidence.
 
 - `Snapshot` is available after successful construction and may be called before,
-  during, or after execution.
-- It locks the owner, copies scalar state and the event slice, unlocks, and
-  returns. It performs no callback or I/O.
-- Concurrent Snapshot calls are supported. Event writing remains single-writer;
-  lifecycle synchronization serializes it with readers.
+  during, or after execution. Before an `Execute` or `Cancel` claim, it is a
+  valid version-1 in-progress snapshot with zero events and no terminal.
+- It locks the evidence owner only, copies scalar state and the event slice,
+  unlocks, and returns. It neither acquires a Run/Sequence lifecycle lock nor
+  performs a callback or I/O.
+- Concurrent Snapshot calls are supported. Event writing is serialized across
+  the executing caller and a possible Ready `Cancel` caller; lifecycle
+  synchronization serializes writes with readers.
 - Every returned snapshot owns its event backing storage. Mutation of one copy
   cannot affect the owner or another snapshot.
-- In-progress snapshots are consistent prefixes and may differ over time.
+- In-progress snapshots are consistent prefixes and may differ over time. A
+  Ready-canceled owner instead has a valid final snapshot containing only
+  `CancellationObserved` and `Terminal(canceled)`; it has no admission or start
+  event. This final snapshot differs from an invalid zero-owner snapshot.
 - A final snapshot is byte-for-byte stable across repeated/concurrent calls.
 - Schema version is present in every valid snapshot, including in-progress and
   interrupted snapshots.
@@ -370,6 +389,8 @@ lifecycle hooks rather than sleeps or live providers.
 | successful text Run | admitted, started, provider begin/end, usage, succeeded terminal in exact order |
 | failed Run | safe category only, zero raw error data, failed terminal |
 | canceled Run | cancellation recorded only when observed; canceled terminal matches Run winner |
+| Ready cancellation of Run or Sequence | `Cancel` wins the Ready claim under the lifecycle lock; final snapshot has cancellation then canceled terminal, no admission/start/delegation event, and terminal evidence precedes `Done` closure |
+| `Execute` versus Ready `Cancel` race | exactly one claim wins; the winning path alone writes its valid ordered events and later calls cannot append |
 | panic unwind | original panic identity propagates; failed terminal only where existing owner publishes it, otherwise immutable interrupted snapshot |
 | successful Sequence | indices 0..N-1 ordered, child boundaries nested, one sequence terminal |
 | mid-sequence failure | completed prefix only; no later step admission; failed terminal |
