@@ -44,13 +44,15 @@ test-only remediation PR #41 merged as
 `37402403722` passed attempt 1 on that exact head with all three required jobs
 PASS. No Phase 13 implementation package is authorized or started.
 
-**P13-A0 next-wave selection is IMPLEMENTED / DOCUMENTED / UNDER REVIEW.** The
-proposal recommends **Phase 13 — Bounded Execution Evidence and Trace Model**:
+**P13-A0 is CLOSED / PASS — SELECTION ACCEPTED.** The Owner selected **Phase 13
+— Bounded Execution Evidence and Trace Model**:
 a private, bounded, redacted execution-evidence foundation with no persistence,
 network export, new execution authority, public API, CLI behavior, or runtime
-implementation authorized. Phase 13 remains **NOT YET DEFINED /
-IMPLEMENTATION NOT AUTHORIZED** pending Owner selection review. See
-[P13-A0 Next-Wave Architecture Selection](docs/architecture/P13-A0-next-wave-selection.md).
+implementation authorized. Phase 13 is **SELECTED / DEFINED AT WAVE LEVEL —
+ARCHITECTURE FREEZE IN P13-A1 — IMPLEMENTATION NOT AUTHORIZED**. P13-A1 is
+architecture/documentation only and remains under review; P13-B1/B2/B3/B4/C0
+are not authorized or started. See [the P13-A0 selection record](docs/architecture/P13-A0-next-wave-selection.md)
+and [ADR-006](docs/architecture/adr/ADR-006-bounded-execution-evidence-and-trace-model.md).
 
 ---
 
@@ -769,8 +771,9 @@ P12-C0: **CLOSED / PASS — DEFERRED CLOSURE INTEGRATED**.
 P12-C0-R1: **CLOSED**; original canonical-main CI attempt 1 failed and remains
 historical evidence.
 P12-C0-R1-CI1: **CLOSED / PASS**.
-P13-A0: **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
-Phase 13: **NOT YET DEFINED / IMPLEMENTATION NOT AUTHORIZED**.
+P13-A0: **CLOSED / PASS — SELECTION ACCEPTED**.
+Phase 13: **SELECTED / DEFINED AT WAVE LEVEL — ARCHITECTURE FREEZE IN P13-A1 —
+IMPLEMENTATION NOT AUTHORIZED**.
 
 Objective: bind native image admission to the exact open executable object whose
 bytes, host format, architecture, and filesystem identity Forge accepted. A hash,

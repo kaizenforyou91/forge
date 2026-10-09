@@ -19,8 +19,9 @@ VERIFIED-LAUNCH CLAIM.**
 - P12-C0-R1: **CLOSED**; original canonical-main CI attempt 1 failed and remains
   historical evidence.
 - P12-C0-R1-CI1: **CLOSED / PASS**.
-- P13-A0 next-wave selection: **IMPLEMENTED / DOCUMENTED / UNDER REVIEW**.
-- Phase 13: **NOT YET DEFINED / IMPLEMENTATION NOT AUTHORIZED**.
+- P13-A0 next-wave selection: **CLOSED / PASS — SELECTION ACCEPTED**.
+- Phase 13: **SELECTED / DEFINED AT WAVE LEVEL — ARCHITECTURE FREEZE IN P13-A1
+  — IMPLEMENTATION NOT AUTHORIZED**.
 
 This ADR preserves the frozen architecture. Current main implements no native
 launch-binding mechanism and makes no strengthened platform claim. C0 records the

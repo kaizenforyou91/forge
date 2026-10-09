@@ -2,16 +2,20 @@
 
 ## Status
 
-**P13-A0 — IMPLEMENTED / DOCUMENTED / UNDER REVIEW.**
+**P13-A0 — CLOSED / PASS — SELECTION ACCEPTED.**
 
-**Phase 13 is NOT YET DEFINED. No P13 implementation package is authorized.**
+**Phase 13 is SELECTED / DEFINED AT WAVE LEVEL — ARCHITECTURE FREEZE IN P13-A1 —
+IMPLEMENTATION NOT AUTHORIZED.**
 
 Recommended direction:
 
 > **Phase 13 — Bounded Execution Evidence and Trace Model**
 
-This document is a selection proposal, not an architecture freeze. P13-A1 would
-define the detailed contract in a new ADR only after explicit Owner approval.
+The Owner accepted this selection through PR #43, merged as canonical main
+`6a2c08206d26a91286bc97683a136c68811ac537`; exact push-main CI `37581864515`
+passed attempt 1 with all three required jobs. This document remains the
+selection record, not the architecture freeze. P13-A1 defines the detailed
+contract in [ADR-006](adr/ADR-006-bounded-execution-evidence-and-trace-model.md).
 
 Phase 12 remains **CLOSED / BLOCKED-DEFERRED — FROZEN INVARIANT RETAINED; NO
 VERIFIED-LAUNCH CLAIM**. Nothing in this proposal reopens ADR-005, weakens its
@@ -542,6 +546,5 @@ This is the highest-value bounded next step because it strengthens debugging,
 evaluation readiness, and future reliability work while adding no new execution
 authority and requiring no unsupported native mechanism.
 
-No P13-A1 or implementation package is authorized by this document. Phase 13
-remains **NOT YET DEFINED / IMPLEMENTATION NOT AUTHORIZED** until the Owner
-accepts the selection and separately authorizes an architecture-freeze package.
+The selection is accepted. P13-A1 is the separately authorized architecture-only
+freeze; no evidence implementation package is authorized by this document.
